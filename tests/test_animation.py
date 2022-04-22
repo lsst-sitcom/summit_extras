@@ -25,7 +25,7 @@ import os
 
 import lsst.utils.tests
 
-from lsst.rapid.analysis.animation import Animator
+from lsst.summit.extras.animation import Animator
 
 import lsst.daf.butler as dafButler
 

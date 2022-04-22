@@ -30,7 +30,7 @@ from matplotlib.pyplot import cm
 
 from lsst.obs.lsst.translators.lsst import FILTER_DELIMITER
 from astro_metadata_translator import ObservationInfo
-from lsst.rapid.analysis.butlerUtils import makeDefaultLatissButler, getSeqNumsForDayObs, sanitize_day_obs
+from lsst.summit.utils.butlerUtils import makeDefaultLatissButler, getSeqNumsForDayObs, sanitize_day_obs
 
 __all__ = ['NightReporter', 'saveReport', 'loadReport']
 

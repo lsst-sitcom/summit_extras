@@ -28,8 +28,8 @@ import lsst.utils.tests
 import matplotlib as mpl
 mpl.use('Agg')
 
-from lsst.rapid.analysis.nightReport import NightReporter, loadReport, saveReport  # noqa: E402
-import lsst.rapid.analysis.butlerUtils as bu  # noqa: E402, N813
+from lsst.summit.extras.nightReport import NightReporter, loadReport, saveReport  # noqa: E402
+import lsst.summit.utils.butlerUtils as bu  # noqa: E402, N813
 import lsst.daf.butler as dafButler  # noqa: E402, N813
 
 
@@ -58,7 +58,7 @@ class NightReporterTestCase(lsst.utils.tests.TestCase):
         writeDir = tempfile.mkdtemp()
         saveReport(self.reporter, writeDir)
         loaded = loadReport(writeDir, self.dayObs)
-        self.assertIsInstance(loaded, lsst.rapid.analysis.nightReport.NightReporter)
+        self.assertIsInstance(loaded, lsst.summit.extras.nightReport.NightReporter)
         self.assertGreaterEqual(len(loaded.data), 1)
         self.assertEqual(loaded.dayObs, self.dayObs)
 

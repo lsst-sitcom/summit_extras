@@ -24,7 +24,7 @@ import tempfile
 import pickle
 
 import lsst.utils.tests
-from lsst.rapid.analysis.annotations import Annotations, _idTrans
+from lsst.summit.extras.annotations import Annotations, _idTrans
 
 
 tagId1 = {'dayObs': '1970-01-01', 'seqNum': 1}  # A

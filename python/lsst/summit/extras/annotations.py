@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from lsst.rapid.analysis.imageSorter import ImageSorter, TAGS
+from lsst.summit.extras.imageSorter import ImageSorter, TAGS
 
 
 def _idTrans(dataIdDictOrTuple):

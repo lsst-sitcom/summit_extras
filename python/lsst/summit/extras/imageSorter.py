@@ -47,7 +47,7 @@ INSTRUCTIONS = (TAGS + '\n' +
 
 
 class ImageSorter():
-    """Take a list on png files, as created by lsst.rapid.analysis.animator
+    """Take a list on png files, as created by lsst.summit.extras.animator
     and tag each dataId with a number of attributes.
 
     Returns a dict of dataId dictionaries with values being the corresponding
@@ -103,7 +103,7 @@ class ImageSorter():
         Anything after a space is returned as a whole string,
         anything before it is lower-cased and returned as tags.
 
-        from lsst.rapid.analysis import ImageSorter
+        from lsst.summit.extras import ImageSorter
         tags, notes = ImageSorter.loadAnnotations(pickleFilename)
         """
         loaded = cls._load(pickleFilename)

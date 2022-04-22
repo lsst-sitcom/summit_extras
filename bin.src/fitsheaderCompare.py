@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-from lsst.rapid.analysis.headerFunctions import compareHeaders
+from lsst.summit.extras.headerFunctions import compareHeaders
 
 
 def main():

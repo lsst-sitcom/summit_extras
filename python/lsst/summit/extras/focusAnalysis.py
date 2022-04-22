@@ -34,14 +34,14 @@ from scipy.optimize import curve_fit
 from scipy.linalg import norm
 
 # TODO: change these back to local .imports
-from lsst.rapid.analysis.bestEffort import BestEffortIsr
-from lsst.rapid.analysis import ImageExaminer
-from lsst.rapid.analysis.utils import FWHMTOSIGMA, SIGMATOFWHM
+from lsst.summit.utils.bestEffort import BestEffortIsr
+from lsst.summit.utils import ImageExaminer
+from lsst.summit.utils.utils import FWHMTOSIGMA, SIGMATOFWHM
 from lsst.atmospec.utils import isDispersedExp
 
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
-from lsst.rapid.analysis.butlerUtils import (makeDefaultLatissButler, getExpRecordFromDataId,
-                                             LATISS_REPO_LOCATION_MAP)
+from lsst.summit.utils.butlerUtils import (makeDefaultLatissButler, getExpRecordFromDataId,
+                                           LATISS_REPO_LOCATION_MAP)
 
 __all__ = ["SpectralFocusAnalyzer", "NonSpectralFocusAnalyzer"]
 

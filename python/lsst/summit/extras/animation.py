@@ -33,13 +33,13 @@ import lsst.afw.display as afwDisplay
 import lsst.afw.math as afwMath
 import logging
 import lsst.meas.algorithms as measAlg
-from lsst.rapid.analysis.utils import dayObsIntToString
-from lsst.rapid.analysis.butlerUtils import (datasetExists, getExpRecordFromDataId, makeDefaultLatissButler,
-                                             getDayObs, getSeqNum, updateDataIdOrDataCord,
-                                             getLatissOnSkyDataIds)
+from lsst.summit.utils.utils import dayObsIntToString
+from lsst.summit.utils.butlerUtils import (datasetExists, getExpRecordFromDataId, makeDefaultLatissButler,
+                                           getDayObs, getSeqNum, updateDataIdOrDataCord,
+                                           getLatissOnSkyDataIds)
 
 from lsst.atmospec.utils import airMassFromRawMetadata
-logger = logging.getLogger("lsst.rapid.analysis.animation")
+logger = logging.getLogger("lsst.summit.extras.animation")
 
 
 class Animator():

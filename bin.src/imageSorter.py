@@ -5,7 +5,7 @@ import glob
 import sys
 import os
 from os.path import abspath
-from lsst.rapid.analysis import ImageSorter
+from lsst.summit.extras import ImageSorter
 
 
 def main():

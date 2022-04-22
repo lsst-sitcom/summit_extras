@@ -5,7 +5,7 @@ import glob
 import sys
 import os
 from os.path import abspath
-from lsst.rapid.analysis.headerFunctions import keyValuesSetFromFiles
+from lsst.summit.extras.headerFunctions import keyValuesSetFromFiles
 
 
 def main():
