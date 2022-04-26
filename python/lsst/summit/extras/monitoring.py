@@ -25,7 +25,7 @@ from lsst.pex.exceptions import NotFoundError
 from lsst.summit.utils.bestEffort import BestEffortIsr
 import lsst.geom as geom
 from time import sleep
-from lsst.summit.utils.butlerUtils import (makeDefaultLatissButler, LATISS_REPO_LOCATION_MAP,
+from lsst.summit.utils.butlerUtils import (makeDefaultLatissButler,
                                            getMostRecentDataId, getExpIdFromDayObsSeqNum,
                                            getExpRecordFromDataId)
 
@@ -41,30 +41,18 @@ class Monitor():
     Now largely superceded by RubinTV.
 
     Parameters
-    ----------
-    location : `str`
-        The location
-
-    Returns
     -------
-    location : `str`
-        The location. To be removed in DM-34238.
     fireflyDisplay : `lsst.afw.display.Display`
         A Firefly display instance.
-
-    Notes
-    -----
-    TODO: DM-34238 remove location from init
     """
     cadence = 1  # in seconds
     runIsr = True
 
-    def __init__(self, location, fireflyDisplay, **kwargs):
+    def __init__(self, fireflyDisplay, **kwargs):
         """"""
-        self.butler = makeDefaultLatissButler(location)
+        self.butler = makeDefaultLatissButler()
         self.display = fireflyDisplay
-        repoDir = LATISS_REPO_LOCATION_MAP[location]
-        self.bestEffort = BestEffortIsr(repoDir, **kwargs)
+        self.bestEffort = BestEffortIsr(**kwargs)
         self.writeQuickLookImages = None
         self.overlayAmps = False  # do the overlay?
         self.measureFromChipCenter = False

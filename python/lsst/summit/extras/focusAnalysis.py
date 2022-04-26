@@ -40,8 +40,7 @@ from lsst.summit.utils.utils import FWHMTOSIGMA, SIGMATOFWHM
 from lsst.atmospec.utils import isDispersedExp
 
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
-from lsst.summit.utils.butlerUtils import (makeDefaultLatissButler, getExpRecordFromDataId,
-                                           LATISS_REPO_LOCATION_MAP)
+from lsst.summit.utils.butlerUtils import (makeDefaultLatissButler, getExpRecordFromDataId)
 
 __all__ = ["SpectralFocusAnalyzer", "NonSpectralFocusAnalyzer"]
 
@@ -73,10 +72,9 @@ class SpectralFocusAnalyzer():
     focusAnalyzer.run() can be used instead of the last two lines separately.
     """
 
-    def __init__(self, location, **kwargs):
-        self.butler = makeDefaultLatissButler(location)
-        repoDir = LATISS_REPO_LOCATION_MAP[location]
-        self._bestEffort = BestEffortIsr(repoDir, **kwargs)
+    def __init__(self, **kwargs):
+        self.butler = makeDefaultLatissButler()
+        self._bestEffort = BestEffortIsr(**kwargs)
         qfmTaskConfig = QuickFrameMeasurementTaskConfig()
         self._quickMeasure = QuickFrameMeasurementTask(config=qfmTaskConfig)
 
@@ -384,10 +382,9 @@ class NonSpectralFocusAnalyzer():
     focusAnalyzer.run() can be used instead of the last two lines separately.
     """
 
-    def __init__(self, location, **kwargs):
-        self.butler = makeDefaultLatissButler(location)
-        repoDir = LATISS_REPO_LOCATION_MAP[location]
-        self._bestEffort = BestEffortIsr(repoDir, **kwargs)
+    def __init__(self, **kwargs):
+        self.butler = makeDefaultLatissButler()
+        self._bestEffort = BestEffortIsr(**kwargs)
 
     @staticmethod
     def _getFocusFromHeader(exp):
@@ -596,8 +593,7 @@ class NonSpectralFocusAnalyzer():
 
 if __name__ == '__main__':
     # TODO: DM-34239 Move this to be a butler-driven test
-    location = 'NCSA'
-    analyzer = SpectralFocusAnalyzer(location)
+    analyzer = SpectralFocusAnalyzer()
     # dataId = {'dayObs': '2020-02-20', 'seqNum': 485}  # direct image
     dataId = {'day_obs': 20200312}
     seqNums = [121, 122]
