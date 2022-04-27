@@ -100,10 +100,10 @@ class ColorAndMarker:
 
 class NightReporter():
 
-    def __init__(self, location, dayObs, deferLoadingData=False):
+    def __init__(self, dayObs, deferLoadingData=False):
         self._supressAstroMetadataTranslatorWarnings()  # call early
 
-        self.butler = makeDefaultLatissButler(location)
+        self.butler = makeDefaultLatissButler()
         if isinstance(dayObs, str):
             dayObs = sanitize_day_obs(dayObs)
             print('Converted string-format dayObs to integer for Gen3')

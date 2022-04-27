@@ -26,8 +26,7 @@ import os
 import lsst.utils.tests
 
 from lsst.summit.extras.animation import Animator
-
-import lsst.daf.butler as dafButler
+from lsst.summit.utils.butlerUtils import makeDefaultLatissButler
 
 
 class AnimationTestCase(lsst.utils.tests.TestCase):
@@ -35,7 +34,7 @@ class AnimationTestCase(lsst.utils.tests.TestCase):
     @classmethod
     def setUpClass(cls):
         try:
-            cls.butler = dafButler.Butler('LATISS', instrument='LATISS', collections=['LATISS/raw/all'])
+            cls.butler = makeDefaultLatissButler()
         except FileNotFoundError:
             raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
 

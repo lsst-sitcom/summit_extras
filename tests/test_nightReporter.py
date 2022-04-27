@@ -29,8 +29,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 
 from lsst.summit.extras.nightReport import NightReporter, loadReport, saveReport  # noqa: E402
-import lsst.summit.utils.butlerUtils as bu  # noqa: E402, N813
-import lsst.daf.butler as dafButler  # noqa: E402, N813
+import lsst.summit.utils.butlerUtils as butlerUtils  # noqa: E402
 
 
 class NightReporterTestCase(lsst.utils.tests.TestCase):
@@ -38,19 +37,16 @@ class NightReporterTestCase(lsst.utils.tests.TestCase):
     @classmethod
     def setUpClass(cls):
         try:
-            cls.butler = dafButler.Butler('LATISS', instrument='LATISS', collections=['LATISS/raw/all'])
+            cls.butler = butlerUtils.makeDefaultLatissButler()
         except FileNotFoundError:
             raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
 
         cls.dayObs = 20200316  # has 213 images with 3 different stars
-        cls.seqNums = bu.getSeqNumsForDayObs(cls.butler, cls.dayObs)
+        cls.seqNums = butlerUtils.getSeqNumsForDayObs(cls.butler, cls.dayObs)
         cls.nImages = len(cls.seqNums)
 
-        # TODO: DM-34238 remove 'NCSA' once we're using RFC-811 stuff
-        # TODO: DM-33864 this ticket is very similar to the above, so they
-        # might well end up being combined, so noting both here.
         # Do the init in setUpClass because this takes about 29s for 20200316
-        cls.reporter = NightReporter('NCSA', cls.dayObs)
+        cls.reporter = NightReporter(cls.dayObs)
 
     def test_saveAndLoad(self):
         """Test that a NightReporter can save itself, and be loaded back.
