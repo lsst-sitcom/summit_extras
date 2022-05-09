@@ -25,6 +25,7 @@ import shutil
 import uuid
 import math
 
+from multiprocessing import Pool
 import matplotlib.pyplot as plt
 
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
@@ -55,7 +56,9 @@ class Animator():
                  useQfmForCentroids=False,
                  dataProductToPlot='calexp',
                  ffMpegBinary='/home/mfl/bin/ffmpeg',
-                 debug=False):
+                 debug=False,
+                 nWorkers=1,
+                 ):
 
         self.butler = butler
         self.dataIdList = dataIdList
@@ -74,6 +77,7 @@ class Animator():
         self.dataProductToPlot = dataProductToPlot
         self.ffMpegBinary = ffMpegBinary
         self.debug = debug
+        self.nWorkers = nWorkers
 
         # zfilled at the start as animation is alphabetical
         # if you're doing more than 1e6 files you've got bigger problems
@@ -191,6 +195,11 @@ class Animator():
         # make the missing pngs
         if self.pngsToMakeDataIds:
             logger.info('Creating necessary pngs...')
+            if self.nWorkers > 1:
+                logger.info(f'Using pool of {self.nWorkers} workers')
+                filenames = [self.dataIdToFilename(d) for d in self.pngsToMakeDataIds]
+                with Pool(self.nWorkers) as pool:
+                    pool.starmap(self.makePng, [[d, f] for d, f in zip(self.pngsToMakeDataIds, filenames)])
             for i, dataId in enumerate(self.pngsToMakeDataIds):
                 logger.info(f'Making png for file {i+1} of {len(self.pngsToMakeDataIds)}')
                 self.makePng(dataId, self.dataIdToFilename(dataId))
@@ -351,7 +360,7 @@ class Animator():
         return newExp
 
 
-def animateDay(butler, dayObs, outputPath, dataProductToPlot='quickLookExp'):
+def animateDay(butler, dayObs, outputPath, dataProductToPlot='quickLookExp', nWorkers=1):
     outputFilename = f'{dayObs}.mp4'
 
     onSkyIds = getLatissOnSkyDataIds(butler, startDate=dayObs, endDate=dayObs)
@@ -365,14 +374,15 @@ def animateDay(butler, dayObs, outputPath, dataProductToPlot='quickLookExp'):
                         debug=False,
                         clobberVideoAndGif=True,
                         plotObjectCentroids=True,
-                        useQfmForCentroids=True)
+                        useQfmForCentroids=True,
+                        nWorkers=nWorkers)
     animator.run()
 
 
 if __name__ == '__main__':
     # TODO: DM-34239 Move this to be a butler-driven test
     outputPath = '/home/mfl/animatorOutput/main/'
-    butler = makeDefaultLatissButler('NCSA')
+    butler = makeDefaultLatissButler()
 
-    day = 20211104
-    animateDay(butler, day, outputPath)
+    day = 20220503
+    animateDay(butler, day, outputPath, nWorkers=10)
