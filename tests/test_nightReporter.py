@@ -42,11 +42,15 @@ class NightReporterTestCase(lsst.utils.tests.TestCase):
             raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
 
         cls.dayObs = 20200314  # has 377 images and data also exists on the TTS & summit
-        cls.seqNums = butlerUtils.getSeqNumsForDayObs(cls.butler, cls.dayObs)
-        cls.nImages = len(cls.seqNums)
 
-        # Do the init in setUpClass because this takes about 29s for 20200316
+        # Do the init in setUpClass because this takes about 35s for 20200314
         cls.reporter = NightReporter(cls.dayObs)
+        # number of images isn't necessarily the same as the number for the
+        # the dayObs in the registry becacuse of the test stands/summit
+        # having partial data, so get the number of images from the length
+        # of the scraped data. Not ideal, but best that can be done due to
+        # only having partial days in the test datasets.
+        cls.nImages = len(cls.reporter.data.keys())
 
     def test_saveAndLoad(self):
         """Test that a NightReporter can save itself, and be loaded back.
