@@ -41,7 +41,7 @@ class NightReporterTestCase(lsst.utils.tests.TestCase):
         except FileNotFoundError:
             raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
 
-        cls.dayObs = 20200316  # has 213 images with 3 different stars
+        cls.dayObs = 20200314  # has 377 images and data also exists on the TTS & summit
         cls.seqNums = butlerUtils.getSeqNumsForDayObs(cls.butler, cls.dayObs)
         cls.nImages = len(cls.seqNums)
 
@@ -69,9 +69,10 @@ class NightReporterTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(len(fake_stdout.mock_calls), 2*(self.nImages+1))
 
         tailNumber = 20
+        nLines = min(self.nImages, tailNumber)  # test stands have very few images on some days
         with mock.patch('sys.stdout') as fake_stdout:
             self.reporter.printObsTable(tailNumber=tailNumber)
-        self.assertEqual(len(fake_stdout.mock_calls), 2*(tailNumber+1))
+        self.assertEqual(len(fake_stdout.mock_calls), 2*(nLines+1))
 
     def test_plotPerObjectAirMass(self):
         """Test that a the per-object airmass plots runs.
