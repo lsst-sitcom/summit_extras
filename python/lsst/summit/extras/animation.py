@@ -33,13 +33,14 @@ import lsst.afw.display as afwDisplay
 import lsst.afw.math as afwMath
 import logging
 import lsst.meas.algorithms as measAlg
-from lsst.summit.utils.utils import dayObsIntToString
+from lsst.summit.utils.utils import dayObsIntToString, setupLogging
 from lsst.summit.utils.butlerUtils import (datasetExists, getExpRecordFromDataId, makeDefaultLatissButler,
                                            getDayObs, getSeqNum, updateDataIdOrDataCord,
                                            getLatissOnSkyDataIds)
 
 from lsst.atmospec.utils import airMassFromRawMetadata
 logger = logging.getLogger("lsst.summit.extras.animation")
+setupLogging()
 
 
 class Animator():
@@ -370,9 +371,8 @@ def animateDay(butler, dayObs, outputPath, dataProductToPlot='quickLookExp'):
 
 
 if __name__ == '__main__':
-    # TODO: DM-34239 Move this to be a butler-driven test
     outputPath = '/home/mfl/animatorOutput/main/'
-    butler = makeDefaultLatissButler('NCSA')
+    butler = makeDefaultLatissButler()
 
     day = 20211104
     animateDay(butler, day, outputPath)
