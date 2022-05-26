@@ -241,7 +241,11 @@ class Animator():
         filt, grating = filterCompound.split('~')
         rawMd = self.butler.get('raw.metadata', dataId)
         airmass = airMassFromRawMetadata(rawMd)  # XXX this could be improved a lot
-        title = f"{getDayObs(dataId)} - seqNum {getSeqNum(dataId)} - "
+        dayObs = dayObsIntToString(getDayObs(dataId))
+        timestamp = expRecord.timespan.begin.to_datetime().strftime("%H:%M:%S")  # no microseconds
+        ms = expRecord.timespan.begin.to_datetime().strftime("%f")  # always 6 chars long, 000000 if zero
+        timestamp += f".{ms[0:2]}"
+        title = f"seqNum {getSeqNum(dataId)} - {dayObs} {timestamp}TAI - "
         title += f"Object: {obj} expTime: {expTime}s Filter: {filt} Grating: {grating} Airmass: {airmass:.3f}"
         return title
 
