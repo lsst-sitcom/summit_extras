@@ -55,7 +55,6 @@ class Animator():
                  plotObjectCentroids=True,
                  useQfmForCentroids=False,
                  dataProductToPlot='calexp',
-                 ffMpegBinary='/home/mfl/bin/ffmpeg',
                  debug=False):
 
         self.butler = butler
@@ -73,7 +72,6 @@ class Animator():
         self.plotObjectCentroids = plotObjectCentroids
         self.useQfmForCentroids = useQfmForCentroids
         self.dataProductToPlot = dataProductToPlot
-        self.ffMpegBinary = ffMpegBinary
         self.debug = debug
 
         # zfilled at the start as animation is alphabetical
@@ -143,8 +141,7 @@ class Animator():
         raise RuntimeError("Other type checks not yet implemented")
 
     def preRun(self):
-        # check the binary is there and the paths work
-        assert os.path.exists(self.ffMpegBinary), "Cannot find ffmpeg binary for animation"
+        # check the paths work
         if not os.path.exists(self.pngPath):
             os.makedirs(self.pngPath)
         assert os.path.exists(self.pngPath), f"Failed to create output dir: {self.pngsPath}"
