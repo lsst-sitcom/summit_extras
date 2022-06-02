@@ -28,7 +28,7 @@ import math
 import matplotlib.pyplot as plt
 
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
-from lsst.atmospec.processStar import getTargetCentroidFromWcs
+from lsst.atmospec.utils import getTargetCentroidFromWcs
 import lsst.afw.display as afwDisplay
 import lsst.afw.math as afwMath
 import logging
