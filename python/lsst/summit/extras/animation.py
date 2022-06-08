@@ -87,7 +87,8 @@ class Animator():
         self.fig = plt.figure(figsize=(15, 15))
         self.disp = afwDisplay.Display(self.fig)
         self.disp.setImageColormap('gray')
-        self.disp.scale('asinh', 'zscale')
+        # self.disp.scale('asinh', 'zscale')
+        self.disp.scale('linear', -5, 15)
 
         self.pngsToMakeDataIds = []
         self.preRun()  # sets the above list
@@ -247,17 +248,17 @@ class Animator():
     def getStarPixCoord(self, exp, doMotionCorrection=True, useQfm=False):
         target = exp.getMetadata()['OBJECT']
 
-        if self.useQfmForCentroids:
-            try:
-                result = self.qfmTask.run(exp)
-                pixCoord = result.brightestObjCentroid
-                expId = exp.getInfo().getVisitInfo().getExposureId()
-                logger.info(f'expId {expId} has centroid {pixCoord}')
-            except Exception:
-                return None
-        else:
-            pixCoord = getTargetCentroidFromWcs(exp, target, doMotionCorrection=doMotionCorrection)
-        return pixCoord
+        # if self.useQfmForCentroids:
+        #     try:
+        #         result = self.qfmTask.run(exp)
+        #         pixCoord = result.brightestObjCentroid
+        #         expId = exp.getInfo().getVisitInfo().getExposureId()
+        #         logger.info(f'expId {expId} has centroid {pixCoord}')
+        #     except Exception:
+        #         return None
+        # else:
+        #     pixCoord = getTargetCentroidFromWcs(exp, target, doMotionCorrection=doMotionCorrection)
+        # return pixCoord
 
     def makePng(self, dataId, saveFilename):
         if self.exists(saveFilename) and not self.remakePngs:  # should not be possible due to prerun
@@ -271,6 +272,22 @@ class Animator():
         # must always keep exp unsmoothed for the centroiding via qfm
         try:
             exp = self.butler.get(self.dataProductToPlot, dataId)
+            from lsst.ip.isr.isrTask import IsrTask
+            isrConfig = IsrTask.ConfigClass()
+            isrConfig.doLinearize = False
+            isrConfig.doBias = False
+            isrConfig.doFlat = False
+            isrConfig.doDark = False
+            isrConfig.doFringe = False
+            isrConfig.doDefect = False
+            isrConfig.doWrite = False
+            isrConfig.overscan.fitType = 'MEDIAN'
+            isrTask = IsrTask(config=isrConfig)
+
+            exp = isrTask.run(exp).exposure
+            diff = get_diff_lowpass(exp.image.array, size=250, power=4.0, use_zero=True)
+            exp.image.array = diff
+
         except Exception:
             # oh no, that should never happen, but it does! Let's just skip
             logger.warning(f'Skipped {dataId}, because {self.dataProductToPlot} retrieval failed!')
@@ -351,6 +368,101 @@ class Animator():
         return newExp
 
 
+import numpy as np
+import numpy
+import scipy
+
+def block_view(A, block_shape):
+    """Provide a 2D block view of a 2D array.
+
+    Returns a view with shape (n, m, a, b) for an input 2D array with
+    shape (n*a, m*b) and block_shape of (a, b).
+    """
+    assert len(A.shape) == 2, '2D input array is required.'
+    assert A.shape[0] % block_shape[0] == 0, 'Block shape[0] does not evenly divide array shape[0].'
+    assert A.shape[1] % block_shape[1] == 0, 'Block shape[1] does not evenly divide array shape[1].'
+    shape = np.array((A.shape[0] / block_shape[0], A.shape[1] / block_shape[1]) + block_shape).astype(int)
+    strides = np.array((block_shape[0] * A.strides[0], block_shape[1] * A.strides[1]) + A.strides).astype(int)
+    return numpy.lib.stride_tricks.as_strided(A, shape=shape, strides=strides)
+
+def apply_filter(A, smoothing, power=2.0):
+    """Apply a hi/lo pass filter to a 2D image.
+
+    The value of smoothing specifies the cutoff wavelength in pixels,
+    with a value >0 (<0) applying a hi-pass (lo-pass) filter. The
+    lo- and hi-pass filters sum to one by construction.  The power
+    parameter determines the sharpness of the filter, with higher
+    values giving a sharper transition.
+    """
+    if smoothing == 0:
+        return A
+    ny, nx = A.shape
+    # Round down dimensions to even values for rfft.
+    # Any trimmed row or column will be unfiltered in the output.
+    nx = 2 * (nx // 2)
+    ny = 2 * (ny // 2)
+    T = np.fft.rfft2(A[:ny, :nx])
+    # Last axis (kx) uses rfft encoding.
+    kx = np.fft.rfftfreq(nx)
+    ky = np.fft.fftfreq(ny)
+    kpow = (kx ** 2 + ky[:, np.newaxis] ** 2) ** (power / 2.)
+    k0pow = (1. / smoothing) ** power
+    if smoothing > 0:
+        F = kpow / (k0pow + kpow) # high pass
+    else:
+        F = k0pow / (k0pow + kpow) # low pass
+    S = A.copy()
+    S[:ny, :nx] = np.fft.irfft2(T * F)
+    return S
+
+def zero_by_region(data, region_shape, num_sigmas_clip=4.0, smoothing=250, power=4):
+    """Subtract the clipped median signal in each amplifier region.
+
+    Optionally also remove any smooth variation in the mean signal with
+    a high-pass filter controlled by the smoothing and power parameters.
+    Returns a an array of median levels in each region and a mask of
+    unclipped pixels.
+    """
+    mask = np.zeros_like(data, dtype=bool)
+
+    # Loop over amplifier regions.
+    regions = block_view(data, region_shape)
+    masks   = block_view(mask, region_shape)
+    ny, nx = regions.shape[:2]
+    levels = np.empty((ny, nx))
+
+    for y in range(ny):
+        for x in range(nx):
+            region_data = regions[y, x]
+            region_mask = masks[y, x]
+            clipped1d, lo, hi = scipy.stats.sigmaclip(
+                region_data, num_sigmas_clip, num_sigmas_clip)
+            # Add unclipped pixels to the mask.
+            region_mask[(region_data > lo) & (region_data < hi)] = True
+            # Subtract the clipped median in place.
+            levels[y, x] = np.median(clipped1d)
+            region_data -= levels[y, x]
+            # Smooth this region's data.
+            if smoothing != 0:
+                clipped_data = region_data[~region_mask]
+                region_data[~region_mask] = 0.
+                region_data[:] = apply_filter(region_data, smoothing, power)
+                region_data[~region_mask] = clipped_data
+
+    return levels, mask
+
+def get_diff_lowpass(image, size=250, power=4.0, use_zero=True, geometry=(2,8)):
+    if use_zero:
+        image1 = image.copy()
+        levels,mask = zero_by_region(image1, (image1.shape[0]/geometry[0], image1.shape[1]/geometry[1]))
+
+        return image1/image
+    else:
+        diff = apply_filter(image, size, power=power)
+
+        return diff/image
+
+
 def animateDay(butler, dayObs, outputPath, dataProductToPlot='quickLookExp'):
     outputFilename = f'{dayObs}.mp4'
 
@@ -364,15 +476,15 @@ def animateDay(butler, dayObs, outputPath, dataProductToPlot='quickLookExp'):
                         remakePngs=False,
                         debug=False,
                         clobberVideoAndGif=True,
-                        plotObjectCentroids=True,
+                        plotObjectCentroids=False,
                         useQfmForCentroids=True)
     animator.run()
 
 
 if __name__ == '__main__':
-    # TODO: DM-34239 Move this to be a butler-driven test
-    outputPath = '/home/mfl/animatorOutput/main/'
-    butler = makeDefaultLatissButler('NCSA')
+    outputPath = '/home/mfl/animatorOutput/isrInvestigation_high_pass_filter/'
+    dataProductToPlot = 'raw'
+    butler = makeDefaultLatissButler()
 
-    day = 20211104
-    animateDay(butler, day, outputPath)
+    day = 20220406
+    animateDay(butler, day, outputPath, dataProductToPlot=dataProductToPlot)
