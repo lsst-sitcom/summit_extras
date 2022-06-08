@@ -253,7 +253,7 @@ class Animator():
             try:
                 result = self.qfmTask.run(exp)
                 pixCoord = result.brightestObjCentroid
-                expId = exp.getInfo().getVisitInfo().getExposureId()
+                expId = exp.info.id
                 logger.info(f'expId {expId} has centroid {pixCoord}')
             except Exception:
                 return None
