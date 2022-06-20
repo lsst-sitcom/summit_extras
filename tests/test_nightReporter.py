@@ -41,12 +41,16 @@ class NightReporterTestCase(lsst.utils.tests.TestCase):
         except FileNotFoundError:
             raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
 
-        cls.dayObs = 20200316  # has 213 images with 3 different stars
-        cls.seqNums = butlerUtils.getSeqNumsForDayObs(cls.butler, cls.dayObs)
-        cls.nImages = len(cls.seqNums)
+        cls.dayObs = 20200314  # has 377 images and data also exists on the TTS & summit
 
-        # Do the init in setUpClass because this takes about 29s for 20200316
+        # Do the init in setUpClass because this takes about 35s for 20200314
         cls.reporter = NightReporter(cls.dayObs)
+        # number of images isn't necessarily the same as the number for the
+        # the dayObs in the registry becacuse of the test stands/summit
+        # having partial data, so get the number of images from the length
+        # of the scraped data. Not ideal, but best that can be done due to
+        # only having partial days in the test datasets.
+        cls.nImages = len(cls.reporter.data.keys())
 
     def test_saveAndLoad(self):
         """Test that a NightReporter can save itself, and be loaded back.
@@ -69,9 +73,10 @@ class NightReporterTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(len(fake_stdout.mock_calls), 2*(self.nImages+1))
 
         tailNumber = 20
+        nLines = min(self.nImages, tailNumber)  # test stands have very few images on some days
         with mock.patch('sys.stdout') as fake_stdout:
             self.reporter.printObsTable(tailNumber=tailNumber)
-        self.assertEqual(len(fake_stdout.mock_calls), 2*(tailNumber+1))
+        self.assertEqual(len(fake_stdout.mock_calls), 2*(nLines+1))
 
     def test_plotPerObjectAirMass(self):
         """Test that a the per-object airmass plots runs.

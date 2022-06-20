@@ -28,18 +28,19 @@ import math
 import matplotlib.pyplot as plt
 
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
-from lsst.atmospec.processStar import getTargetCentroidFromWcs
+from lsst.atmospec.utils import getTargetCentroidFromWcs
 import lsst.afw.display as afwDisplay
 import lsst.afw.math as afwMath
 import logging
 import lsst.meas.algorithms as measAlg
-from lsst.summit.utils.utils import dayObsIntToString
+from lsst.summit.utils.utils import dayObsIntToString, setupLogging
 from lsst.summit.utils.butlerUtils import (datasetExists, getExpRecordFromDataId, makeDefaultLatissButler,
                                            getDayObs, getSeqNum, updateDataIdOrDataCord,
                                            getLatissOnSkyDataIds)
 
 from lsst.atmospec.utils import airMassFromRawMetadata
 logger = logging.getLogger("lsst.summit.extras.animation")
+setupLogging()
 
 
 class Animator():
@@ -54,7 +55,6 @@ class Animator():
                  plotObjectCentroids=True,
                  useQfmForCentroids=False,
                  dataProductToPlot='calexp',
-                 ffMpegBinary='/home/mfl/bin/ffmpeg',
                  debug=False):
 
         self.butler = butler
@@ -72,7 +72,6 @@ class Animator():
         self.plotObjectCentroids = plotObjectCentroids
         self.useQfmForCentroids = useQfmForCentroids
         self.dataProductToPlot = dataProductToPlot
-        self.ffMpegBinary = ffMpegBinary
         self.debug = debug
 
         # zfilled at the start as animation is alphabetical
@@ -142,8 +141,7 @@ class Animator():
         raise RuntimeError("Other type checks not yet implemented")
 
     def preRun(self):
-        # check the binary is there and the paths work
-        assert os.path.exists(self.ffMpegBinary), "Cannot find ffmpeg binary for animation"
+        # check the paths work
         if not os.path.exists(self.pngPath):
             os.makedirs(self.pngPath)
         assert os.path.exists(self.pngPath), f"Failed to create output dir: {self.pngsPath}"
@@ -240,7 +238,11 @@ class Animator():
         filt, grating = filterCompound.split('~')
         rawMd = self.butler.get('raw.metadata', dataId)
         airmass = airMassFromRawMetadata(rawMd)  # XXX this could be improved a lot
-        title = f"{getDayObs(dataId)} - seqNum {getSeqNum(dataId)} - "
+        dayObs = dayObsIntToString(getDayObs(dataId))
+        timestamp = expRecord.timespan.begin.to_datetime().strftime("%H:%M:%S")  # no microseconds
+        ms = expRecord.timespan.begin.to_datetime().strftime("%f")  # always 6 chars long, 000000 if zero
+        timestamp += f".{ms[0:2]}"
+        title = f"seqNum {getSeqNum(dataId)} - {dayObs} {timestamp}TAI - "
         title += f"Object: {obj} expTime: {expTime}s Filter: {filt} Grating: {grating} Airmass: {airmass:.3f}"
         return title
 
@@ -251,7 +253,7 @@ class Animator():
             try:
                 result = self.qfmTask.run(exp)
                 pixCoord = result.brightestObjCentroid
-                expId = exp.getInfo().getVisitInfo().getExposureId()
+                expId = exp.info.id
                 logger.info(f'expId {expId} has centroid {pixCoord}')
             except Exception:
                 return None
@@ -370,9 +372,8 @@ def animateDay(butler, dayObs, outputPath, dataProductToPlot='quickLookExp'):
 
 
 if __name__ == '__main__':
-    # TODO: DM-34239 Move this to be a butler-driven test
     outputPath = '/home/mfl/animatorOutput/main/'
-    butler = makeDefaultLatissButler('NCSA')
+    butler = makeDefaultLatissButler()
 
     day = 20211104
     animateDay(butler, day, outputPath)
