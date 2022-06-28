@@ -38,10 +38,8 @@ class AnimationTestCase(lsst.utils.tests.TestCase):
         except FileNotFoundError:
             raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
 
-        # TODO: DM-34322 Change these to work with test data on the TTS once
-        # data has been ingested there.
-        cls.dataIds = [{'day_obs': 20200315, 'seq_num': 30, 'detector': 0},
-                       {'day_obs': 20200315, 'seq_num': 31, 'detector': 0}]
+        cls.dataIds = [{'day_obs': 20200315, 'seq_num': 120, 'detector': 0},
+                       {'day_obs': 20200315, 'seq_num': 121, 'detector': 0}]
         cls.outputDir = tempfile.mkdtemp()
         cls.outputFilename = os.path.join(cls.outputDir, 'testAnimation.mp4')
 
