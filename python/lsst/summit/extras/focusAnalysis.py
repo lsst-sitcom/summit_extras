@@ -206,7 +206,7 @@ class SpectralFocusAnalyzer():
             exp = self._bestEffort.getExposure(dataId)
 
             # sanity checking
-            filt = exp.getFilter().getName()
+            filt = exp.filter.physicalLabel
             expRecord = getExpRecordFromDataId(self.butler, dataId)
             obj = expRecord.target_name
             objects.add(obj)

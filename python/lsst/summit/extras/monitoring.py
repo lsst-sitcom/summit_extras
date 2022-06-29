@@ -103,7 +103,7 @@ class Monitor():
             elements.append(f"{imageType}")
 
         expTime = exp.getInfo().getVisitInfo().getExposureTime()
-        filt = exp.getFilter().getName()
+        filt = exp.filter.physicalLabel
 
         elements.append(f"{expTime}s exp")
         elements.append(f"{filt}")
