@@ -54,8 +54,9 @@ class AnimationTestCase(lsst.utils.tests.TestCase):
                             clobberVideoAndGif=True,
                             plotObjectCentroids=True,
                             useQfmForCentroids=True)
-        animator.run()
+        writtenFilename = animator.run()
 
+        self.assertTrue(writtenFilename == self.outputFilename)
         self.assertTrue(os.path.isfile(self.outputFilename))
         self.assertTrue(os.path.getsize(self.outputFilename) > 10000)
 

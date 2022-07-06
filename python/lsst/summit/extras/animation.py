@@ -229,6 +229,7 @@ class Animator():
         self.pngsToMp4(tempDir, self.outputFilename, 10, verbose=False)
         self.tidyUp(tempDir)
         logger.info(f'Finished! Output at {self.outputFilename}')
+        return self.outputFilename
 
     def _titleFromExp(self, exp, dataId):
         expRecord = getExpRecordFromDataId(self.butler, dataId)
@@ -368,7 +369,8 @@ def animateDay(butler, dayObs, outputPath, dataProductToPlot='quickLookExp'):
                         clobberVideoAndGif=True,
                         plotObjectCentroids=True,
                         useQfmForCentroids=True)
-    animator.run()
+    filename = animator.run()
+    return filename
 
 
 if __name__ == '__main__':
