@@ -119,7 +119,7 @@ class LogBrowser():
                 error = parts[1]
                 for error_string in self.SPECIAL_ZOO_CASES:
                     if error.find(error_string) != -1:
-                        error = error.split(error_string)[0] + error_string
+                        error = error.split(error_string)[0] + error_string + '...'
                 if error not in zoo:
                     zoo[error] = 1
                     if giveExampleId:
