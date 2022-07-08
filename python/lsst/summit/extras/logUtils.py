@@ -30,9 +30,30 @@ _LOG = logging.getLogger(__name__)
 
 
 class LogBrowser():
-    # add the end of the common part of any similar errors you want collapsed here
-    # this part of the string won't be lost, but is used to classify things
-    # as the same animal
+    """A convenience class for helping identify different failure modes within
+    a processing collection.
+
+    Parameters
+    ----------
+    taskName : `str`
+        The name of the task, e.g. ``isr``, ``characterizeImage``, etc.
+    collection : `str`
+        The processing collection to use.
+
+    Notes
+    -----
+    Many tasks throw errors with values in them, meaning the ``doFailZoology``
+    function doesn't collapse them down to a single failure case as one would
+    like. If this is the case, the first part of the message that is common
+    amongst the ones you would like to be classed together, and add it to the
+    class property ``SPECIAL_ZOO_CASES`` to declare a new type of error animal.
+
+    example usage:
+    logBrowser = LogBrowser(taskName=taskName, collection=collection)
+    fail = 'TaskError: Fatal astrometry failure detected: mean on-sky distance'
+    logBrowser.SPECIAL_ZOO_CASES.append(fail)
+    logBrowser.doFailZoology()
+    """
     SPECIAL_ZOO_CASES = ['with gufunc signature (n?,k),(k,m?)->(n?,m?)',
                          ]
 
@@ -47,6 +68,12 @@ class LogBrowser():
         self.logs = self._loadLogs(self.dataRefs)
 
     def _getDataRefs(self):
+        """Get the dataRefs for the specified task and collection.
+
+        Returns
+        -------
+        dataRefs : `list` [`lsst.daf.butler.core.datasets.ref.DatasetRef`]
+        """
         results = self.butler.registry.queryDatasets(f'{self.taskName}_log',
                                                      collections=self.collection)
         results = list(results)
@@ -54,6 +81,14 @@ class LogBrowser():
         return sorted(results)
 
     def _loadLogs(self, dataRefs):
+        """Load all the logs for the dataRefs.
+
+        Returns
+        -------
+        logs : `dict` {`lsst.daf.butler.core.datasets.ref.DatasetRef`:
+                       `lsst.daf.butler.core.logging.ButlerLogRecords`}
+            A dict of all the logs, keyed by their dataRef.
+        """
         logs = {}
         for i, dataRef in enumerate(dataRefs):
             if (i+1) % 100 == 0:
@@ -63,31 +98,64 @@ class LogBrowser():
         return logs
 
     def getPassingDataIds(self):
+        """Get the dataIds for all passes within the collection for the task.
+
+        Returns
+        -------
+        dataIds : `list` [`lsst.daf.butler.dimensions.DataCoordinate`]
+        """
         fails = self._getFailDataRefs()
         passes = [r.dataId for r in self.dataRefs if r not in fails]
         return passes
 
     def getFailingDataIds(self):
+        """Get the dataIds for all fails within the collection for the task.
+
+        Returns
+        -------
+        dataIds : `list` [`lsst.daf.butler.dimensions.DataCoordinate`]
+        """
         fails = self._getFailDataRefs()
         return [r.dataId for r in fails]
 
     def printPasses(self):
+        """Print out all the passing dataIds.
+        """
         passes = self.getPassingDataIds()
         for dataId in passes:
             print(dataId)
 
     def printFails(self):
+        """Print out all the failing dataIds.
+        """
         passes = self.getFailingDataIds()
         for dataId in passes:
             print(dataId)
 
     def countFails(self):
+        """Print a count of all the failing dataIds.
+        """
         print(f"{len(self._getFailDataRefs())} failing cases found")
 
     def countPasses(self):
+        """Print a count of all the passing dataIds.
+        """
         print(f"{len(self.getPassingDataIds())} passing cases found")
 
     def _getFailDataRefs(self):
+        """Get a list of all the failing dataRefs.
+
+        Note that these are dataset references to the logs, and as such are
+        not fails themselves, but logs containing the fail messages, and as
+        such the item of interest for the failures are their dataIds. This is
+        why ``_getFailDataRefs()`` is a private method, but getFailingDataIds
+        is the public API.
+
+        Returns
+        -------
+        logs : `list` [`lsst.daf.butler.core.datasets.ref.DatasetRef`]
+            A list of all the failing dataRefs.
+        """
         fails = []
         for dataRef, log in self.logs.items():
             if log[-1].message.find('failed') != -1:
@@ -95,6 +163,16 @@ class LogBrowser():
         return fails
 
     def printFailLogs(self, full=False):
+        """Print the logs of all failing task instances.
+
+        Parameters
+        ----------
+        full : `bool`, optional
+            Prints the full log if true, otherwise just prints the last line
+            containing the exception message. This defaults to False because
+            logs can be very long when printed in full, and printing all in
+            full can be many many thousands of lines.
+        """
         fails = self._getFailDataRefs()
         for dataRef in fails:
             print(f'\n{dataRef.dataId}:')
@@ -111,6 +189,16 @@ class LogBrowser():
                     print(msg)
 
     def doFailZoology(self, giveExampleId=False):
+        """Print all the different types of error, with a count for how many of
+        each type occurred.
+
+        Parameters
+        ----------
+        giveExampleId : `bool`, optional
+            If true, for each type of error seen, print an example dataId. This
+            can be useful if you want to rerun a single image from the command
+            line to debug a particular type of failure mode.
+        """
         zoo = {}
         examples = {}
         fails = self._getFailDataRefs()
@@ -144,3 +232,34 @@ class LogBrowser():
             print(f"{count:{pad}} instance{'s' if count > 1 else ' '} of {error}")
             if giveExampleId:
                 print(f"example dataId: {examples[error]}\n")
+
+    def printSingleLog(self, dataId, full=True):
+        """Convenience function for printing a single log by its dataId.
+
+        Useful because you are given example dataIds by `doFailZoology()` but
+        printing all the logs and looking for that id is not practical.
+
+        Parameters
+        ----------
+        dataId : `dict` or `lsst.daf.butler.dimensions.DataCoordinate`
+            The dataId.
+        full : `bool`, optional
+            Print the log in full, or just the exception?
+        """
+        dRefs = [d for d in self.dataRefs if d.dataId == dataId]
+        if len(dRefs) != 1:
+            raise ValueError(f"Found {len(dRefs)} for {dataId}, expected exactly 1.")
+        dataRef = dRefs[0]
+
+        print(f'\n{dataRef.dataId}:')
+        log = self.logs[dataRef]
+        if full:
+            for line in log:
+                print(line.message)
+        else:
+            msg = log[-1].message
+            parts = msg.split('Exception ')
+            if len(parts) == 2:
+                print(parts[1])
+            else:
+                print(msg)
