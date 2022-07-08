@@ -128,8 +128,8 @@ class LogBrowser():
     def printFails(self):
         """Print out all the failing dataIds.
         """
-        passes = self.getFailingDataIds()
-        for dataId in passes:
+        fails = self.getFailingDataIds()
+        for dataId in fails:
             print(dataId)
 
     def countFails(self):
@@ -158,6 +158,11 @@ class LogBrowser():
         """
         fails = []
         for dataRef, log in self.logs.items():
+            # dereferencing a log with [] gives the individual lines in it,
+            # each containing a level, message, etc.
+            # the final task failure message always comes in the last line
+            # of the log and contains the string 'failed' as this is the
+            # pipeline executor reporting on success/fail and the time and id.
             if log[-1].message.find('failed') != -1:
                 fails.append(dataRef)
         return fails
@@ -177,10 +182,12 @@ class LogBrowser():
         for dataRef in fails:
             print(f'\n{dataRef.dataId}:')
             log = self.logs[dataRef]
-            if full:
+            if full:  # print the whole thing
                 for line in log:
                     print(line.message)
             else:
+                # print the last line from the Exception onwards if found,
+                # failing over to printing the whole thing just in case.
                 msg = log[-1].message
                 parts = msg.split('Exception ')
                 if len(parts) == 2:
@@ -204,7 +211,7 @@ class LogBrowser():
         fails = self._getFailDataRefs()
         for dataRef in fails:
             log = self.logs[dataRef]
-            msg = log[-1].message
+            msg = log[-1].message  # log[-1].message is the text of the last line of the log
             parts = msg.split('Exception ')
             if len(parts) != 2:  # pretty sure all fails contain one and only one 'Exception' but be safe
                 self.log.warning(f'Surprise parsing log for {dataRef.dataId}')
@@ -257,7 +264,7 @@ class LogBrowser():
             for line in log:
                 print(line.message)
         else:
-            msg = log[-1].message
+            msg = log[-1].message  # log[-1].message is the text of the last line of the log
             parts = msg.split('Exception ')
             if len(parts) == 2:
                 print(parts[1])
