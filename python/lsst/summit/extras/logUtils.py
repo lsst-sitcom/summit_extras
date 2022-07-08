@@ -43,54 +43,62 @@ class LogBrowser():
         self.log = _LOG.getChild("logBrowser")
         self.butler = butlerUtils.makeDefaultLatissButler(extraCollections=[collection])
 
-        self.expRecords = []
-        self.logs = []
-        self.dataIds = self._getDataIds()
-        self.logs = self._loadLogs(self.dataIds)
+        self.dataRefs = self._getDataRefs()
+        self.logs = self._loadLogs(self.dataRefs)
 
-    def _getDataIds(self):
-        results = self.butler.registry.queryDataIds('visit',
-                                                    datasets=f'{self.taskName}_log',
-                                                    collections=self.collection)
+    def _getDataRefs(self):
+        results = self.butler.registry.queryDatasets(f'{self.taskName}_log',
+                                                     collections=self.collection)
         results = list(results)
-        self.log.info(f"Found {len(results)} dataIds in collection for task {self.taskName}")
+        self.log.info(f"Found {len(results)} datasets in collection for task {self.taskName}")
         return sorted(results)
 
-    def _loadLogs(self, dataIds):
+    def _loadLogs(self, dataRefs):
         logs = {}
-        logName = f"{self.taskName}_log"
-        for i, dataId in enumerate(dataIds):
+        for i, dataRef in enumerate(dataRefs):
             if (i+1) % 100 == 0:
                 self.log.info(f"Loaded {i+1} logs...")
-            log = self.butler.get(logName, dataId=dataId, detector=0)
-            logs[dataId] = log
+            log = self.butler.getDirect(dataRef)
+            logs[dataRef] = log
         return logs
 
-    def getPasses(self):
-        fails = self.getFailDataIds()
-        passes = [r for r in self.dataIds if r not in fails]
+    def getPassingDataIds(self):
+        fails = self._getFailDataRefs()
+        passes = [r.dataId for r in self.dataRefs if r not in fails]
         return passes
 
+    def getFailingDataIds(self):
+        fails = self._getFailDataRefs()
+        return [r.dataId for r in fails]
+
     def printPasses(self):
-        passes = self.getPasses()
+        passes = self.getPassingDataIds()
+        for dataId in passes:
+            print(dataId)
+
+    def printFails(self):
+        passes = self.getFailingDataIds()
         for dataId in passes:
             print(dataId)
 
     def countFails(self):
-        print(f"{len(self.getFailDataIds())} fail cases found")
+        print(f"{len(self._getFailDataRefs())} failing cases found")
 
-    def getFailDataIds(self):
+    def countPasses(self):
+        print(f"{len(self.getPassingDataIds())} passing cases found")
+
+    def _getFailDataRefs(self):
         fails = []
-        for dataId, log in self.logs.items():
+        for dataRef, log in self.logs.items():
             if log[-1].message.find('failed') != -1:
-                fails.append(dataId)
+                fails.append(dataRef)
         return fails
 
     def printFailLogs(self, full=False):
-        fails = self.getFailDataIds()
-        for dataId in fails:
-            print(f'\n{dataId}:')
-            log = self.logs[dataId]
+        fails = self._getFailDataRefs()
+        for dataRef in fails:
+            print(f'\n{dataRef.dataId}:')
+            log = self.logs[dataRef]
             if full:
                 for line in log:
                     print(line.message)
@@ -105,13 +113,13 @@ class LogBrowser():
     def doFailZoology(self, giveExampleId=False):
         zoo = {}
         examples = {}
-        fails = self.getFailDataIds()
-        for dataId in fails:
-            log = self.logs[dataId]
+        fails = self._getFailDataRefs()
+        for dataRef in fails:
+            log = self.logs[dataRef]
             msg = log[-1].message
             parts = msg.split('Exception ')
             if len(parts) != 2:  # pretty sure all fails contain one and only one 'Exception' but be safe
-                self.log.warning(f'Surprise parsing log for {dataId}')
+                self.log.warning(f'Surprise parsing log for {dataRef.dataId}')
                 continue
             else:
                 error = parts[1]
@@ -121,7 +129,7 @@ class LogBrowser():
                 if error not in zoo:
                     zoo[error] = 1
                     if giveExampleId:
-                        examples[error] = dataId
+                        examples[error] = dataRef.dataId
                 else:
                     zoo[error] += 1
 
