@@ -18,26 +18,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-# This file is part of summit_utils.
-#
-# Developed for the LSST Data Management System.
-# This product includes software developed by the LSST Project
-# (https://www.lsst.org).
-# See the COPYRIGHT file at the top-level directory of this distribution
-# for details of code ownership.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import logging
 import math
@@ -66,77 +46,53 @@ class LogBrowser():
 
         self.expRecords = []
         self.logs = []
+        self.dataIds = self._getDataIds()
         if self.doCache:
-            self.expRecords = self._getExpRecords()
-            self.logs = self._loadLogs(self.expRecords)
+            self.logs = self._loadLogs(self.dataIds)
 
-    def _getExpRecords(self):
-        expRecords = self.butler.registry.queryDimensionRecords("exposure",
-                                                                collections=self.collection,
-                                                                datasets='raw')
-        expRecords = list(set(expRecords))
-        self.log.info(f"Found {len(expRecords)} exposure records in collection")
-        return expRecords
+    def _getDataIds(self):
+        results = self.butler.registry.queryDataIds('visit',
+                                                    datasets=f'{self.taskName}_log',
+                                                    collections=self.collection)
+        results = list(results)
+        self.log.info(f"Found {len(results)} dataIds in collection for task {self.taskName}")
+        return sorted(results)
 
-    @staticmethod
-    def recordToDataId(record):
-        return {'day_obs': record.day_obs, 'seq_num': record.seq_num}
-
-    def dataIdToRecord(self, dataId):
-        records = []
-        for record in self.expRecords:
-            match = True
-            for k in dataId.keys():
-                if not getattr(record, k) == dataId[k]:
-                    match = False
-                    break
-
-            if not match:  # pass the break through
-                continue
-
-            records.append(record)
-        if len(records) != 1:
-            raise ValueError(f"Found {len(records)} records for {dataId}, expected exactly 1")
-        return records[0]
-
-    def _loadLogs(self, expRecords):
+    def _loadLogs(self, dataIds):
         logs = {}
         logName = f"{self.taskName}_log"
-        for i, record in enumerate(expRecords):
+        for i, dataId in enumerate(dataIds):
             if (i+1) % 100 == 0:
                 self.log.info(f"Loaded {i+1} logs...")
-            dataId = {'day_obs': record.day_obs, 'seq_num': record.seq_num}
             log = self.butler.get(logName, dataId=dataId, detector=0)
-            logs[record] = log
+            logs[dataId] = log
         return logs
 
     def getPasses(self):
-        fails = self.getFailRecords()
-        passes = [r for r in self.expRecords if r not in fails]
+        fails = self.getFailDataIds()
+        passes = [r for r in self.dataIds if r not in fails]
         return passes
 
     def printPasses(self):
         passes = self.getPasses()
-        for record in passes:
-            print(self.recordToDataId(record))
-        # return sortRecordsByDayObsThenSeqNum(passes)
+        for dataId in passes:
+            print(dataId)
 
     def countFails(self):
-        print(f"{len(self.getFailRecords())} fail cases found")
+        print(f"{len(self.getFailDataIds())} fail cases found")
 
-    def getFailRecords(self):
+    def getFailDataIds(self):
         fails = []
-        for record, log in self.logs.items():
+        for dataId, log in self.logs.items():
             if log[-1].message.find('failed') != -1:
-                fails.append(record)
+                fails.append(dataId)
         return fails
 
     def printFailLogs(self, full=False):
-        fails = self.getFailRecords()
-        for fail in fails:
-            dataId = self.recordToDataId(fail)
+        fails = self.getFailDataIds()
+        for dataId in fails:
             print(f'\n{dataId}:')
-            log = self.logs[fail]
+            log = self.logs[dataId]
             if full:
                 for line in log:
                     print(line.message)
@@ -151,10 +107,9 @@ class LogBrowser():
     def doFailZoology(self, giveExampleId=False):
         zoo = {}
         examples = {}
-        fails = self.getFailRecords()
-        for fail in fails:
-            dataId = self.recordToDataId(fail)
-            log = self.logs[fail]
+        fails = self.getFailDataIds()
+        for dataId in fails:
+            log = self.logs[dataId]
             msg = log[-1].message
             parts = msg.split('Exception ')
             if len(parts) != 2:  # pretty sure all fails contain one and only one 'Exception' but be safe
