@@ -36,10 +36,9 @@ class LogBrowser():
     SPECIAL_ZOO_CASES = ['with gufunc signature (n?,k),(k,m?)->(n?,m?)',
                          ]
 
-    def __init__(self, taskName, collection, doCache=True):
+    def __init__(self, taskName, collection):
         self.taskName = taskName
         self.collection = collection
-        self.doCache = doCache
 
         self.log = _LOG.getChild("logBrowser")
         self.butler = butlerUtils.makeDefaultLatissButler(extraCollections=[collection])
@@ -47,8 +46,7 @@ class LogBrowser():
         self.expRecords = []
         self.logs = []
         self.dataIds = self._getDataIds()
-        if self.doCache:
-            self.logs = self._loadLogs(self.dataIds)
+        self.logs = self._loadLogs(self.dataIds)
 
     def _getDataIds(self):
         results = self.butler.registry.queryDataIds('visit',
