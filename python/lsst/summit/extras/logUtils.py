@@ -135,8 +135,9 @@ class LogBrowser():
 
         pad = 0  # don't pad when giving examples, it looks weird
         if not giveExampleId:
-            maxCount = max([v for v in zoo.values()])
-            pad = math.ceil(math.log10(maxCount))  # number of digits in the largest count
+            if zoo.values():
+                maxCount = max([v for v in zoo.values()])
+                pad = math.ceil(math.log10(maxCount))  # number of digits in the largest count
 
         for error in sorted(zoo.keys()):
             count = zoo[error]
