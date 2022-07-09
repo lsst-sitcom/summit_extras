@@ -75,8 +75,9 @@ class LogBrowser():
         dataRefs : `list` [`lsst.daf.butler.core.datasets.ref.DatasetRef`]
         """
         results = self.butler.registry.queryDatasets(f'{self.taskName}_log',
-                                                     collections=self.collection)
-        results = list(results)
+                                                     collections=self.collection,
+                                                     findFirst=True)
+        results = list(set(results))
         self.log.info(f"Found {len(results)} datasets in collection for task {self.taskName}")
         return sorted(results)
 
