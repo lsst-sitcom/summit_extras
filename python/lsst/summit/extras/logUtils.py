@@ -186,10 +186,10 @@ class LogBrowser():
                 skip = True
                 break
         if not skip:
-            self._printLine(logLine)
+            self._printFormattedLine(logLine)
 
     @staticmethod
-    def _printLine(logLine):
+    def _printFormattedLine(logLine):
         """Print the line, formatted as it would be for a normal task.
 
         Parameters
