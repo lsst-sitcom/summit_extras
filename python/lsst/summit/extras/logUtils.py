@@ -54,6 +54,10 @@ class LogBrowser():
     logBrowser.SPECIAL_ZOO_CASES.append(fail)
     logBrowser.doFailZoology()
     """
+    IGNORE_LOGS_FROM = [
+        # butler.datastores is verbose by default and not interesting to most
+        'lsst.daf.butler.datastores',
+    ]
     SPECIAL_ZOO_CASES = ['with gufunc signature (n?,k),(k,m?)->(n?,m?)',
                          ]
 
@@ -75,8 +79,9 @@ class LogBrowser():
         dataRefs : `list` [`lsst.daf.butler.core.datasets.ref.DatasetRef`]
         """
         results = self.butler.registry.queryDatasets(f'{self.taskName}_log',
-                                                     collections=self.collection)
-        results = list(results)
+                                                     collections=self.collection,
+                                                     findFirst=True)
+        results = list(set(results))
         self.log.info(f"Found {len(results)} datasets in collection for task {self.taskName}")
         return sorted(results)
 
@@ -167,6 +172,33 @@ class LogBrowser():
                 fails.append(dataRef)
         return fails
 
+    def _printLineIf(self, logLine):
+        """Print the line if the name of the logger isn't in IGNORE_LOGS_FROM.
+
+        Parameters
+        ----------
+        logLine : `lsst.daf.butler.logging.ButlerLogRecord`
+            The log line to print the message from.
+        """
+        skip = False
+        for skipTask in self.IGNORE_LOGS_FROM:
+            if logLine.name.find(skipTask) != -1:
+                skip = True
+                break
+        if not skip:
+            self._printFormattedLine(logLine)
+
+    @staticmethod
+    def _printFormattedLine(logLine):
+        """Print the line, formatted as it would be for a normal task.
+
+        Parameters
+        ----------
+        logLine : `lsst.daf.butler.logging.ButlerLogRecord`
+            The log line to print the message from.
+        """
+        print(f"{logLine.levelname} {logLine.name}: {logLine.message}")
+
     def printFailLogs(self, full=False):
         """Print the logs of all failing task instances.
 
@@ -184,7 +216,7 @@ class LogBrowser():
             log = self.logs[dataRef]
             if full:  # print the whole thing
                 for line in log:
-                    print(line.message)
+                    self._printLineIf.print(line)
             else:
                 # print the last line from the Exception onwards if found,
                 # failing over to printing the whole thing just in case.
@@ -262,7 +294,7 @@ class LogBrowser():
         log = self.logs[dataRef]
         if full:
             for line in log:
-                print(line.message)
+                self._printLineIf(line)
         else:
             msg = log[-1].message  # log[-1].message is the text of the last line of the log
             parts = msg.split('Exception ')
