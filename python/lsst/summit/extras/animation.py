@@ -248,7 +248,7 @@ class Animator():
         return title
 
     def getStarPixCoord(self, exp, doMotionCorrection=True, useQfm=False):
-        target = exp.getMetadata()['OBJECT']
+        target = exp.visitInfo.object
 
         if self.useQfmForCentroids:
             try:
