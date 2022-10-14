@@ -476,7 +476,7 @@ class NonSpectralFocusAnalyzer():
             exp = self._bestEffort.getExposure(dataId)
 
             # sanity/consistency checking
-            filt = exp.getFilterLabel().physicalLabel
+            filt = exp.filter.physicalLabel
             expRecord = getExpRecordFromDataId(self.butler, dataId)
             obj = expRecord.target_name
             objects.add(obj)
