@@ -239,6 +239,8 @@ class Animator():
         filt, grating = filterCompound.split('~')
         rawMd = self.butler.get('raw.metadata', dataId)
         airmass = airMassFromRawMetadata(rawMd)  # XXX this could be improved a lot
+        if not airmass:
+            airmass = -1
         dayObs = dayObsIntToString(getDayObs(dataId))
         timestamp = expRecord.timespan.begin.to_datetime().strftime("%H:%M:%S")  # no microseconds
         ms = expRecord.timespan.begin.to_datetime().strftime("%f")  # always 6 chars long, 000000 if zero
