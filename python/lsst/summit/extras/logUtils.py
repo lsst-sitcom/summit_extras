@@ -21,20 +21,20 @@
 
 import logging
 import math
-import lsst.summit.utils.butlerUtils as butlerUtils
 
-__all__ = ["LogBrowser",
-           ]
+__all__ = ["LogBrowser"]
 
 _LOG = logging.getLogger(__name__)
 
 
-class LogBrowser():
+class LogBrowser:
     """A convenience class for helping identify different failure modes within
     a processing collection.
 
     Parameters
     ----------
+    butler : `lsst.daf.butler.Butler`
+        The butler. Must contain the collection to be examined.
     taskName : `str`
         The name of the task, e.g. ``isr``, ``characterizeImage``, etc.
     collection : `str`
@@ -44,12 +44,13 @@ class LogBrowser():
     -----
     Many tasks throw errors with values in them, meaning the ``doFailZoology``
     function doesn't collapse them down to a single failure case as one would
-    like. If this is the case, the first part of the message that is common
-    amongst the ones you would like to be classed together, and add it to the
-    class property ``SPECIAL_ZOO_CASES`` to declare a new type of error animal.
+    like. If this is the case, take the first part of the message that is
+    common among the ones you would like to be classed together, and add it to
+    the class property ``SPECIAL_ZOO_CASES`` to declare a new type of error
+    animal.
 
     example usage:
-    logBrowser = LogBrowser(taskName=taskName, collection=collection)
+    logBrowser = LogBrowser(butler, taskName, collection)
     fail = 'TaskError: Fatal astrometry failure detected: mean on-sky distance'
     logBrowser.SPECIAL_ZOO_CASES.append(fail)
     logBrowser.doFailZoology()
@@ -58,15 +59,16 @@ class LogBrowser():
         # butler.datastores is verbose by default and not interesting to most
         'lsst.daf.butler.datastores',
     ]
-    SPECIAL_ZOO_CASES = ['with gufunc signature (n?,k),(k,m?)->(n?,m?)',
-                         ]
+    SPECIAL_ZOO_CASES = [
+        'with gufunc signature (n?,k),(k,m?)->(n?,m?)',
+    ]
 
-    def __init__(self, taskName, collection):
+    def __init__(self, butler, taskName, collection):
         self.taskName = taskName
         self.collection = collection
 
         self.log = _LOG.getChild("logBrowser")
-        self.butler = butlerUtils.makeDefaultLatissButler(extraCollections=[collection])
+        self.butler = butler
 
         self.dataRefs = self._getDataRefs()
         self.logs = self._loadLogs(self.dataRefs)
