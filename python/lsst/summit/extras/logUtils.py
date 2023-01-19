@@ -22,8 +22,7 @@
 import logging
 import math
 
-__all__ = ["LogBrowser",
-           ]
+__all__ = ["LogBrowser"]
 
 _LOG = logging.getLogger(__name__)
 
