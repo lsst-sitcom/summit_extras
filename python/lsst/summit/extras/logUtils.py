@@ -59,8 +59,9 @@ class LogBrowser:
         # butler.datastores is verbose by default and not interesting to most
         'lsst.daf.butler.datastores',
     ]
-    SPECIAL_ZOO_CASES = ['with gufunc signature (n?,k),(k,m?)->(n?,m?)',
-                         ]
+    SPECIAL_ZOO_CASES = [
+        'with gufunc signature (n?,k),(k,m?)->(n?,m?)',
+    ]
 
     def __init__(self, butler, taskName, collection):
         self.taskName = taskName
