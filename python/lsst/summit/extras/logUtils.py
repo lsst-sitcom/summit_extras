@@ -27,7 +27,7 @@ __all__ = ["LogBrowser"]
 _LOG = logging.getLogger(__name__)
 
 
-class LogBrowser():
+class LogBrowser:
     """A convenience class for helping identify different failure modes within
     a processing collection.
 
