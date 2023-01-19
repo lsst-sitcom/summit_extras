@@ -21,7 +21,6 @@
 
 import logging
 import math
-import lsst.summit.utils.butlerUtils as butlerUtils
 
 __all__ = ["LogBrowser",
            ]
@@ -35,6 +34,8 @@ class LogBrowser():
 
     Parameters
     ----------
+    butler : `lsst.daf.butler.Butler`
+        The butler. Must contain the collection to be examined.
     taskName : `str`
         The name of the task, e.g. ``isr``, ``characterizeImage``, etc.
     collection : `str`
@@ -61,12 +62,12 @@ class LogBrowser():
     SPECIAL_ZOO_CASES = ['with gufunc signature (n?,k),(k,m?)->(n?,m?)',
                          ]
 
-    def __init__(self, taskName, collection):
+    def __init__(self, butler, taskName, collection):
         self.taskName = taskName
         self.collection = collection
 
         self.log = _LOG.getChild("logBrowser")
-        self.butler = butlerUtils.makeDefaultLatissButler(extraCollections=[collection])
+        self.butler = butler
 
         self.dataRefs = self._getDataRefs()
         self.logs = self._loadLogs(self.dataRefs)
