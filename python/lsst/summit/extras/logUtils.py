@@ -50,7 +50,7 @@ class LogBrowser:
     animal.
 
     example usage:
-    logBrowser = LogBrowser(buter, taskName, collection)
+    logBrowser = LogBrowser(butler, taskName, collection)
     fail = 'TaskError: Fatal astrometry failure detected: mean on-sky distance'
     logBrowser.SPECIAL_ZOO_CASES.append(fail)
     logBrowser.doFailZoology()
