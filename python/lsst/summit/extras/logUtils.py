@@ -45,12 +45,13 @@ class LogBrowser():
     -----
     Many tasks throw errors with values in them, meaning the ``doFailZoology``
     function doesn't collapse them down to a single failure case as one would
-    like. If this is the case, the first part of the message that is common
-    amongst the ones you would like to be classed together, and add it to the
-    class property ``SPECIAL_ZOO_CASES`` to declare a new type of error animal.
+    like. If this is the case, take the first part of the message that is
+    common among the ones you would like to be classed together, and add it to
+    the class property ``SPECIAL_ZOO_CASES`` to declare a new type of error
+    animal.
 
     example usage:
-    logBrowser = LogBrowser(taskName=taskName, collection=collection)
+    logBrowser = LogBrowser(buter, taskName, collection)
     fail = 'TaskError: Fatal astrometry failure detected: mean on-sky distance'
     logBrowser.SPECIAL_ZOO_CASES.append(fail)
     logBrowser.doFailZoology()
