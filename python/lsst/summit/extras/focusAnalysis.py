@@ -76,9 +76,9 @@ class SpectralFocusAnalyzer():
     focusAnalyzer.run() can be used instead of the last two lines separately.
     """
 
-    def __init__(self, **kwargs):
-        self.butler = makeDefaultLatissButler()
-        self._bestEffort = BestEffortIsr(**kwargs)
+    def __init__(self, embargo=False):
+        self.butler = makeDefaultLatissButler(embargo=embargo)
+        self._bestEffort = BestEffortIsr(embargo=embargo)
         qfmTaskConfig = QuickFrameMeasurementTaskConfig()
         self._quickMeasure = QuickFrameMeasurementTask(config=qfmTaskConfig)
 
@@ -382,9 +382,9 @@ class NonSpectralFocusAnalyzer():
     focusAnalyzer.run() can be used instead of the last two lines separately.
     """
 
-    def __init__(self, **kwargs):
-        self.butler = makeDefaultLatissButler()
-        self._bestEffort = BestEffortIsr(**kwargs)
+    def __init__(self, embargo=False):
+        self.butler = makeDefaultLatissButler(embargo=embargo)
+        self._bestEffort = BestEffortIsr(embargo=embargo)
 
     @staticmethod
     def gauss(x, *pars):
