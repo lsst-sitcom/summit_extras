@@ -52,6 +52,26 @@ class FitResult:
     sigma: float
 
 
+def getFocusFromExposure(exp):
+    """Get the focus value from an exposure.
+
+    This was previously accessed via raw metadata but now lives inside the
+    visitInfo.
+
+    Parameters
+    ----------
+    exp : `lsst.afw.image.Exposure`
+        The exposure.
+
+    Returns
+    -------
+    focus : `float`
+        The focus value.
+
+    """
+    return float(exp.visitInfo.focusZ)
+
+
 class SpectralFocusAnalyzer():
     """Analyze a focus sweep taken for spectral data.
 
@@ -72,9 +92,9 @@ class SpectralFocusAnalyzer():
     focusAnalyzer.run() can be used instead of the last two lines separately.
     """
 
-    def __init__(self, **kwargs):
-        self.butler = makeDefaultLatissButler()
-        self._bestEffort = BestEffortIsr(**kwargs)
+    def __init__(self, embargo=False):
+        self.butler = makeDefaultLatissButler(embargo=embargo)
+        self._bestEffort = BestEffortIsr(embargo=embargo)
         qfmTaskConfig = QuickFrameMeasurementTaskConfig()
         self._quickMeasure = QuickFrameMeasurementTask(config=qfmTaskConfig)
 
@@ -108,10 +128,6 @@ class SpectralFocusAnalyzer():
 
     def _setColors(self, nPoints):
         self.COLORS = cm.rainbow(np.linspace(0, 1, nPoints))
-
-    @staticmethod
-    def _getFocusFromHeader(exp):
-        return float(exp.getMetadata()["FOCUSZ"])
 
     def _getBboxes(self, centroid):
         x, y = centroid
@@ -263,7 +279,7 @@ class SpectralFocusAnalyzer():
                 plt.title(f'Fits to seqNum {seqNum}')
                 plt.show()
 
-            focuserPosition = self._getFocusFromHeader(exp)
+            focuserPosition = getFocusFromExposure(exp)
             fitData[seqNum]['focus'] = focuserPosition
 
         self.fitData = fitData
@@ -382,13 +398,9 @@ class NonSpectralFocusAnalyzer():
     focusAnalyzer.run() can be used instead of the last two lines separately.
     """
 
-    def __init__(self, **kwargs):
-        self.butler = makeDefaultLatissButler()
-        self._bestEffort = BestEffortIsr(**kwargs)
-
-    @staticmethod
-    def _getFocusFromHeader(exp):
-        return float(exp.getMetadata()["FOCUSZ"])
+    def __init__(self, embargo=False):
+        self.butler = makeDefaultLatissButler(embargo=embargo)
+        self._bestEffort = BestEffortIsr(embargo=embargo)
 
     @staticmethod
     def gauss(x, *pars):
@@ -508,7 +520,7 @@ class NonSpectralFocusAnalyzer():
             fitData[seqNum]['eeRadius80'] = imExam.imStats.eeRadius80
             fitData[seqNum]['eeRadius90'] = imExam.imStats.eeRadius90
 
-            focuserPosition = self._getFocusFromHeader(exp)
+            focuserPosition = getFocusFromExposure(exp)
             fitData[seqNum]['focus'] = focuserPosition
 
         self.fitData = fitData
