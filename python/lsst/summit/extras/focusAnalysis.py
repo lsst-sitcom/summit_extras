@@ -52,7 +52,23 @@ class FitResult:
     sigma: float
 
 
-def getFocusFromHeader(exp):
+def getFocusFromExposure(exp):
+    """Get the focus value from an exposure.
+
+    This was previously accessed via raw metadata but now lives inside the
+    visitInfo.
+
+    Parameters
+    ----------
+    exp : `lsst.afw.image.Exposure`
+        The exposure.
+
+    Returns
+    -------
+    focus : `float`
+        The focus value.
+
+    """
     return float(exp.visitInfo.focusZ)
 
 
@@ -263,7 +279,7 @@ class SpectralFocusAnalyzer():
                 plt.title(f'Fits to seqNum {seqNum}')
                 plt.show()
 
-            focuserPosition = getFocusFromHeader(exp)
+            focuserPosition = getFocusFromExposure(exp)
             fitData[seqNum]['focus'] = focuserPosition
 
         self.fitData = fitData
@@ -504,7 +520,7 @@ class NonSpectralFocusAnalyzer():
             fitData[seqNum]['eeRadius80'] = imExam.imStats.eeRadius80
             fitData[seqNum]['eeRadius90'] = imExam.imStats.eeRadius90
 
-            focuserPosition = getFocusFromHeader(exp)
+            focuserPosition = getFocusFromExposure(exp)
             fitData[seqNum]['focus'] = focuserPosition
 
         self.fitData = fitData
