@@ -52,6 +52,10 @@ class FitResult:
     sigma: float
 
 
+def getFocusFromHeader(exp):
+    return float(exp.visitInfo.focusZ)
+
+
 class SpectralFocusAnalyzer():
     """Analyze a focus sweep taken for spectral data.
 
@@ -108,10 +112,6 @@ class SpectralFocusAnalyzer():
 
     def _setColors(self, nPoints):
         self.COLORS = cm.rainbow(np.linspace(0, 1, nPoints))
-
-    @staticmethod
-    def _getFocusFromHeader(exp):
-        return float(exp.getMetadata()["FOCUSZ"])
 
     def _getBboxes(self, centroid):
         x, y = centroid
@@ -263,7 +263,7 @@ class SpectralFocusAnalyzer():
                 plt.title(f'Fits to seqNum {seqNum}')
                 plt.show()
 
-            focuserPosition = self._getFocusFromHeader(exp)
+            focuserPosition = getFocusFromHeader(exp)
             fitData[seqNum]['focus'] = focuserPosition
 
         self.fitData = fitData
@@ -387,10 +387,6 @@ class NonSpectralFocusAnalyzer():
         self._bestEffort = BestEffortIsr(**kwargs)
 
     @staticmethod
-    def _getFocusFromHeader(exp):
-        return float(exp.getMetadata()["FOCUSZ"])
-
-    @staticmethod
     def gauss(x, *pars):
         amp, mean, sigma = pars
         return amp*np.exp(-(x-mean)**2/(2.*sigma**2))
@@ -508,7 +504,7 @@ class NonSpectralFocusAnalyzer():
             fitData[seqNum]['eeRadius80'] = imExam.imStats.eeRadius80
             fitData[seqNum]['eeRadius90'] = imExam.imStats.eeRadius90
 
-            focuserPosition = self._getFocusFromHeader(exp)
+            focuserPosition = getFocusFromHeader(exp)
             fitData[seqNum]['focus'] = focuserPosition
 
         self.fitData = fitData
