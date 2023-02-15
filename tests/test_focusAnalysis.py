@@ -40,6 +40,8 @@ class FocusAnalysisTestCase(lsst.utils.tests.TestCase):
         except FileNotFoundError:
             raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
 
+        # dataIds have been chosen match those of a spectral focus sweep which
+        # is in the LATISS-test-data collection at the summit, TTS and USDF
         cls.dayObs = 20220628
         cls.seqNums = range(280, 288+1)
         cls.focusAnalyzer = SpectralFocusAnalyzer()
@@ -72,6 +74,9 @@ class NonSpectralFocusAnalysisTestCase(lsst.utils.tests.TestCase):
         except FileNotFoundError:
             raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
 
+        # dataIds have been chosen match those of a non-spectral focus sweep
+        # which is in the LATISS-test-data collection at the summit, TTS and
+        # USDF
         cls.dayObs = 20220405
         cls.seqNums = range(523, 531+1)
         cls.focusAnalyzer = NonSpectralFocusAnalyzer()
