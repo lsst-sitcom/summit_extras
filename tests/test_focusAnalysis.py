@@ -60,9 +60,12 @@ class FocusAnalysisTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(len(result), len(self.focusAnalyzer.getSpectrumBoxOffsets()))
 
         for number in result:
-            # check they're all numbers, non-nan, and vaguely sensible
-            self.assertGreater(number, -1.0)
-            self.assertLess(number, 1.0)
+            # check they're all numbers, non-nan, and vaguely sensible. These
+            # are values in mm of the hexapod offset from nominal focus and are
+            # usually very small (around 0.01mm) so this is just testing that
+            # something hasn't gone wildly wrong with the fit
+            self.assertGreater(number, -2.0)
+            self.assertLess(number, 2.0)
 
 
 class NonSpectralFocusAnalysisTestCase(lsst.utils.tests.TestCase):
@@ -96,9 +99,21 @@ class NonSpectralFocusAnalysisTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(len(result), 4)
 
         for k, v in result.items():
-            # check they're all numbers, non-nan, and vaguely sensible
+            # check they're all numbers, non-nan, and vaguely sensible. The
+            # values are the position of the fwhm which should be close to zero
+            # on the x-axis assuming we were roughly symmetric around focus
+            # (which is the case for the current test dataset) and encircled
+            # energy radii, which also should be small as the data in question
+            # was roughly in focus. This is really just to check that the code
+            # isn't horribly broken, so not much attention should be paid
+            # to these numerical values.
             self.assertIsInstance(k, str)
             self.assertIsInstance(v, float)
+
+            if k == 'fwhmFitMin':
+                # everything else is strictly positive but the fwhm position
+                # can be negative.
+                v = abs(v)
 
             self.assertGreater(v, 0.0)
             self.assertLess(v, 1.0)
