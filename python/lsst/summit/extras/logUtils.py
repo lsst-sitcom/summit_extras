@@ -100,7 +100,7 @@ class LogBrowser:
         for i, dataRef in enumerate(dataRefs):
             if (i+1) % 100 == 0:
                 self.log.info(f"Loaded {i+1} logs...")
-            log = self.butler.getDirect(dataRef)
+            log = self.butler.get(dataRef)
             logs[dataRef] = log
         return logs
 
