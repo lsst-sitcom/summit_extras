@@ -13,6 +13,7 @@ setupRequired(pipe_tasks)
 setupRequired(utils)
 setupRequired(pex_exceptions)
 setupRequired(summit_utils)
+setupRequired(display_matplotlib)
 
 # The following is boilerplate for all packages.
 # See https://dmtn-001.lsst.io for details on LSST_LIBRARY_PATH.
