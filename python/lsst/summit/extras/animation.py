@@ -24,6 +24,7 @@ import subprocess
 import shutil
 import uuid
 import math
+import gc
 
 import matplotlib.pyplot as plt
 
@@ -310,6 +311,10 @@ class Animator():
         plt.subplots_adjust(right=1+deltaH, left=0-deltaH, top=1+deltaV, bottom=0-deltaV)
         self.fig.savefig(saveFilename)
         logger.info(f'Saved png for {dataId} to {saveFilename}')
+
+        del toDisplay
+        del exp
+        gc.collect()
 
     def pngsToMp4(self, indir, outfile, framerate, verbose=False):
         """Create the movie with ffmpeg, from files."""
