@@ -108,4 +108,10 @@ def getObservingData(dayObs=None):
 
     table = pd.read_json(filename).T
     table = table.sort_index()
+
+    # remove all the columns which start with a leading underscore, as these
+    # are used by the backend to signal how specific cells should be colored
+    # on RubinTV, and for nothing else.
+    table = table.drop([col for col in table.columns if col.startswith('_')], axis=1)
+
     return table
