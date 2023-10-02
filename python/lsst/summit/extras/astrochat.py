@@ -103,8 +103,9 @@ def getObservingData(dayObs=None):
 
     # check the file exists, and raise if not
     if not os.path.exists(filename):
-        raise RuntimeError(f"Observing metadata file for {'current' if isCurrent else ''} dayObs "
-                           f"{dayObs} does not exist.")
+        LOG.warning(f"Observing metadata file for {'current' if isCurrent else ''} dayObs "
+                    f"{dayObs} does not exist.")
+        return pd.DataFrame()
 
     table = pd.read_json(filename).T
     table = table.sort_index()
