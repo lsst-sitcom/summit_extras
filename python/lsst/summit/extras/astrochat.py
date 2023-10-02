@@ -21,6 +21,9 @@
 
 import logging
 import os
+import pandas as pd
+
+from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 
 INSTALL_NEEDED = False
 LOG = logging.getLogger(__name__)
@@ -61,3 +64,48 @@ def setApiKey(filename="~/.openaikey.txt"):
 
     openai.api_key = apiKey
     os.environ["OPENAI_API_KEY"] = apiKey
+
+
+def getObservingData(dayObs=None):
+    """Get the observing metadata for the current or a past day.
+
+    Get the observing metadata for the current or a past day. The metadata
+    is the contents of the table on RubinTV. If a day is not specified, the
+    current day is used. The metadata is returned as a pandas dataframe.
+
+    Parameters
+    ----------
+    dayObs : `int`, optional
+        The day for which to get the observing metadata. If not specified,
+        the current day is used.
+
+    Returns
+    -------
+    observingData: `pandas.DataFrame`
+        The observing metadata for the specified day.
+    """
+    currentDayObs = getCurrentDayObs_int()
+    if dayObs is None:
+        dayObs = currentDayObs
+    isCurrent = dayObs == currentDayObs
+
+    site = getSite()
+
+    filename = None
+    if site == 'summit':
+        filename = f"/project/rubintv/sidecar_metadata/dayObs_{dayObs}.json"
+    elif site in ['staff-rsp', 'rubin-devl']:
+        LOG.warning(f"Observing metadata at {site} is currently copied by hand by Merlin and will not be "
+                    "updated in realtime")
+        filename = f"/sdf/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
+    else:
+        raise RuntimeError(f"Observing metadata not available for site {site}")
+
+    # check the file exists, and raise if not
+    if not os.path.exists(filename):
+        raise RuntimeError(f"Observing metadata file for {'current' if isCurrent else ''} dayObs "
+                           f"{dayObs} does not exist.")
+
+    table = pd.read_json(filename).T
+    table = table.sort_index()
+    return table
