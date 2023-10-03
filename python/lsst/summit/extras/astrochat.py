@@ -24,9 +24,17 @@ import os
 import pandas as pd
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
+from lsst.utils.iteration import ensure_iterable
+from IPython.display import display, Markdown
 
 INSTALL_NEEDED = False
 LOG = logging.getLogger(__name__)
+
+# TODO: work out a way to protect all of these imports
+import langchain  # noqa: E402
+from langchain.agents import create_pandas_dataframe_agent  # noqa: E402
+from langchain.chat_models import ChatOpenAI  # noqa: E402
+from langchain.callbacks import get_openai_callback  # noqa: E402
 
 try:
     import openai
@@ -36,6 +44,10 @@ except ImportError:
 
 
 def _checkInstallation():
+    """Check that all required packages are installed.
+
+    Raises a RuntimeError if any are missing so that we can fail early.
+    """
     if INSTALL_NEEDED:
         raise RuntimeError("openai package not found. Please install openai: pip install openai")
 
@@ -116,3 +128,83 @@ def getObservingData(dayObs=None):
     table = table.drop([col for col in table.columns if col.startswith('_')], axis=1)
 
     return table
+
+
+class AstroChat:
+    allowedVerbosities = ('COST', 'ALL', 'NONE', None)
+
+    demoQueries = {
+        'darktime': 'What is the total darktime for Image type = bias?',
+        'imageCount': 'How many engtest and bias images were taken?',
+        'expTime': 'What is the total exposure time?',
+        'obsBreakdown': 'What are the different kinds of observation reasons, and how many of each type? Please list as a table',
+        'pieChart': 'Can you make a pie chart of the total integration time for each of these filters and image type = science? Please add a legend with total time in minutes',
+        'pythonCode': 'Can you give me some python code that will produce a histogram of zenith angles for all entries with Observation reason = object and Filter = SDSSr_65mm',
+        'azVsTime': 'Can you show me a plot of azimuth vs. time (TAI) for all lines with Observation reason = intra',
+        'imageDegradation': 'Large values of mount image motion degradation is considered a bad thing. Is there a correlation with azimuth? Can you show a correlation plot?',
+        'analysis': 'Act as an expert astronomer. It seems azimuth of around 180 has large values. I wonder is this is due to low tracking rate. Can you assess that by making a plot vs. tracking rate, which you will have to compute?',
+        'correlation': 'Try looking for a correlation between mount motion degradation and declination. Show a plot with grid lines',
+        'pieChartObsReasons': 'Please produce a pie chart of total exposure time for different categories of Observation reason',
+        'airmassVsTime': 'I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass',
+        'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.'
+    }
+
+    def __init__(self, dayObs=None, temperature=0.0, verbosity='COST'):
+        """Create an AstroChat bot.
+
+        Note that ``verbosity`` here is the verbosity of this interface, not of the underlying model.
+        """
+        _checkInstallation()
+        self.setVerbosityLevel(verbosity)
+
+        self._chat = ChatOpenAI(model_name="gpt-4", temperature=temperature)
+
+        data = getObservingData(dayObs)
+        self._agent = create_pandas_dataframe_agent(self._chat, data, verbose=True)
+        self._totalCallbacks = langchain.callbacks.openai_info.OpenAICallbackHandler()
+
+    def setVerbosityLevel(self, level):
+        if level not in self.allowedVerbosities:
+            raise ValueError(f'Allowed values are {self.allowedVerbosities}, got {level}')
+        self._verbosity = level
+
+    def run(self, inputStr):
+        with get_openai_callback() as cb:
+            result = self._agent.run(inputStr)
+        display(Markdown(result))
+        self._addUsageAndDisplay(cb)
+
+    def _addUsageAndDisplay(self, cb):
+        self._totalCallbacks.total_cost += cb.total_cost
+        self._totalCallbacks.successful_requests += cb.successful_requests
+        self._totalCallbacks.completion_tokens += cb.completion_tokens
+        self._totalCallbacks.prompt_tokens += cb.prompt_tokens
+
+        if self._verbosity == 'ALL':
+            print('This call:\n' + str(cb) + '\n')
+            print(self._totalCallbacks)
+        elif self._verbosity == 'COST':
+            print(f'This call cost  (USD): ${cb.total_cost:.3f}')
+            print(f'Total call Cost (USD): ${self._totalCallbacks.total_cost:.3f}')
+
+    def listDemos(self):
+        print('Available demo keys and their associated queries:')
+        print('-------------------------------------------------')
+        for k, v in self.demoQueries.items():
+            print(f'{k}: {v}', '\n')
+
+    def runDemo(self, items=None):
+        """Run a/all demos. If None are specified, all are run in sequence.
+        """
+        knownDemos = list(self.demoQueries.keys())
+        if items is None:
+            items = knownDemos
+        items = list(ensure_iterable(items))
+
+        for item in items:
+            if item not in knownDemos:
+                raise ValueError(f'Specified demo item {item} is not an availble demo. Known = {knownDemos}')
+
+        for item in items:
+            print(f'\nRunning query: {item}')
+            self.run(self.demoQueries[item])
