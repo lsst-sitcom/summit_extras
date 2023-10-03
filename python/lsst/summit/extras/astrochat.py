@@ -22,6 +22,7 @@
 import logging
 import os
 import pandas as pd
+import re
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils.iteration import ensure_iterable
@@ -130,6 +131,73 @@ def getObservingData(dayObs=None):
     return table
 
 
+class ResponseFormatter:
+    """Format the response from the chatbot.
+
+    Format the intermiediate responses from the chatbot. This is a simple class
+    which provides a __call__ method which can be used as a callback for the
+    chatbot. The __call__ method formats the response as a markdown table.
+    """
+    @staticmethod
+    def getThoughtFromAction(action):
+        logMessage = action.log
+
+        # Split the input string based on "Action:" or "Action Input:" and take
+        # the first part
+        splitParts = re.split(r'Action:|Action Input:', logMessage)
+        thought = splitParts[0].strip()
+        return thought
+
+    @staticmethod
+    def printAction(action):
+        if action.tool == 'python_repl_ast':
+            print('\nExcuted the following code:')
+            code = action.tool_input
+            if not code.startswith('```'):
+                code = '```python\n' + code
+            if not code.endswith('```'):
+                code += '```'
+            display(Markdown(code))
+        else:
+            print(f'Tool: {action.tool}')
+            print(f'Tool input: {action.tool_input}')
+
+    @staticmethod
+    def printObservation(observation):
+        if observation:
+            print(f"Observation: {observation}")
+
+    def printResponse(self, response):
+        steps = response["intermediate_steps"]
+        nSteps = len(steps)
+        if nSteps > 1:
+            print(f'There were {len(steps)} steps to the process:\n')
+        for stepNum, step in enumerate(steps):
+            if nSteps > 1:
+                print(f'Step {stepNum + 1}:')
+            action, observation = step  # unpack the tuple
+            thought = self.getThoughtFromAction(action)
+
+            print(thought)
+            self.printAction(action)
+            self.printObservation(observation)
+
+    def __call__(self, response):
+        """Format the response for notebook display.
+
+        Parameters
+        ----------
+        response : `str`
+            The response from the chatbot.
+
+        Returns
+        -------
+        formattedResponse : `str`
+            The formatted response.
+        """
+        self.printResponse(response)
+
+
 class AstroChat:
     allowedVerbosities = ('COST', 'ALL', 'NONE', None)
 
@@ -150,9 +218,28 @@ class AstroChat:
     }
 
     def __init__(self, dayObs=None, temperature=0.0, verbosity='COST'):
-        """Create an AstroChat bot.
+        """Create an ASTROCHAT bot.
 
-        Note that ``verbosity`` here is the verbosity of this interface, not of the underlying model.
+        ASTROCHAT: "Advanced Systems for Telemetry-Linked Realtime Observing
+            and Chat-Based Help with Astronomy Tactics"
+
+        A GPT-4 based chatbot for answering questions about Rubin Observatory
+        conditions and observing metadata.
+
+        Note that ``verbosity`` here is the verbosity of this interface, not of
+        the underlying model, which has been pre-tuned for this application.
+
+        Parameters
+        ----------
+        dayObs : `int`, optional
+            The day for which to get the observing metadata. If not specified,
+            the current day is used.
+        temperature : `float`, optional
+            The temperature of the model. Higher temperatures result in more
+            random responses. The default is 0.0.
+        verbosity : `str`, optional
+            The verbosity level of the interface. Allowed values are 'COST',
+            'ALL', and 'NONE'. The default is 'COST'.
         """
         _checkInstallation()
         self.setVerbosityLevel(verbosity)
@@ -160,8 +247,14 @@ class AstroChat:
         self._chat = ChatOpenAI(model_name="gpt-4", temperature=temperature)
 
         data = getObservingData(dayObs)
-        self._agent = create_pandas_dataframe_agent(self._chat, data, verbose=True)
+        self._agent = create_pandas_dataframe_agent(
+            self._chat,
+            data,
+            return_intermediate_steps=True,
+            verbose=True
+        )
         self._totalCallbacks = langchain.callbacks.openai_info.OpenAICallbackHandler()
+        self.formatter = ResponseFormatter()
 
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
@@ -170,9 +263,10 @@ class AstroChat:
 
     def run(self, inputStr):
         with get_openai_callback() as cb:
-            result = self._agent.run(inputStr)
-        display(Markdown(result))
+            responses = self._agent({'input': inputStr})
+        self.formatter(responses)
         self._addUsageAndDisplay(cb)
+        return responses  # XXX remove this line
 
     def _addUsageAndDisplay(self, cb):
         self._totalCallbacks.total_cost += cb.total_cost
