@@ -163,8 +163,14 @@ class ResponseFormatter:
 
     @staticmethod
     def printObservation(observation):
-        if observation:
-            print(f"Observation: {observation}")
+        # observation can be many things, including an empty string
+        # but can be a pd.Series or maybe even potentially other things.
+        # So we need to check for None and empty string, and then just return
+        # and otherwise print whatever we get, because testing truthiness
+        # of other objects is tricky as pd.Series need any()/all() called etc
+        if (isinstance(observation, str) and observation == '') or observation is None:
+            return
+        print(f"Observation: {observation}")
 
     def printResponse(self, response):
         steps = response["intermediate_steps"]
@@ -264,7 +270,6 @@ class AstroChat:
             responses = self._agent({'input': inputStr})
         self.formatter(responses)
         self._addUsageAndDisplay(cb)
-        return responses  # XXX remove this line
 
     def _addUsageAndDisplay(self, cb):
         self._totalCallbacks.total_cost += cb.total_cost
@@ -273,7 +278,7 @@ class AstroChat:
         self._totalCallbacks.prompt_tokens += cb.prompt_tokens
 
         if self._verbosity == 'ALL':
-            print('This call:\n' + str(cb) + '\n')
+            print('\nThis call:\n' + str(cb) + '\n')
             print(self._totalCallbacks)
         elif self._verbosity == 'COST':
             print(f'This call cost  (USD): ${cb.total_cost:.3f}')
