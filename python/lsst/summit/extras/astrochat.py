@@ -138,6 +138,10 @@ class ResponseFormatter:
     which provides a __call__ method which can be used as a callback for the
     chatbot. The __call__ method formats the response as a markdown table.
     """
+
+    def __init__(self):
+        self.allCode = []
+
     @staticmethod
     def getThoughtFromAction(action):
         logMessage = action.log
@@ -148,15 +152,16 @@ class ResponseFormatter:
         thought = splitParts[0].strip()
         return thought
 
-    @staticmethod
-    def printAction(action):
+    def printAction(self, action):
         if action.tool == 'python_repl_ast':
             print('\nExcuted the following code:')
             code = action.tool_input
             if not code.startswith('```'):
+                self.allCode.append(code)
                 display(Markdown(f"```python\n{code}\n```"))
             else:
                 display(Markdown(code))
+                self.allCode.extend(code.split('\n')[1:-1])
         else:
             print(f'Tool: {action.tool}')
             print(f'Tool input: {action.tool_input}')
@@ -204,6 +209,9 @@ class ResponseFormatter:
             The formatted response.
         """
         self.printResponse(response)
+        allCode = self.allCode
+        self.allCode = []
+        return allCode
 
 
 class AstroChat:
@@ -271,8 +279,9 @@ class AstroChat:
     def run(self, inputStr):
         with get_openai_callback() as cb:
             responses = self._agent({'input': inputStr})
-        self.formatter(responses)
+        code = self.formatter(responses)
         self._addUsageAndDisplay(cb)
+        return code
 
     def _addUsageAndDisplay(self, cb):
         self._totalCallbacks.total_cost += cb.total_cost
