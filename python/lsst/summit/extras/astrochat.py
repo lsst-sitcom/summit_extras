@@ -187,6 +187,9 @@ class ResponseFormatter:
             self.printAction(action)
             self.printObservation(observation)
 
+        output = response["output"]
+        print(f'\nFinal answer: {output}')
+
     def __call__(self, response):
         """Format the response for notebook display.
 
@@ -281,8 +284,7 @@ class AstroChat:
             print('\nThis call:\n' + str(cb) + '\n')
             print(self._totalCallbacks)
         elif self._verbosity == 'COST':
-            print(f'This call cost  (USD): ${cb.total_cost:.3f}')
-            print(f'Total call Cost (USD): ${self._totalCallbacks.total_cost:.3f}')
+            print(f'\nThis call cost: ${cb.total_cost:.3f}, session total: ${self._totalCallbacks.total_cost:.3f}')
 
     def listDemos(self):
         print('Available demo keys and their associated queries:')
