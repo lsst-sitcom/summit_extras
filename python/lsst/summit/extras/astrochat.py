@@ -254,10 +254,10 @@ class AstroChat:
 
         self._chat = ChatOpenAI(model_name="gpt-4", temperature=temperature)
 
-        data = getObservingData(dayObs)
+        self.data = getObservingData(dayObs)
         self._agent = create_pandas_dataframe_agent(
             self._chat,
-            data,
+            self.data,
             return_intermediate_steps=True,
         )
         self._totalCallbacks = langchain.callbacks.openai_info.OpenAICallbackHandler()
