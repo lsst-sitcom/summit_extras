@@ -154,10 +154,9 @@ class ResponseFormatter:
             print('\nExcuted the following code:')
             code = action.tool_input
             if not code.startswith('```'):
-                code = '```python\n' + code
-            if not code.endswith('```'):
-                code += '```'
-            display(Markdown(code))
+                display(Markdown(f"```python\n{code}\n```"))
+            else:
+                display(Markdown(code))
         else:
             print(f'Tool: {action.tool}')
             print(f'Tool input: {action.tool_input}')
@@ -251,7 +250,6 @@ class AstroChat:
             self._chat,
             data,
             return_intermediate_steps=True,
-            verbose=True
         )
         self._totalCallbacks = langchain.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter()
@@ -300,5 +298,6 @@ class AstroChat:
                 raise ValueError(f'Specified demo item {item} is not an availble demo. Known = {knownDemos}')
 
         for item in items:
-            print(f'\nRunning query: {item}')
+            print(f"\nRunning demo item '{item}':")
+            print(f"Prompt text: {self.demoQueries[item]}")
             self.run(self.demoQueries[item])
