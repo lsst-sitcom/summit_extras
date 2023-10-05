@@ -22,6 +22,7 @@
 import pandas as pd
 import time
 import numpy as np
+from multiprocessing import Pool
 
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
 import lsst.summit.utils.butlerUtils as butlerUtils
@@ -33,55 +34,94 @@ class AssessQFM():
 
     Parameters
     ----------
-    butler :
-    qfmTask : 
-        If None, then use the version that is set up.
+    butler : `lsst.daf.butler.Butler`
+        Butler repository with the relevant exposures.
+    dataProduct : `str`, optional
+        Data product on which to run quickFrameMeasurement.
+    dataset : `str`, optional
+        File holding a table of vetted quickFrameMeasurement results.
+    successCut : `float`, optional
+        Distance in pixels between the baseline and new measurement centroids
+        for already successful fits in order to consider the new fit equally
+        successful.
+    nearSuccessCut : `float`, optional
+        Distance in pixels between the baseline and new measurement centroids
+        for fits that were close to correct in order to consider the new fit
+        approximately as successful.
+    donutCut : `float`, optional
+        Distance in pixels between the baseline and new measurement centroids
+        for fits of donut images to consider the new fit approximately as
+        successful.
+    logLevel : `int`, optional
+        Level of QuickFrameMeasurementTask log messages. Setting to 50 means
+        that only CRITICAL messages will be printed.
     """
 
-    def __init__(self, butler, qfmTask=None, dataProduct='quickLookExp',
-                 dataset='~/stack_projects/quickFrameMeasurement/baseline_meas.parq',
-                 successCut=2, nearSuccessCut=10, donutCut=10):
+    def __init__(self, butler, dataProduct='quickLookExp',
+                 dataset='data/qfm_baseline_assessment.parq',
+                 successCut=2, nearSuccessCut=10, donutCut=10, logLevel=50):
 
         self.butler = butler
-        if qfmTask is not None:
-            self.qfmTask = qfmTask
-        else:
-            qfmTaskConfig = QuickFrameMeasurementTaskConfig()
-            self.qfmTask = QuickFrameMeasurementTask(config=qfmTaskConfig)
-        self.dataProduct = dataProduct
+
+        qfmTaskConfig = QuickFrameMeasurementTaskConfig()
+        self.qfmTask = QuickFrameMeasurementTask(config=qfmTaskConfig)
+        self.qfmTask.log.setLevel(logLevel)
+
         self.testData = pd.read_parquet(dataset)
-        self.dataIds = [{'day_obs': row['day_obs'], 'seq_num': row['sequence_number'], 'detector': row['detector']}
-                        for i, row in self.testData.iterrows()]
-        
+        self.dataProduct = dataProduct
+        self.dataIds = [{'day_obs': row['day_obs'], 'seq_num': row['sequence_number'],
+                         'detector': row['detector']} for i, row in self.testData.iterrows()]
+
         self.cuts = {'G': successCut,
                      'QG': nearSuccessCut,
                      'DG': donutCut}
-        
-        self.resultKey = {'G': "Success", # Centroid is centered on the brightest star
-                          'QG': "Near success", # Centroid is near the center of the brightest star
-                          'BI': "Bad image", # A tracking issue, for example. Don't expect good fit
-                          'WF': "Wrong star", # Centroid is not on the brightest star
-                          'OF': "Other failure", # Other source of failure
-                          'FG': "Good failure", # Calibration image, so failure is expected
-                          'FP': "False positive", # No stars, so fit should have failed
-                          'DG': "Success (Donut)", # Donut image, centroid is somewhere on donut
-                          'DF': "Failure (Donut)", # Donut image, fit failed
-                          'SG': "Success (Giant donut)", # Giant donut, centroid is somewhere on donut
-                          'SF': "Failure (Giant donut)", # Giant donut, fit failed
-                          'U': "Ambiguous", # Centroid is on a star, but unclear whether it is the brightest one
+
+        self.resultKey = {'G': "Success",  # Centroid is centered on the brightest star
+                          'QG': "Near success",  # Centroid is near the center of the brightest star
+                          'BI': "Bad image",  # A tracking issue, for example. Don't expect good fit
+                          'WF': "Wrong star",  # Centroid is not on the brightest star
+                          'OF': "Other failure",  # Other source of failure
+                          'FG': "Good failure",  # Calibration image, so failure is expected
+                          'FP': "False positive",  # No stars, so fit should have failed
+                          'DG': "Success (Donut)",  # Donut image, centroid is somewhere on donut
+                          'DF': "Failure (Donut)",  # Donut image, fit failed
+                          'SG': "Success (Giant donut)",  # Giant donut, centroid is somewhere on donut
+                          'SF': "Failure (Giant donut)",  # Giant donut, fit failed
+                          'U': "Ambiguous",  # Centroid is on a star, but unclear whether it is the brightest
                           }
 
-    def run(self, nSamples=None):
+    def run(self, nSamples=None, nProcesses=1, outputFile=None):
+        """Run quickFrameMeasurement on a sample dataset, save the new results,
+        and compare them with the baseline, vetted by-eye results.
+        """
 
         if nSamples is not None:
             samples = np.random.choice(range(len(self.dataIds)), size=nSamples, replace=False)
             testSubset = self.testData.iloc[samples]
         else:
             testSubset = self.testData
-        print(testSubset['finalTag'].unique())
-        qfmResults = pd.DataFrame(index=testSubset.index, columns=self.testData.columns)
-        for i, row in testSubset.iterrows():
-            dataId = {'day_obs': row['day_obs'], 'seq_num': row['sequence_number'], 'detector': row['detector']}
+
+        if nProcesses > 1:
+            with Pool(processes=nProcesses) as p:
+                df_split = np.array_split(testSubset, nProcesses)
+                pool_process = p.map(self._runQFM, df_split)
+                qfmResults = pd.concat(pool_process)
+        else:
+            qfmResults = self._runQFM(testSubset)
+
+        if outputFile:
+            qfmResults.to_parquet(outputFile)
+
+        self.compareToBaseline(qfmResults)
+
+    def _runQFM(self, testset):
+        """Run quickFrameMeasurement on a subset of the dataset.
+        """
+
+        qfmResults = pd.DataFrame(index=testset.index, columns=self.testData.columns)
+        for i, row in testset.iterrows():
+            dataId = {'day_obs': row['day_obs'], 'seq_num': row['sequence_number'],
+                      'detector': row['detector']}
 
             exp = self.butler.get(self.dataProduct, dataId=dataId)
             qfmRes = qfmResults.loc[i]
@@ -89,10 +129,8 @@ class AssessQFM():
             t1 = time.time()
             result = self.qfmTask.run(exp)
             t2 = time.time()
-            try:
-                qfmRes['runtime'] = t2 - t1
-            except:
-                import ipdb; ipdb.set_trace()
+            qfmRes['runtime'] = t2 - t1
+
             if result.success:
                 pixCoord = result.brightestObjCentroid
                 qfmRes['centroid_x'] = pixCoord[0]
@@ -101,14 +139,21 @@ class AssessQFM():
 
             else:
                 qfmRes['finalTag'] = 'F'
+        return qfmResults
 
-        # Now compare with past results:
+    def compareToBaseline(self, comparisonData):
+        """Compare a table of quickFrameMeasurement results with the
+        baseline vetted data, and print output of the comparison.
+        """
+        baselineData = self.testData.loc[comparisonData.index]
+
+        # First the cases that succeeded in the baseline results:
         for key in ['G', 'QG', 'WF', 'DG', 'SG', 'FP', 'U']:
-            key_inds = testSubset['finalTag'] == key
+            key_inds = baselineData['finalTag'] == key
             if key_inds.sum() == 0:
                 continue
-            origResults = testSubset[key_inds]
-            newResults = qfmResults[key_inds]
+            origResults = baselineData[key_inds]
+            newResults = comparisonData[key_inds]
 
             stillSucceeds = (newResults['finalTag'] == 'P').sum()
             print(f"Results for '{self.resultKey[key]}' cases:")
@@ -128,27 +173,38 @@ class AssessQFM():
                     newRes = newResults.loc[i]
                     old_centroid = f"({res['centroid_x']:.1f}, {res['centroid_y']:.1f})"
                     new_centroid = f"({newRes['centroid_x']:.1f}, {newRes['centroid_y']:.1f})"
-                    print(f"    {res['day_obs']:<10}{res['sequence_number']:<17}{old_centroid:<17}{new_centroid:<17}")
+                    print(f"    {res['day_obs']:<10}{res['sequence_number']:<17}{old_centroid:<17}"
+                          f"{new_centroid:<17}")
 
+        # Next the cases that failed in the past:
         for key in ['FG', 'DF', 'SF', 'OF']:
-            key_inds = testSubset['finalTag'] == key
+            key_inds = baselineData['finalTag'] == key
             if key_inds.sum() == 0:
                 continue
-            origResults = testSubset[key_inds]
-            newResults = qfmResults[key_inds]
+            origResults = baselineData[key_inds]
+            newResults = comparisonData[key_inds]
 
             stillFails = (newResults['finalTag'] == 'F').sum()
             print(f"Results for '{self.resultKey[key]}' cases:")
             print(f"    {stillFails} out of {len(origResults)} still fail")
 
         print("Runtime comparison:")
-        print(f"Baseline: {np.mean(testSubset['runtime']):.2f}+/-{np.std(testSubset['runtime']):.2f} seconds")
-        print(f"Current: {np.mean(qfmResults['runtime']):.2f}+/-{np.std(qfmResults['runtime']):.2f} seconds")
+        print(f"    Baseline: {np.mean(baselineData['runtime']):.2f}+/-"
+              f"{np.std(baselineData['runtime']):.2f} seconds")
+        print(f"    Current: {np.mean(comparisonData['runtime']):.2f}+/-"
+              f"{np.std(comparisonData['runtime']):.2f} seconds")
+
 
 if __name__ == '__main__':
 
     butler = butlerUtils.makeDefaultLatissButler(embargo=True)
     assess = AssessQFM(butler)
-
-    assess.run(nSamples=200)
-
+    nPool = 15
+    nSamples = None
+    outputFile = 'newQFMresults.parq'
+    t0 = time.time()
+    assess.run(nSamples=nSamples, nProcesses=nPool, outputFile=outputFile)
+    t1 = time.time()
+    if nSamples is None:
+        nSamples = assess.testData.shape[0]
+    print(f'Total time for {nSamples} samples and {nPool} cores: {(t1 - t0):.2f} seconds')
