@@ -22,6 +22,7 @@
 import unittest
 import tempfile
 import os
+import shutil
 
 import lsst.utils.tests
 
@@ -33,6 +34,10 @@ class AnimationTestCase(lsst.utils.tests.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # test for the existence of ffmpeg and skip test if not found
+        if shutil.which('ffmpeg') is None:
+            raise unittest.SkipTest("Skipping tests that require ffmpeg.")
+
         try:
             cls.butler = makeDefaultLatissButler()
         except FileNotFoundError:
