@@ -23,6 +23,8 @@ import logging
 import os
 import pandas as pd
 import re
+import warnings
+import inspect
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils.iteration import ensure_iterable
@@ -233,7 +235,11 @@ class AstroChat:
         'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.'
     }
 
-    def __init__(self, dayObs=None, temperature=0.0, verbosity='COST'):
+    def __init__(self,
+                 dayObs=None,
+                 export=False,
+                 temperature=0.0,
+                 verbosity='COST'):
         """Create an ASTROCHAT bot.
 
         ASTROCHAT: "Advanced Systems for Telemetry-Linked Realtime Observing
@@ -245,11 +251,23 @@ class AstroChat:
         Note that ``verbosity`` here is the verbosity of this interface, not of
         the underlying model, which has been pre-tuned for this application.
 
+        Note that the use of export is only for notebook usage, and can easily
+        cause problems, as any name clashes from inside the agent with
+        variables you have defined in your notebook will be overwritten. The
+        same functionality can be achieved by calling the
+        ``exportLocalVariables`` function whenever you want to get things out,
+        but this permanent setting is provided for notebook convenience (only).
+
         Parameters
         ----------
         dayObs : `int`, optional
             The day for which to get the observing metadata. If not specified,
             the current day is used.
+        export : `bool`, optional
+            Whether to export the variables from the agent's execution after
+            each call. The default is False. Note that any variables exported
+            will be exported to the global namespace and overwrite any existing
+            with the same names.
         temperature : `float`, optional
             The temperature of the model. Higher temperatures result in more
             random responses. The default is 0.0.
@@ -271,16 +289,79 @@ class AstroChat:
         self._totalCallbacks = langchain.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter()
 
+        self.export = export
+        if self.export:
+            # issue warning here
+            # TODO: Improve this warning message.
+            warnings.warn('Exporting variables from the agent after each call. This can cause problems!')
+
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
             raise ValueError(f'Allowed values are {self.allowedVerbosities}, got {level}')
         self._verbosity = level
 
+    def getReplTool(self):
+        """Get the REPL tool from the agent.
+
+        Returns
+        -------
+        replTool : `langchain.tools.python.tool.PythonAstREPLTool`
+            The REPL tool.
+        """
+        replTools = []
+        for item in self._agent.tools:
+            if isinstance(item, langchain.tools.python.tool.PythonAstREPLTool):
+                replTools.append(item)
+        if not replTools:
+            raise RuntimeError("Agent appears to have no REPL tools")
+        if len(replTools) > 1:
+            raise RuntimeError("Agent appears to have more than one REPL tool")
+        return replTools[0]
+
+    def exportLocalVariables(self):
+        """Add the variables from the REPL tool's execution environment an
+        jupyter notebook.
+
+        This is useful when running in a notebook, as the data manipulations
+        which have been done inside the agent cannot be easily reproduced with
+        the code the agent supplies without access to the variables.
+
+        Note - this function is only for notebook usage, and can easily cause
+        weird problems, as variables which already exist will be overwritten.
+        This is *only* for use in AstroChat-only notebooks at present, and even
+        then should be used with some caution.
+        """
+        replTool = self.getReplTool()
+
+        try:
+            frame = inspect.currentframe()
+            # Find the frame of the original caller, which is the notebook
+            while frame and 'get_ipython' not in frame.f_globals:
+                frame = frame.f_back
+
+            if not frame:
+                warnings.warn('Failed to find the original calling frame - variables not exported')
+
+            # Access the caller's global namespace
+            caller_globals = frame.f_globals
+
+            # add each item from the replTool's local variables to the caller's
+            # globals
+            for key, value in replTool.locals.items():
+                caller_globals[key] = value
+
+        finally:
+            del frame  # Explicitly delete the frame to avoid reference cycles
+
     def run(self, inputStr):
         with get_openai_callback() as cb:
             responses = self._agent({'input': inputStr})
+
         code = self.formatter(responses)
         self._addUsageAndDisplay(cb)
+
+        if self.export:
+            self.exportLocalVariables()
         return code
 
     def _addUsageAndDisplay(self, cb):
