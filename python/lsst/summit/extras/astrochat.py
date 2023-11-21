@@ -278,13 +278,15 @@ class AstroChat:
         _checkInstallation()
         self.setVerbosityLevel(verbosity)
 
-        self._chat = ChatOpenAI(model_name="gpt-4", temperature=temperature)
+        self._chat = ChatOpenAI(model_name="gpt-4-1106-preview", temperature=temperature)
 
         self.data = getObservingData(dayObs)
         self._agent = create_pandas_dataframe_agent(
             self._chat,
             self.data,
             return_intermediate_steps=True,
+            include_df_in_prompt=True,
+            number_of_head_rows=1,
         )
         self._totalCallbacks = langchain.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter()
