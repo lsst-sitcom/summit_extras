@@ -25,6 +25,12 @@ import json
 import glob
 from PIL import Image
 import logging
+import numpy as np
+import matplotlib.pylab as plt
+
+from astropy.coordinates import SkyCoord, EarthLocation, get_body
+from astropy import wcs
+import astropy.units as u
 
 
 def getDirName(dataRoot, date):
@@ -203,3 +209,165 @@ class AllSkyDatabase:
             instance._data = {datetime.datetime.strptime(dt, '%Y-%m-%dT%H:%M:%S'): filename
                               for dt, filename in serializedData.items()}
             return instance
+
+def getAllSkyWcs():
+    # Solution from Peter
+    w = wcs.WCS(naxis=2)
+    x0 = np.array(
+        [ 2.24999998e+03,  1.50000029e+03, -4.92326522e-02,  4.81183444e-02,
+          1.80740466e-01,  9.89446006e-01, -1.00321437e+00,  1.86998471e-01]
+    )
+    w.wcs.crpix = [x0[0], x0[1]]
+    w.wcs.cdelt = [x0[2], x0[3]]
+    w.wcs.pc = x0[4:8].reshape((2, 2))
+    # Declare the ctype alt az as ALAT, ALON, use Zenith Equal Area projection
+    w.wcs.ctype = ["ALON-ZEA", "ALAT-ZEA"]
+    # Values at the reference pixel
+    w.wcs.crval = [180, 90]
+    
+    return w
+
+def makeCircle(az, alt, radius, points=100):
+    """Generate a circle on a unit sphere centered at az,alt and with specified radius.    
+    """
+    # 3d vector along altaz
+    v1 = np.array([
+        np.cos(alt)*np.cos(az),
+        np.cos(alt)*np.sin(az),
+        np.sin(alt)
+    ])
+    
+    # get perpendicular vectors
+    if v1[0] == 0 and v1[1] == 0:
+        v2 = np.array([1, 0, 0])
+        v3 = np.array([0, 1, 0])
+    else:
+        v2 = np.array([-v1[1], v1[0], 0])
+        v3 = np.array([-v1[2]*v1[0], -v1[2]*v1[1], v1[0]**2 + v1[1]**2])
+        v2 /= np.sqrt(np.dot(v2, v2))
+        v3 /= np.sqrt(np.dot(v3, v3))
+    
+    # Spin around
+    circle_points = np.empty((points, 3))
+    for i, th in enumerate(np.linspace(0, 2*np.pi, points)):
+        circle_points[i] = np.cos(th)*v2 + np.sin(th)*v3
+    circle_points *= np.sin(radius)
+    circle_points += v1*np.cos(radius)
+
+    # back to altaz
+    alt = np.arcsin(circle_points[:,2])*u.radian
+    az = np.arctan2(circle_points[:,1], circle_points[:,0])*u.radian
+    return az.to(u.deg), alt.to(u.deg)
+
+def getBrightObjects():
+    # Objects of possible interest
+    lmc = SkyCoord.from_name("LMC")
+    smc = SkyCoord.from_name("SMC")
+    sag = SkyCoord.from_name("Sag A*", )
+    scp = SkyCoord(ra=0*u.deg, dec=-90*u.deg)
+    objs = [lmc, smc, sag, scp]
+    names = ["LMC", "SMC", "Sag A*", "SCP"]
+
+    cp = EarthLocation.of_site("Cerro Pachon")
+    for obj in objs:
+        obj.location = cp
+    return objs, names
+
+FOVS = {"LSSTCam": 3.5*u.deg, 
+        "LSSTComCam": 0.7*u.deg, 
+        "LATISS": 6.7*u.arcmin}
+def plotAllSkyProjection(expRecords, allSkyDatabase):
+    
+    try:
+        iter(expRecords)
+    except TypeError:
+        expRecords = [expRecords]
+    
+    w = getAllSkyWcs()
+    
+    # Use the last record in the list to get the closest allSky camera image.
+    obstime = expRecords[-1].timespan.begin
+    imageFilename = allSkyDatabase.findClosest(obstime.to_datetime())
+    if imageFilename is None:
+        print('No close images found')
+        return None
+    print(imageFilename)
+    image = Image.open(imageFilename)
+    print(f"datetime = {image._getexif()[306]}")
+    print(f"exptime  = {image._getexif()[33434]} s")
+    objs, names = getBrightObjects()
+    for obj in objs:
+        obj.obstime = obstime
+    img = np.mean(image, axis=-1)  # squash rgb into grey
+    
+    # Use center of image to set vmax
+    # Here's the mask for "center"
+    xx = np.arange(4464.)
+    xx -= np.mean(xx)
+    yy = np.arange(2976.)
+    yy -= np.mean(yy)
+    xx, yy = np.meshgrid(xx, yy)
+    rr = np.sqrt(xx**2 + yy**2)
+    ww = rr < 1400
+    vmax = np.quantile(img[ww], 0.99)
+
+    fig = plt.figure(figsize=(4.46*1.5, 2.98*1.5))
+    plt.imshow(img, vmax=vmax)
+    
+    for obj, name in zip(objs, names):
+        plt.text(
+            *w.world_to_pixel(obj.altaz.az, obj.altaz.alt),
+            name,
+            c='r'
+        )        
+    
+    for name, sym in [
+        ("moon", "☽︎"), 
+        ("sun", "☉︎"), 
+        ("jupiter", "♃"), 
+        ("venus", "♀")
+    ]:
+        body = get_body(name, obstime)
+        body.location = EarthLocation.of_site("Cerro Pachon")
+        if body.altaz.alt > -5*u.deg:
+            plt.text(
+                *w.world_to_pixel(body.altaz.az, body.altaz.alt),
+                sym,
+                c='r',
+                fontsize=15
+            )
+
+    fadeOut = np.linspace(0.2, 1, len(expRecords))
+    for i, expRecord in enumerate(expRecords):
+        az = expRecord.azimuth
+        el = 90 - expRecord.zenith_angle
+        radius = FOVS[expRecord.instrument] / 2
+        circle = makeCircle(az*u.deg, el*u.deg, radius)
+        plt.plot(
+            *w.world_to_pixel(*circle),
+            c='m',
+            alpha=(fadeOut[i] if len(expRecords) > 1 else 1)
+        )
+        plt.text(
+                *w.world_to_pixel(az * u.deg, el * u.deg),
+                f" {expRecord.instrument}",
+                c='m',
+                fontsize=10,
+                alpha=(fadeOut[i] if len(expRecords) > 1 else 1)
+            )
+    
+    # Add cardinal directions
+    for name, az in [
+        ('N', 0),
+        ('E', 90),
+        ('S', 180),
+        ('W', 270),        
+    ]:
+        plt.text(
+            *w.world_to_pixel(az*u.deg, 5*u.deg),
+            name,
+            c='r', ha='center'
+        )
+    
+    return fig
+    
