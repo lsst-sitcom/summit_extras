@@ -23,6 +23,7 @@ import pandas as pd
 import time
 import numpy as np
 from multiprocessing import Pool
+import argparse
 
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
 import lsst.summit.utils.butlerUtils as butlerUtils
@@ -93,9 +94,22 @@ class AssessQFM():
     def run(self, nSamples=None, nProcesses=1, outputFile=None):
         """Run quickFrameMeasurement on a sample dataset, save the new results,
         and compare them with the baseline, vetted by-eye results.
+
+        Parameters
+        ----------
+        nSamples : `int`
+            Number of exposures to check. If nSamples is greater than the
+            number of exposures in the vetted dataset, will check all.
+        nProcesses : `int`
+            Number of threads to use. If greater than one, multithreading will
+            be used.
+        outputFile : `str`
+            Name of the output file.
         """
 
         if nSamples is not None:
+            if nSamples > len(self.dataIds):
+                nSamples = len(self.dataIds)
             samples = np.random.choice(range(len(self.dataIds)), size=nSamples, replace=False)
             testSubset = self.testData.iloc[samples]
         else:
@@ -116,6 +130,16 @@ class AssessQFM():
 
     def _runQFM(self, testset):
         """Run quickFrameMeasurement on a subset of the dataset.
+
+        Parameters
+        ----------
+        testset : `pandas.DataFrame`
+            Table of vetted exposures.
+
+        Returns
+        -------
+        qfmResults : `pandas.DataFrame`
+            Table of results from new quickFrameMeasurement run.
         """
 
         qfmResults = pd.DataFrame(index=testset.index, columns=self.testData.columns)
@@ -144,6 +168,11 @@ class AssessQFM():
     def compareToBaseline(self, comparisonData):
         """Compare a table of quickFrameMeasurement results with the
         baseline vetted data, and print output of the comparison.
+
+        Parameters
+        ----------
+        comparisonData : `pandas.DataFrame`
+            Table to compare with baseline results.
         """
         baselineData = self.testData.loc[comparisonData.index]
 
@@ -159,8 +188,8 @@ class AssessQFM():
             print(f"Results for '{self.resultKey[key]}' cases:")
             print(f"    {stillSucceeds} out of {len(origResults)} still succeed")
 
-            centroid_distances = ((origResults['centroid_x'] - newResults['centroid_x'])**2
-                                  + (origResults['centroid_y'] - newResults['centroid_y'])**2)**0.5
+            centroid_distances = ((origResults['centroid_x'] - newResults['centroid_x'])**2 +
+                                  (origResults['centroid_y'] - newResults['centroid_y'])**2)**0.5
 
             if key in ['G', 'QG', 'DG']:
                 inCut = centroid_distances < self.cuts[key]
@@ -196,15 +225,24 @@ class AssessQFM():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--embargo", dest="embargo", action=argparse.BooleanOptionalAction, default=True,
+                        help="Whether to use embargo butler")
+    parser.add_argument("--nPool", dest="nPool", default=1, type=int,
+                        help="Number of threads to use in multiprocessing")
+    parser.add_argument("--nSamples", dest="nSamples", default=None, type=int,
+                        help="Number of sample exposures to use in assessment (default is all)")
+    parser.add_argument("-o", "--output-file", dest="outputFile", default="newQFMresults.parq",
+                        help="Name of output file for new quickFrameMeasurement results")
+    args = parser.parse_args()
 
-    butler = butlerUtils.makeDefaultLatissButler(embargo=True)
+    butler = butlerUtils.makeDefaultLatissButler(embargo=args.embargo)
     assess = AssessQFM(butler)
-    nPool = 15
-    nSamples = None
-    outputFile = 'newQFMresults.parq'
+    nSamples = args.nSamples
+
     t0 = time.time()
-    assess.run(nSamples=nSamples, nProcesses=nPool, outputFile=outputFile)
+    assess.run(nSamples=nSamples, nProcesses=args.nPool, outputFile=args.outputFile)
     t1 = time.time()
     if nSamples is None:
         nSamples = assess.testData.shape[0]
-    print(f'Total time for {nSamples} samples and {nPool} cores: {(t1 - t0):.2f} seconds')
+    print(f'Total time for {nSamples} samples and {args.nPool} cores: {(t1 - t0):.2f} seconds')
