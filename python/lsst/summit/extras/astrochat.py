@@ -38,6 +38,16 @@ import langchain  # noqa: E402
 from langchain.agents import create_pandas_dataframe_agent  # noqa: E402
 from langchain.chat_models import ChatOpenAI  # noqa: E402
 from langchain.callbacks import get_openai_callback  # noqa: E402
+from langchain.memory.chat_message_histories import StreamlitChatMessageHistory
+import streamlit as st
+from langchain.memory import ConversationBufferMemory
+from langchain.agents import AgentType
+from langchain.agents import ZeroShotAgent
+from langchain.callbacks.base import BaseCallbackManager
+from langchain.chains.llm import LLMChain
+from langchain.llms.base import BaseLLM
+from langchain_experimental.tools.python.tool import PythonAstREPLTool
+from langchain.agents.agent import AgentExecutor
 
 try:
     import openai
@@ -180,19 +190,19 @@ class ResponseFormatter:
         print(f"Observation: {observation}")
 
     def printResponse(self, response):
-        steps = response["intermediate_steps"]
-        nSteps = len(steps)
-        if nSteps > 1:
-            print(f'There were {len(steps)} steps to the process:\n')
-        for stepNum, step in enumerate(steps):
-            if nSteps > 1:
-                print(f'Step {stepNum + 1}:')
-            action, observation = step  # unpack the tuple
-            thought = self.getThoughtFromAction(action)
+#         steps = response["intermediate_steps"]
+#         nSteps = len(steps)
+#         if nSteps > 1:
+#             print(f'There were {len(steps)} steps to the process:\n')
+#         for stepNum, step in enumerate(steps):
+#             if nSteps > 1:
+#                 print(f'Step {stepNum + 1}:')
+#             action, observation = step  # unpack the tuple
+#             thought = self.getThoughtFromAction(action)
 
-            print(thought)
-            self.printAction(action)
-            self.printObservation(observation)
+#             print(thought)
+#             self.printAction(action)
+#             self.printObservation(observation)
 
         output = response["output"]
         print(f'\nFinal answer: {output}')
@@ -234,6 +244,89 @@ class AstroChat:
         'airmassVsTime': 'I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass',
         'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.'
     }
+
+    memory = ConversationBufferMemory(memory_key="chat_history")
+
+    PREFIX = """
+            You are working with a pandas dataframe in Python. The name of the dataframe is `df`.
+            You should use the tools below to answer the question posed of you:"""
+
+    SUFFIX = """
+            This is the result of `print(df.head())`:
+            {df}
+            Begin!
+            {chat_history}
+            Question: {input}
+            {agent_scratchpad}"""
+
+    def create_pandas_dataframe_agent_test(
+        self,
+        llm,
+        df,
+        verbose: bool = False,
+        max_iterations: Optional[int] = 15,
+        max_execution_time: Optional[float] = None,
+        early_stopping_method: str = "force",
+        return_intermediate_steps: bool = False,
+        callback_manager: Optional[BaseCallbackManager] = None,
+        input_variables: Optional[List[str]] = None,  # Moved before default arguments
+        prefix: str = PREFIX,
+        suffix: str = SUFFIX,
+    ) -> AgentExecutor:
+        """Construct a pandas agent from an LLM and dataframe."""
+
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError(f"Expected pandas object, got {type(df)}")
+        if input_variables is None:
+            input_variables = ["df", "input", "agent_scratchpad", "intermediate_steps"]
+        tools = [PythonAstREPLTool(locals={"df": df})]
+
+        PREFIX = """
+            You are working with a pandas dataframe in Python. The name of the dataframe is `df`.
+            You should use the tools below to answer the question posed of you:"""
+
+        SUFFIX = """
+                This is the result of `print(df.head())`:
+                {df}
+                Begin!
+                {chat_history}
+                Question: {input}
+                {agent_scratchpad}"""
+
+        prompt = ZeroShotAgent.create_prompt(
+            tools,
+            prefix=PREFIX,
+            suffix=SUFFIX,
+            input_variables=["df", "input", "chat_history", "agent_scratchpad"]
+        )
+
+        partial_prompt = prompt.partial(df=str(df.head()))
+
+        llm_chain = LLMChain(
+            llm=llm,
+            prompt=partial_prompt,
+            callback_manager=callback_manager,
+        )
+
+        tool_names = [tool.name for tool in tools]
+
+        agent = ZeroShotAgent(
+            llm_chain=llm_chain,
+            allowed_tools=tool_names,
+            callback_manager=callback_manager,
+        )
+
+        return AgentExecutor.from_agent_and_tools(
+            agent=agent,
+            tools=tools,
+            verbose=verbose,
+            return_intermediate_steps=return_intermediate_steps,
+            max_iterations=max_iterations,
+            max_execution_time=max_execution_time,
+            early_stopping_method=early_stopping_method,
+            callback_manager=callback_manager,
+            memory = self.memory
+        )
 
     def __init__(self,
                  dayObs=None,
@@ -281,12 +374,13 @@ class AstroChat:
         self._chat = ChatOpenAI(model_name="gpt-4-1106-preview", temperature=temperature)
 
         self.data = getObservingData(dayObs)
-        self._agent = create_pandas_dataframe_agent(
+
+        self._agent = self.create_pandas_dataframe_agent_test(
             self._chat,
             self.data,
-            return_intermediate_steps=True,
-            include_df_in_prompt=True,
-            number_of_head_rows=1,
+            return_intermediate_steps=False,
+            # include_df_in_prompt=True,
+            # number_of_head_rows=1,
         )
         self._totalCallbacks = langchain.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter()
@@ -296,6 +390,7 @@ class AstroChat:
             # issue warning here
             # TODO: Improve this warning message.
             warnings.warn('Exporting variables from the agent after each call. This can cause problems!')
+
 
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
