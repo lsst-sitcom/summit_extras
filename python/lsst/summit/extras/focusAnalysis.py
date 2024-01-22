@@ -30,6 +30,7 @@ from matplotlib import gridspec
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.polynomial import Polynomial
 from scipy.optimize import curve_fit
 from scipy.linalg import norm
 
@@ -344,7 +345,7 @@ class SpectralFocusAnalyzer():
 
             quadFitPars = np.polyfit(focusPositions, widths, 2)
             if not hideFit:
-                axes[1].plot(fineXs, np.poly1d(quadFitPars)(fineXs), c=self.COLORS[spectrumSlice])
+                axes[1].plot(fineXs, Polynomial(quadFitPars)(fineXs), c=self.COLORS[spectrumSlice])
                 fitMin = -quadFitPars[1] / (2.0*quadFitPars[0])
                 bestFits.append(fitMin)
                 axes[1].axvline(fitMin, color=self.COLORS[spectrumSlice])
@@ -561,7 +562,7 @@ class NonSpectralFocusAnalyzer():
         ax0 = plt.subplot(gs[0])
         ax0.scatter(focusPositions, widths, c='k')
         ax0.set_ylabel('FWHM (arcsec)', fontsize=labelFontSize)
-        ax0.plot(fineXs, np.poly1d(fwhmFitPars)(fineXs), 'b-')
+        ax0.plot(fineXs, Polynomial(fwhmFitPars)(fineXs), 'b-')
         ax0.axvline(fwhmFitMin, c='r', ls='--')
 
         ee90s = [fitData[seqNum]['eeRadius90'] for seqNum in seqNums]
@@ -579,9 +580,9 @@ class NonSpectralFocusAnalyzer():
         ee50FitPars = np.polyfit(focusPositions, ee50s, 2)
         ee50FitMin = -ee50FitPars[1] / (2.0*ee50FitPars[0])
 
-        ax1.plot(fineXs, np.poly1d(ee90FitPars)(fineXs), 'r-')
-        ax1.plot(fineXs, np.poly1d(ee80FitPars)(fineXs), 'g-')
-        ax1.plot(fineXs, np.poly1d(ee50FitPars)(fineXs), 'b-')
+        ax1.plot(fineXs, Polynomial(ee90FitPars)(fineXs), 'r-')
+        ax1.plot(fineXs, Polynomial(ee80FitPars)(fineXs), 'g-')
+        ax1.plot(fineXs, Polynomial(ee50FitPars)(fineXs), 'b-')
 
         ax1.axvline(ee90FitMin, c='r', ls='--')
         ax1.axvline(ee80FitMin, c='g', ls='--')
