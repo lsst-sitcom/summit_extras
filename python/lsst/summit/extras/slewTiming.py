@@ -174,6 +174,8 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
         # timings into UTC when plotting from a dataframe.
         start = record.timespan.begin.utc.to_value("isot")
         stop = record.timespan.end.utc.to_value("isot")
+        # XXX I think we can just do start=record.timespan.begin.utc.datetime here and skip strings/isot
+        # also rename these to startExposing and endExposing to not squat a variable elsewhere and have better naming
         readoutEnd = (record.timespan.end + READOUT_TIME).utc.to_value("isot")
         seqNum = record.seq_num
         for axName, ax in axes.items():
@@ -181,7 +183,7 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
             ax.axvspan(stop, readoutEnd, color=readoutColor, alpha=0.1)
             if axName == 'el':  # only add seqNum annotation to bottom axis
                 label = f'seqNum = {seqNum}'
-                start_date = datetime.fromisoformat(start)
+                start_date = datetime.fromisoformat(start)  # XXX would remove these lines too, if correct above in XXX
                 stop_date = datetime.fromisoformat(stop)
                 midpoint = start_date + (stop_date - start_date) / 2
                 ax.annotate(label, xy=(midpoint, 0.5), xycoords=('data', 'axes fraction'),
