@@ -74,6 +74,27 @@ COMMANDS_TO_QUERY = [
 
 
 def getMountPositionData(client, begin, end, prePadding=0, postPadding=0):
+    """Retrieve the mount position data from the EFD.
+
+    Parameters
+    ----------
+    client : `EfdClient`
+        The EFD client used to retrieve the data.
+    begin : `astropy.time.Time`
+        The start time of the data retrieval window.
+    end : `astropy.time.Time`
+        The end time of the data retrieval window.
+    prePadding : `float`, optional
+        The amount of time to pad before the begin time, in seconds.
+    postPadding : `float`, optional
+        The amount of time to pad after the end time, in seconds.
+
+    Returns
+    -------
+    alt, ax, rot : `tuple` of `pd.DataFrame`
+        A tuple containing the azimuth, elevation, and rotation data as
+        dataframes.
+    """
     mountPosition = getEfdData(
         client,
         "lsst.sal.ATMCS.mount_AzEl_Encoders",
@@ -97,6 +118,35 @@ def getMountPositionData(client, begin, end, prePadding=0, postPadding=0):
 
 
 def getCommandsIssued(client, commands, begin, end, prePadding, postPadding):
+    """Retrieve the commands issued within a specified time range.
+
+    Parameters
+    ----------
+    client : `EfdClient`
+        The client object used to retrieve EFD data.
+    commands : `list`
+        A list of commands to retrieve.
+    begin : `astropy.time.Time`
+        The start time of the time range.
+    end : `astropy.time.Time`
+        The end time of the time range.
+    prePadding : float
+        The amount of time to pad before the begin time.
+    postPadding : float
+        The amount of time to pad after the end time.
+
+    Returns
+    -------
+    commandTimes : `dict`
+        A dictionary where the keys are the timestamps of the commands and the
+        values are the corresponding commands.
+
+    Raises
+    ------
+    ValueError
+        Raise if there is already a command at a timestamp in the dictionary,
+        i.e. there is a collision.
+    """
     commandTimes = {}
     for command in commands:
         data = getEfdData(
@@ -132,6 +182,32 @@ def getAxesInPosition(client, begin, end, prePadding, postPadding):
 
 
 def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
+    """Plot the mount command timings for a set of exposures.
+
+    This function plots the mount position data for the entire time range of
+    the exposures, regardless of whether the exposures are contiguous or not.
+    The exposures are be shaded in the plot to indicate the time range for each
+    integration its readout, and any commands issued during the time range are
+    plotted as vertical lines.
+
+    Parameters
+    ----------
+    client : `EfdClient`
+        The client object used to retrieve EFD data.
+    expRecords : `list` of `lsst.daf.butler.DimensionRecord`
+        A list of exposure records to plot. The timings will be plotted from
+        the start of the first exposure to the end of the last exposure,
+        regardless of whether intermediate exposures are included.
+    prePadding : float
+        The amount of time to pad before the start of the first exposure.
+    postPadding : float
+        The amount of time to pad after the end of the last exposure.
+
+    Returns
+    -------
+    fig : `matplotlib.figure.Figure`
+        The figure containing the plot.
+    """
     inPositionAlpha = 0.5
     commandAlpha = 0.5
     integrationColor = 'grey'
@@ -230,7 +306,6 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
                for label, color in commandColors.items()]
     legendHandles.extend(handles)
 
-    # set the labels and title
     axes['az'].set_ylabel('Azimuth (deg)')
     axes['el'].set_ylabel('Elevation (deg)')
     axes['rot'].set_ylabel('Rotation (deg)')
@@ -246,8 +321,7 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
 
     fig.tight_layout()
     plt.show()
-
-    return az
+    return fig
 
 
 if __name__ == "__main__":
