@@ -27,7 +27,7 @@ from astropy.time import TimeDelta
 
 import lsst.summit.utils.butlerUtils as butlerUtils
 from lsst_efd_client import merge_packed_time_series as mpts
-from lsst.summit.utils.efdUtils import getEfdData
+from lsst.summit.utils.efdUtils import getEfdData, getCommands
 
 __all__ = ['plotExposureTiming']
 
@@ -115,59 +115,6 @@ def getMountPositionData(client, begin, end, prePadding=0, postPadding=0):
     el = mpts(mountPosition, 'elevationCalculatedAngle', stride=1)
     rot = mpts(nasmythPosition, 'nasmyth2CalculatedAngle', stride=1)
     return az, el, rot
-
-
-def getCommandsIssued(client, commands, begin, end, prePadding, postPadding):
-    """Retrieve the commands issued within a specified time range.
-
-    Parameters
-    ----------
-    client : `EfdClient`
-        The client object used to retrieve EFD data.
-    commands : `list`
-        A list of commands to retrieve.
-    begin : `astropy.time.Time`
-        The start time of the time range.
-    end : `astropy.time.Time`
-        The end time of the time range.
-    prePadding : float
-        The amount of time to pad before the begin time.
-    postPadding : float
-        The amount of time to pad after the end time.
-
-    Returns
-    -------
-    commandTimes : `dict`
-        A dictionary where the keys are the timestamps of the commands and the
-        values are the corresponding commands.
-
-    Raises
-    ------
-    ValueError
-        Raise if there is already a command at a timestamp in the dictionary,
-        i.e. there is a collision.
-    """
-    commandTimes = {}
-    for command in commands:
-        data = getEfdData(
-            client,
-            command,
-            begin=begin,
-            end=end,
-            prePadding=prePadding,
-            postPadding=postPadding,
-            warn=False  # most commands will not be issue so we expect many empty queries
-        )
-        if not data.empty:
-            for time, _ in data.iterrows():
-                # this is much the most simple data structure, and the chance
-                # of commands being *exactly* simultaneous is minimal so try
-                # it like this, and just raise if we get collisions for now. So
-                # far in testing this seems to be just fine.
-                if time in commandTimes:
-                    raise ValueError(f"There is already a command at {time=} - make a better data structure!")
-                commandTimes[time] = command
-    return commandTimes
 
 
 def getAxesInPosition(client, begin, end, prePadding, postPadding):
@@ -290,7 +237,15 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
     legendHandles.append(handle)
 
     # place vertical lines at the times when commands were issued
-    commandTimes = getCommandsIssued(client, COMMANDS_TO_QUERY, begin, end, prePadding, postPadding)
+    commandTimes = getCommands(
+        client,
+        COMMANDS_TO_QUERY,
+        begin,
+        end,
+        prePadding,
+        postPadding,
+        timeFormat='python'
+    )
     uniqueCommands = list(set(commandTimes.values()))
     colorCycle = itertools.cycle(['b', 'g', 'r', 'c', 'm', 'y', 'k'])
     commandColors = {command: next(colorCycle) for command in uniqueCommands}
