@@ -133,7 +133,7 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
 
     This function plots the mount position data for the entire time range of
     the exposures, regardless of whether the exposures are contiguous or not.
-    The exposures are be shaded in the plot to indicate the time range for each
+    The exposures are shaded in the plot to indicate the time range for each
     integration its readout, and any commands issued during the time range are
     plotted as vertical lines.
 
