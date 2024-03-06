@@ -19,45 +19,56 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import os
-import subprocess
-import shutil
-import uuid
-import math
 import gc
+import logging
+import math
+import os
+import shutil
+import subprocess
+import uuid
 
 import matplotlib.pyplot as plt
 
-from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
-from lsst.atmospec.utils import getTargetCentroidFromWcs
 import lsst.afw.display as afwDisplay
 import lsst.afw.math as afwMath
-import logging
 import lsst.meas.algorithms as measAlg
+from lsst.atmospec.utils import airMassFromRawMetadata, getTargetCentroidFromWcs
+from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
+from lsst.summit.utils.butlerUtils import (
+    datasetExists,
+    getDayObs,
+    getExpRecordFromDataId,
+    getLatissOnSkyDataIds,
+    getSeqNum,
+    makeDefaultLatissButler,
+    updateDataIdOrDataCord,
+)
 from lsst.summit.utils.utils import dayObsIntToString, setupLogging
-from lsst.summit.utils.butlerUtils import (datasetExists, getExpRecordFromDataId, makeDefaultLatissButler,
-                                           getDayObs, getSeqNum, updateDataIdOrDataCord,
-                                           getLatissOnSkyDataIds)
 
-from lsst.atmospec.utils import airMassFromRawMetadata
 logger = logging.getLogger("lsst.summit.extras.animation")
 setupLogging()
 
 
-class Animator():
+class Animator:
     """Animate the list of dataIds in the order in which they are specified
     for the data product specified."""
 
-    def __init__(self, butler, dataIdList, outputPath, outputFilename, *,
-                 remakePngs=False,
-                 clobberVideoAndGif=False,
-                 keepIntermediateGif=False,
-                 smoothImages=True,
-                 plotObjectCentroids=True,
-                 useQfmForCentroids=False,
-                 dataProductToPlot='calexp',
-                 debug=False):
-
+    def __init__(
+        self,
+        butler,
+        dataIdList,
+        outputPath,
+        outputFilename,
+        *,
+        remakePngs=False,
+        clobberVideoAndGif=False,
+        keepIntermediateGif=False,
+        smoothImages=True,
+        plotObjectCentroids=True,
+        useQfmForCentroids=False,
+        dataProductToPlot="calexp",
+        debug=False,
+    ):
         self.butler = butler
         self.dataIdList = dataIdList
         self.outputPath = outputPath
@@ -86,8 +97,8 @@ class Animator():
         afwDisplay.setDefaultBackend("matplotlib")
         self.fig = plt.figure(figsize=(15, 15))
         self.disp = afwDisplay.Display(self.fig)
-        self.disp.setImageColormap('gray')
-        self.disp.scale('asinh', 'zscale')
+        self.disp.setImageColormap("gray")
+        self.disp.scale("asinh", "zscale")
 
         self.pngsToMakeDataIds = []
         self.preRun()  # sets the above list
@@ -106,17 +117,17 @@ class Animator():
         strId : `str`
             The data id as a string.
         """
-        if (dayObs := getDayObs(dataId)) and (seqNum := getSeqNum(dataId)):   # nicely ordered if easy
+        if (dayObs := getDayObs(dataId)) and (seqNum := getSeqNum(dataId)):  # nicely ordered if easy
             return f"{dayObsIntToString(dayObs)}-{seqNum:05d}"
 
         # General case (and yeah, I should probably learn regex someday)
         dIdStr = str(dataId)
-        dIdStr = dIdStr.replace(' ', "")
-        dIdStr = dIdStr.replace('{', "")
-        dIdStr = dIdStr.replace('}', "")
-        dIdStr = dIdStr.replace('\'', "")
-        dIdStr = dIdStr.replace(':', "-")
-        dIdStr = dIdStr.replace(',', "-")
+        dIdStr = dIdStr.replace(" ", "")
+        dIdStr = dIdStr.replace("{", "")
+        dIdStr = dIdStr.replace("}", "")
+        dIdStr = dIdStr.replace("'", "")
+        dIdStr = dIdStr.replace(":", "-")
+        dIdStr = dIdStr.replace(",", "-")
         return dIdStr
 
     def dataIdToFilename(self, dataId, includeNumber=False, imNum=None):
@@ -130,14 +141,14 @@ class Animator():
         dIdStr = self._strDataId(dataId)
 
         if includeNumber:  # for use in temp dir, so not full path
-            filename = self.toAnimateTemplate%(imNum, dIdStr, self.dataProductToPlot)
+            filename = self.toAnimateTemplate % (imNum, dIdStr, self.dataProductToPlot)
             return os.path.join(filename)
         else:
-            filename = self.basicTemplate%(dIdStr, self.dataProductToPlot)
+            filename = self.basicTemplate % (dIdStr, self.dataProductToPlot)
             return os.path.join(self.pngPath, filename)
 
     def exists(self, obj):
-        if type(obj) == str:
+        if isinstance(obj, str):
             return os.path.exists(obj)
         raise RuntimeError("Other type checks not yet implemented")
 
@@ -161,8 +172,11 @@ class Animator():
             logger.info(f"dIdsWithoutPngs = {dIdsWithoutPngs}")
 
         # check the datasets exist for the pngs which need remaking
-        missingData = [d for d in dIdsWithoutPngs if not datasetExists(self.butler, self.dataProductToPlot, d,
-                                                                       detector=0)]
+        missingData = [
+            d
+            for d in dIdsWithoutPngs
+            if not datasetExists(self.butler, self.dataProductToPlot, d, detector=0)
+        ]
 
         logger.info(f"Of the provided {len(self.dataIdList)} dataIds:")
         logger.info(f"{len(dIdsWithPngs)} existing pngs were found")
@@ -173,8 +187,10 @@ class Animator():
                 msg = f"Failed to find {self.dataProductToPlot} for {dId}"
                 logger.warning(msg)
                 self.dataIdList.remove(dId)
-            logger.info(f"Of the {len(dIdsWithoutPngs)} dataIds without pngs, {len(missingData)}"
-                        " did not have the corresponding dataset existing")
+            logger.info(
+                f"Of the {len(dIdsWithoutPngs)} dataIds without pngs, {len(missingData)}"
+                " did not have the corresponding dataset existing"
+            )
 
         if self.remakePngs:
             self.pngsToMakeDataIds = [d for d in self.dataIdList if d not in missingData]
@@ -189,17 +205,17 @@ class Animator():
     def run(self):
         # make the missing pngs
         if self.pngsToMakeDataIds:
-            logger.info('Creating necessary pngs...')
+            logger.info("Creating necessary pngs...")
             for i, dataId in enumerate(self.pngsToMakeDataIds):
-                logger.info(f'Making png for file {i+1} of {len(self.pngsToMakeDataIds)}')
+                logger.info(f"Making png for file {i+1} of {len(self.pngsToMakeDataIds)}")
                 self.makePng(dataId, self.dataIdToFilename(dataId))
 
         # stage files in temp dir with numbers prepended to filenames
         if not self.dataIdList:
-            logger.warning('No files to animate - nothing to do')
+            logger.warning("No files to animate - nothing to do")
             return
 
-        logger.info('Copying files to ordered temp dir...')
+        logger.info("Copying files to ordered temp dir...")
         pngFilesOriginal = [self.dataIdToFilename(d) for d in self.dataIdList]
         for filename in pngFilesOriginal:  # these must all now exist, but let's assert just in case
             assert self.exists(filename)
@@ -226,10 +242,10 @@ class Animator():
 
         # create gif in temp dir
 
-        logger.info('Making mp4 of pngs...')
+        logger.info("Making mp4 of pngs...")
         self.pngsToMp4(tempDir, self.outputFilename, 10, verbose=False)
         self.tidyUp(tempDir)
-        logger.info(f'Finished! Output at {self.outputFilename}')
+        logger.info(f"Finished! Output at {self.outputFilename}")
         return self.outputFilename
 
     def _titleFromExp(self, exp, dataId):
@@ -237,8 +253,8 @@ class Animator():
         obj = expRecord.target_name
         expTime = expRecord.exposure_time
         filterCompound = expRecord.physical_filter
-        filt, grating = filterCompound.split('~')
-        rawMd = self.butler.get('raw.metadata', dataId)
+        filt, grating = filterCompound.split("~")
+        rawMd = self.butler.get("raw.metadata", dataId)
         airmass = airMassFromRawMetadata(rawMd)  # XXX this could be improved a lot
         if not airmass:
             airmass = -1
@@ -258,7 +274,7 @@ class Animator():
                 result = self.qfmTask.run(exp)
                 pixCoord = result.brightestObjCentroid
                 expId = exp.info.id
-                logger.info(f'expId {expId} has centroid {pixCoord}')
+                logger.info(f"expId {expId} has centroid {pixCoord}")
             except Exception:
                 return None
         else:
@@ -279,7 +295,7 @@ class Animator():
             exp = self.butler.get(self.dataProductToPlot, dataId)
         except Exception:
             # oh no, that should never happen, but it does! Let's just skip
-            logger.warning(f'Skipped {dataId}, because {self.dataProductToPlot} retrieval failed!')
+            logger.warning(f"Skipped {dataId}, because {self.dataProductToPlot} retrieval failed!")
             return
         toDisplay = exp
         if self.smoothImages:
@@ -288,29 +304,29 @@ class Animator():
 
         try:
             self.disp.mtv(toDisplay.image, title=self._titleFromExp(exp, dataId))
-            self.disp.scale('asinh', 'zscale')
+            self.disp.scale("asinh", "zscale")
         except RuntimeError:  # all-nan images slip through and don't display
-            self.disp.scale('linear', 0, 1)
+            self.disp.scale("linear", 0, 1)
             self.disp.mtv(toDisplay.image, title=self._titleFromExp(exp, dataId))
-            self.disp.scale('asinh', 'zscale')  # set back for next image
+            self.disp.scale("asinh", "zscale")  # set back for next image
             pass
 
         if self.plotObjectCentroids:
             try:
                 pixCoord = self.getStarPixCoord(exp)
                 if pixCoord:
-                    self.disp.dot('x', *pixCoord, ctype='C1', size=50)
-                    self.disp.dot('o', *pixCoord, ctype='C1', size=50)
+                    self.disp.dot("x", *pixCoord, ctype="C1", size=50)
+                    self.disp.dot("o", *pixCoord, ctype="C1", size=50)
                 else:
-                    self.disp.dot('x', 2000, 2000, ctype='red', size=2000)
+                    self.disp.dot("x", 2000, 2000, ctype="red", size=2000)
             except Exception:
                 logger.warning(f"Failed to find OBJECT location for {dataId}")
 
         deltaH = -0.05
         deltaV = -0.05
-        plt.subplots_adjust(right=1+deltaH, left=0-deltaH, top=1+deltaV, bottom=0-deltaV)
+        plt.subplots_adjust(right=1 + deltaH, left=0 - deltaH, top=1 + deltaV, bottom=0 - deltaV)
         self.fig.savefig(saveFilename)
-        logger.info(f'Saved png for {dataId} to {saveFilename}')
+        logger.info(f"Saved png for {dataId} to {saveFilename}")
 
         del toDisplay
         del exp
@@ -320,27 +336,39 @@ class Animator():
         """Create the movie with ffmpeg, from files."""
         # NOTE: the order of ffmpeg arguments *REALLY MATTERS*.
         # Reorder them at your own peril!
-        pathPattern = f'\"{os.path.join(indir, "*.png")}\"'
+        pathPattern = f'"{os.path.join(indir, "*.png")}"'
         if verbose:
-            ffmpeg_verbose = 'info'
+            ffmpeg_verbose = "info"
         else:
-            ffmpeg_verbose = 'error'
-        cmd = ['ffmpeg',
-               '-v', ffmpeg_verbose,
-               '-f', 'image2',
-               '-y',
-               '-pattern_type glob',
-               '-framerate', f'{framerate}',
-               '-i', pathPattern,
-               '-vcodec', 'libx264',
-               '-b:v', '20000k',
-               '-profile:v', 'main',
-               '-pix_fmt', 'yuv420p',
-               '-threads', '10',
-               '-r', f'{framerate}',
-               os.path.join(outfile)]
+            ffmpeg_verbose = "error"
+        cmd = [
+            "ffmpeg",
+            "-v",
+            ffmpeg_verbose,
+            "-f",
+            "image2",
+            "-y",
+            "-pattern_type glob",
+            "-framerate",
+            f"{framerate}",
+            "-i",
+            pathPattern,
+            "-vcodec",
+            "libx264",
+            "-b:v",
+            "20000k",
+            "-profile:v",
+            "main",
+            "-pix_fmt",
+            "yuv420p",
+            "-threads",
+            "10",
+            "-r",
+            f"{framerate}",
+            os.path.join(outfile),
+        ]
 
-        subprocess.check_call(r' '.join(cmd), shell=True)
+        subprocess.check_call(r" ".join(cmd), shell=True)
 
     def tidyUp(self, tempDir):
         shutil.rmtree(tempDir)
@@ -351,7 +379,7 @@ class Animator():
 
         Return a smoothed copy of the exposure
         with the original mask plane in place."""
-        psf = measAlg.DoubleGaussianPsf(kernelSize, kernelSize, smoothing/(2*math.sqrt(2*math.log(2))))
+        psf = measAlg.DoubleGaussianPsf(kernelSize, kernelSize, smoothing / (2 * math.sqrt(2 * math.log(2))))
         newExp = exp.clone()
         originalMask = exp.mask
 
@@ -361,27 +389,32 @@ class Animator():
         return newExp
 
 
-def animateDay(butler, dayObs, outputPath, dataProductToPlot='quickLookExp'):
-    outputFilename = f'{dayObs}.mp4'
+def animateDay(butler, dayObs, outputPath, dataProductToPlot="quickLookExp"):
+    outputFilename = f"{dayObs}.mp4"
 
     onSkyIds = getLatissOnSkyDataIds(butler, startDate=dayObs, endDate=dayObs)
     logger.info(f"Found {len(onSkyIds)} on sky ids for {dayObs}")
 
     onSkyIds = [updateDataIdOrDataCord(dataId, detector=0) for dataId in onSkyIds]
 
-    animator = Animator(butler, onSkyIds, outputPath, outputFilename,
-                        dataProductToPlot=dataProductToPlot,
-                        remakePngs=False,
-                        debug=False,
-                        clobberVideoAndGif=True,
-                        plotObjectCentroids=True,
-                        useQfmForCentroids=True)
+    animator = Animator(
+        butler,
+        onSkyIds,
+        outputPath,
+        outputFilename,
+        dataProductToPlot=dataProductToPlot,
+        remakePngs=False,
+        debug=False,
+        clobberVideoAndGif=True,
+        plotObjectCentroids=True,
+        useQfmForCentroids=True,
+    )
     filename = animator.run()
     return filename
 
 
-if __name__ == '__main__':
-    outputPath = '/home/mfl/animatorOutput/main/'
+if __name__ == "__main__":
+    outputPath = "/home/mfl/animatorOutput/main/"
     butler = makeDefaultLatissButler()
 
     day = 20211104

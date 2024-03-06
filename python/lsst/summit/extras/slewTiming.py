@@ -20,18 +20,19 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import itertools
+
 import matplotlib.pyplot as plt
+from astropy.time import TimeDelta
+from lsst_efd_client import merge_packed_time_series as mpts
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-from astropy.time import TimeDelta
 
 import lsst.summit.utils.butlerUtils as butlerUtils
-from lsst_efd_client import merge_packed_time_series as mpts
-from lsst.summit.utils.efdUtils import getEfdData, getCommands
+from lsst.summit.utils.efdUtils import getCommands, getEfdData
 
-__all__ = ['plotExposureTiming']
+__all__ = ["plotExposureTiming"]
 
-READOUT_TIME = TimeDelta(2.3, format='sec')
+READOUT_TIME = TimeDelta(2.3, format="sec")
 
 COMMANDS_TO_QUERY = [
     # at the time of writing this was all the commands that existed for ATPtg
@@ -39,36 +40,36 @@ COMMANDS_TO_QUERY = [
     # command, and include all others. Perhaps this should be done dynamically
     # by using the findTopics function and removing command_trackTarget from
     # the list?
-    'lsst.sal.ATPtg.command_azElTarget',
-    'lsst.sal.ATPtg.command_disable',
-    'lsst.sal.ATPtg.command_enable',
-    'lsst.sal.ATPtg.command_exitControl',
-    'lsst.sal.ATPtg.command_offsetAbsorb',
-    'lsst.sal.ATPtg.command_offsetAzEl',
-    'lsst.sal.ATPtg.command_offsetClear',
-    'lsst.sal.ATPtg.command_offsetPA',
-    'lsst.sal.ATPtg.command_offsetRADec',
-    'lsst.sal.ATPtg.command_pointAddData',
-    'lsst.sal.ATPtg.command_pointLoadModel',
-    'lsst.sal.ATPtg.command_pointNewFile',
-    'lsst.sal.ATPtg.command_poriginAbsorb',
-    'lsst.sal.ATPtg.command_poriginClear',
-    'lsst.sal.ATPtg.command_poriginOffset',
-    'lsst.sal.ATPtg.command_poriginXY',
-    'lsst.sal.ATPtg.command_raDecTarget',
-    'lsst.sal.ATPtg.command_rotOffset',
-    'lsst.sal.ATPtg.command_standby',
-    'lsst.sal.ATPtg.command_start',
-    'lsst.sal.ATPtg.command_startTracking',
-    'lsst.sal.ATPtg.command_stopTracking',
-    'lsst.sal.ATMCS.command_disable',
-    'lsst.sal.ATMCS.command_enable',
-    'lsst.sal.ATMCS.command_exitControl',
-    'lsst.sal.ATMCS.command_setInstrumentPort',
-    'lsst.sal.ATMCS.command_standby',
-    'lsst.sal.ATMCS.command_start',
-    'lsst.sal.ATMCS.command_startTracking',
-    'lsst.sal.ATMCS.command_stopTracking',
+    "lsst.sal.ATPtg.command_azElTarget",
+    "lsst.sal.ATPtg.command_disable",
+    "lsst.sal.ATPtg.command_enable",
+    "lsst.sal.ATPtg.command_exitControl",
+    "lsst.sal.ATPtg.command_offsetAbsorb",
+    "lsst.sal.ATPtg.command_offsetAzEl",
+    "lsst.sal.ATPtg.command_offsetClear",
+    "lsst.sal.ATPtg.command_offsetPA",
+    "lsst.sal.ATPtg.command_offsetRADec",
+    "lsst.sal.ATPtg.command_pointAddData",
+    "lsst.sal.ATPtg.command_pointLoadModel",
+    "lsst.sal.ATPtg.command_pointNewFile",
+    "lsst.sal.ATPtg.command_poriginAbsorb",
+    "lsst.sal.ATPtg.command_poriginClear",
+    "lsst.sal.ATPtg.command_poriginOffset",
+    "lsst.sal.ATPtg.command_poriginXY",
+    "lsst.sal.ATPtg.command_raDecTarget",
+    "lsst.sal.ATPtg.command_rotOffset",
+    "lsst.sal.ATPtg.command_standby",
+    "lsst.sal.ATPtg.command_start",
+    "lsst.sal.ATPtg.command_startTracking",
+    "lsst.sal.ATPtg.command_stopTracking",
+    "lsst.sal.ATMCS.command_disable",
+    "lsst.sal.ATMCS.command_enable",
+    "lsst.sal.ATMCS.command_exitControl",
+    "lsst.sal.ATMCS.command_setInstrumentPort",
+    "lsst.sal.ATMCS.command_standby",
+    "lsst.sal.ATMCS.command_start",
+    "lsst.sal.ATMCS.command_startTracking",
+    "lsst.sal.ATMCS.command_stopTracking",
     # 'lsst.sal.ATMCS.command_trackTarget',  # exclude the 20Hz data
 ]
 
@@ -101,30 +102,31 @@ def getMountPositionData(client, begin, end, prePadding=0, postPadding=0):
         begin=begin,
         end=end,
         prePadding=prePadding,
-        postPadding=postPadding
+        postPadding=postPadding,
     )
     nasmythPosition = getEfdData(
-        client, "lsst.sal.ATMCS.mount_Nasmyth_Encoders",
+        client,
+        "lsst.sal.ATMCS.mount_Nasmyth_Encoders",
         begin=begin,
         end=end,
         prePadding=prePadding,
-        postPadding=postPadding
+        postPadding=postPadding,
     )
 
-    az = mpts(mountPosition, 'azimuthCalculatedAngle', stride=1)
-    el = mpts(mountPosition, 'elevationCalculatedAngle', stride=1)
-    rot = mpts(nasmythPosition, 'nasmyth2CalculatedAngle', stride=1)
+    az = mpts(mountPosition, "azimuthCalculatedAngle", stride=1)
+    el = mpts(mountPosition, "elevationCalculatedAngle", stride=1)
+    rot = mpts(nasmythPosition, "nasmyth2CalculatedAngle", stride=1)
     return az, el, rot
 
 
 def getAxesInPosition(client, begin, end, prePadding, postPadding):
     return getEfdData(
         client,
-        'lsst.sal.ATMCS.logevent_allAxesInPosition',
+        "lsst.sal.ATMCS.logevent_allAxesInPosition",
         begin=begin,
         end=end,
         prePadding=prePadding,
-        postPadding=postPadding
+        postPadding=postPadding,
     )
 
 
@@ -157,8 +159,8 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
     """
     inPositionAlpha = 0.5
     commandAlpha = 0.5
-    integrationColor = 'grey'
-    readoutColor = 'blue'
+    integrationColor = "grey"
+    readoutColor = "blue"
 
     legendHandles = []
 
@@ -180,12 +182,12 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
     azimuth_ax = fig.add_subplot(gs[0, 0])
     elevation_ax = fig.add_subplot(gs[1, 0], sharex=azimuth_ax)
     rotation_ax = fig.add_subplot(gs[2, 0], sharex=azimuth_ax)
-    axes = {'az': azimuth_ax, 'el': elevation_ax, 'rot': rotation_ax}
+    axes = {"az": azimuth_ax, "el": elevation_ax, "rot": rotation_ax}
 
     # plot the telemetry
-    axes['az'].plot(az['azimuthCalculatedAngle'])
-    axes['el'].plot(el['elevationCalculatedAngle'])
-    axes['rot'].plot(rot['nasmyth2CalculatedAngle'])
+    axes["az"].plot(az["azimuthCalculatedAngle"])
+    axes["el"].plot(el["elevationCalculatedAngle"])
+    axes["rot"].plot(rot["nasmyth2CalculatedAngle"])
 
     # shade the expRecords' regions including the readout time
     for i, record in enumerate(expRecords):
@@ -199,80 +201,73 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
         for axName, ax in axes.items():
             ax.axvspan(startExposing, endExposing, color=integrationColor, alpha=0.3)
             ax.axvspan(endExposing, readoutEnd, color=readoutColor, alpha=0.1)
-            if axName == 'el':  # only add seqNum annotation to bottom axis
-                label = f'seqNum = {seqNum}'
+            if axName == "el":  # only add seqNum annotation to bottom axis
+                label = f"seqNum = {seqNum}"
                 midpoint = startExposing + (endExposing - startExposing) / 2
-                ax.annotate(label, xy=(midpoint, 0.5), xycoords=('data', 'axes fraction'),
-                            ha='center', va='center', fontsize=10, color='black')
+                ax.annotate(
+                    label,
+                    xy=(midpoint, 0.5),
+                    xycoords=("data", "axes fraction"),
+                    ha="center",
+                    va="center",
+                    fontsize=10,
+                    color="black",
+                )
 
     # place vertical lines at the times when axes transition in/out of position
     inPostionTransitions = getAxesInPosition(client, begin, end, prePadding, postPadding)
     for time, data in inPostionTransitions.iterrows():
-        inPosition = data['inPosition']
+        inPosition = data["inPosition"]
         if inPosition:
-            axes['az'].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
-            axes['el'].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
-            axes['rot'].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
+            axes["az"].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
+            axes["el"].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
+            axes["rot"].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
         else:
-            axes['az'].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
-            axes['el'].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
-            axes['rot'].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
+            axes["az"].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
+            axes["el"].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
+            axes["rot"].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
     handle = Line2D(
-        [0],
-        [0],
-        color='green',
-        linestyle='--',
-        label='allAxesInPosition=True',
-        alpha=inPositionAlpha
+        [0], [0], color="green", linestyle="--", label="allAxesInPosition=True", alpha=inPositionAlpha
     )
     legendHandles.append(handle)
     handle = Line2D(
-        [0],
-        [0],
-        color='red',
-        linestyle='-',
-        label='allAxesInPosition=False',
-        alpha=inPositionAlpha
+        [0], [0], color="red", linestyle="-", label="allAxesInPosition=False", alpha=inPositionAlpha
     )
     legendHandles.append(handle)
 
     # place vertical lines at the times when commands were issued
     commandTimes = getCommands(
-        client,
-        COMMANDS_TO_QUERY,
-        begin,
-        end,
-        prePadding,
-        postPadding,
-        timeFormat='python'
+        client, COMMANDS_TO_QUERY, begin, end, prePadding, postPadding, timeFormat="python"
     )
     uniqueCommands = list(set(commandTimes.values()))
-    colorCycle = itertools.cycle(['b', 'g', 'r', 'c', 'm', 'y', 'k'])
+    colorCycle = itertools.cycle(["b", "g", "r", "c", "m", "y", "k"])
     commandColors = {command: next(colorCycle) for command in uniqueCommands}
     for time, command in commandTimes.items():
         color = commandColors[command]
-        axes['az'].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
-        axes['el'].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
-        axes['rot'].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
+        axes["az"].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
+        axes["el"].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
+        axes["rot"].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
 
     # manually build the legend to avoid duplicating the labels due to multiple
     # commands of the same name
-    handles = [Line2D([0], [0], color=color, linestyle='-.', label=label, alpha=commandAlpha)
-               for label, color in commandColors.items()]
+    handles = [
+        Line2D([0], [0], color=color, linestyle="-.", label=label, alpha=commandAlpha)
+        for label, color in commandColors.items()
+    ]
     legendHandles.extend(handles)
 
-    axes['az'].set_ylabel('Azimuth (deg)')
-    axes['el'].set_ylabel('Elevation (deg)')
-    axes['rot'].set_ylabel('Rotation (deg)')
-    axes['rot'].set_xlabel('Time (UTC)')  # this is UTC because of the magic matplotlib does on time indices
+    axes["az"].set_ylabel("Azimuth (deg)")
+    axes["el"].set_ylabel("Elevation (deg)")
+    axes["rot"].set_ylabel("Rotation (deg)")
+    axes["rot"].set_xlabel("Time (UTC)")  # this is UTC because of the magic matplotlib does on time indices
     fig.suptitle(title)
 
-    shaded_handle = Patch(facecolor=integrationColor, alpha=0.3, label='Shutter open period')
+    shaded_handle = Patch(facecolor=integrationColor, alpha=0.3, label="Shutter open period")
     legendHandles.append(shaded_handle)
-    shaded_handle = Patch(facecolor=readoutColor, alpha=0.1, label='Readout period')
+    shaded_handle = Patch(facecolor=readoutColor, alpha=0.1, label="Readout period")
     legendHandles.append(shaded_handle)
     # put the legend under the plot itself
-    axes['rot'].legend(handles=legendHandles, loc='upper center', bbox_to_anchor=(0.5, -0.3), ncol=2)
+    axes["rot"].legend(handles=legendHandles, loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=2)
 
     fig.tight_layout()
     plt.show()
@@ -281,16 +276,17 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
 
 if __name__ == "__main__":
     # example usage
+    import lsst.summit.utils.butlerUtils as butlerUtils  # noqa: F811
     from lsst.summit.extras.slewTiming import plotExposureTiming  # noqa: F811
     from lsst.summit.utils.efdUtils import makeEfdClient
-    import lsst.summit.utils.butlerUtils as butlerUtils  # noqa: F811
+
     client = makeEfdClient()
     butler = butlerUtils.makeDefaultLatissButler(embargo=True)
 
-    where = 'exposure.day_obs=20240215'
-    records = list(butler.registry.queryDimensionRecords('exposure', where=where))
+    where = "exposure.day_obs=20240215"
+    records = list(butler.registry.queryDimensionRecords("exposure", where=where))
     records = sorted(records, key=lambda x: (x.day_obs, x.seq_num))
-    print(f'Found {len(records)} records from {len(set(r.day_obs for r in records))} days')
+    print(f"Found {len(records)} records from {len(set(r.day_obs for r in records))} days")
 
     expRecords = [records[61], records[62]]
     az = plotExposureTiming(client, expRecords)

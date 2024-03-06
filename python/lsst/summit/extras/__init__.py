@@ -19,8 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from .headerFunctions import *
-from .monitoring import *
 from .animation import *
-from .imageSorter import *
 from .focusAnalysis import *
+from .headerFunctions import *
+from .imageSorter import *
+from .monitoring import *

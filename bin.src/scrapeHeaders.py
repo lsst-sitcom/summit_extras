@@ -2,32 +2,57 @@
 
 import argparse
 import glob
-import sys
 import os
+import sys
 from os.path import abspath
+
 from lsst.summit.extras.headerFunctions import keyValuesSetFromFiles
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("files", type=str, help=("List of files to scrape. Enclose any glob "
-                                                 "patterns in quotes so they are passed unexpanded"))
-    parser.add_argument("-k", metavar='keys', dest='keys', nargs='+', type=str,
-                        help="Keys to return")
-    parser.add_argument("-j", metavar='joinKeys', dest='joinKeys', nargs='+', type=str,
-                        help="Keys to return joined together.")
-    parser.add_argument("-l", metavar='libraryLocation', dest='libraryLocation', type=str,
-                        help="Location of library for precomputed results.")
-    parser.add_argument("-p", action='store_true', default=False, dest='printPerFile',
-                        help="Print all keys for each file?")
-    parser.add_argument("--noWarn", action='store_true', help="Suppress warnings for keys not in header?",
-                        default=False, dest='noWarn')
-    parser.add_argument("--walk", action='store_true', help="Ignore path glob and walk whole tree for"
-                        " all fits and fits.gz files",
-                        default=False, dest='walk')
-    parser.add_argument("--oneFilePerDir", action='store_true', help="If walking, only take one file from"
-                        " each directory",
-                        default=False, dest='oneFilePerDir')
+    parser.add_argument(
+        "files",
+        type=str,
+        help=(
+            "List of files to scrape. Enclose any glob " "patterns in quotes so they are passed unexpanded"
+        ),
+    )
+    parser.add_argument("-k", metavar="keys", dest="keys", nargs="+", type=str, help="Keys to return")
+    parser.add_argument(
+        "-j", metavar="joinKeys", dest="joinKeys", nargs="+", type=str, help="Keys to return joined together."
+    )
+    parser.add_argument(
+        "-l",
+        metavar="libraryLocation",
+        dest="libraryLocation",
+        type=str,
+        help="Location of library for precomputed results.",
+    )
+    parser.add_argument(
+        "-p", action="store_true", default=False, dest="printPerFile", help="Print all keys for each file?"
+    )
+    parser.add_argument(
+        "--noWarn",
+        action="store_true",
+        help="Suppress warnings for keys not in header?",
+        default=False,
+        dest="noWarn",
+    )
+    parser.add_argument(
+        "--walk",
+        action="store_true",
+        help="Ignore path glob and walk whole tree for" " all fits and fits.gz files",
+        default=False,
+        dest="walk",
+    )
+    parser.add_argument(
+        "--oneFilePerDir",
+        action="store_true",
+        help="If walking, only take one file from" " each directory",
+        default=False,
+        dest="oneFilePerDir",
+    )
 
     args = parser.parse_args()
     keys = args.keys
@@ -56,17 +81,23 @@ def main():
     print(f"Collected {len(files)} in total")
 
     if not keys and not joinKeys:
-        print(("No keys requested for scraping! Specify with e.g. -k KEY1 KEY2, "
-               "or with e.g. -j FILTER FILTER2 for keys to join"), file=sys.stderr)
+        print(
+            (
+                "No keys requested for scraping! Specify with e.g. -k KEY1 KEY2, "
+                "or with e.g. -j FILTER FILTER2 for keys to join"
+            ),
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if not files:
-        print('Found no files matching: ' + args.files, file=sys.stderr)
+        print("Found no files matching: " + args.files, file=sys.stderr)
         sys.exit(1)
 
-    keyValuesSetFromFiles(files, keys, joinKeys, noWarn, libraryLocation=libraryLocation,
-                          printPerFile=printPerFile)
+    keyValuesSetFromFiles(
+        files, keys, joinKeys, noWarn, libraryLocation=libraryLocation, printPerFile=printPerFile
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

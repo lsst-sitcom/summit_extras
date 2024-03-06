@@ -1,14 +1,20 @@
 #!/usr/bin/env python
 
 import argparse
+
 from lsst.summit.extras.headerFunctions import compareHeaders
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("files", type=str, nargs='+',
-                        help=("List of files to scrape. Enclose any glob "
-                              "patterns in quotes so they are passed unexpanded"))
+    parser.add_argument(
+        "files",
+        type=str,
+        nargs="+",
+        help=(
+            "List of files to scrape. Enclose any glob " "patterns in quotes so they are passed unexpanded"
+        ),
+    )
 
     args = parser.parse_args()
     files = args.files
@@ -20,5 +26,5 @@ def main():
     compareHeaders(files[0], files[1])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

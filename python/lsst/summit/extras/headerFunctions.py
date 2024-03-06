@@ -19,21 +19,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import logging
-import astropy
-from astropy.io import fits
 import filecmp
-import sys
+import hashlib
+import logging
 import os
 import pickle
-import hashlib
+import sys
+
+import astropy
 import numpy as np
+from astropy.io import fits
 
 # redirect logger to stdout so that logger messages appear in notebooks too
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger("headerFunctions")
 
 
@@ -67,8 +65,10 @@ def loadHeaderDictsFromLibrary(libraryFilename):
             print(f"Loaded {len(headersDict)} values from pickle files")
     except Exception as e:
         if not os.path.exists(libraryFilename):
-            print(f"{libraryFilename} not found. If building the header dicts for the first time this"
-                  " is to be expected.\nOtherwise you've misspecified the path to you library!")
+            print(
+                f"{libraryFilename} not found. If building the header dicts for the first time this"
+                " is to be expected.\nOtherwise you've misspecified the path to you library!"
+            )
         else:
             print(f"Something more sinister went wrong loading headers from {libraryFilename}:\n{e}")
         return {}, {}
@@ -83,6 +83,7 @@ def _saveToLibrary(libraryFilename, headersDict, dataDict):
     except Exception:
         print("Failed to write pickle file! Here's a debugger so you don't lose all your work:")
         import ipdb as pdb
+
         pdb.set_trace()
 
 
@@ -111,7 +112,7 @@ def _hashData(data):
 ZERO_HASH = _hashData(np.zeros((100, 100), dtype=np.int32))
 
 
-def buildHashAndHeaderDicts(fileList, dataHdu='Segment00', libraryLocation=None):
+def buildHashAndHeaderDicts(fileList, dataHdu="Segment00", libraryLocation=None):
     """For a list of files, build dicts of hashed data and headers.
 
     Data is hashed using a currently-hard-coded 100x100 region of the pixels
@@ -147,7 +148,7 @@ def buildHashAndHeaderDicts(fileList, dataHdu='Segment00', libraryLocation=None)
 
     s = slice(0, 100)
     for filenum, filename in enumerate(filesToLoad):
-        if len(filesToLoad) > 1000 and filenum%1000 == 0:
+        if len(filesToLoad) > 1000 and filenum % 1000 == 0:
             if libraryLocation:
                 logger.info(f"Processed {filenum} of {len(filesToLoad)} files not loaded from library...")
             else:
@@ -158,13 +159,16 @@ def buildHashAndHeaderDicts(fileList, dataHdu='Segment00', libraryLocation=None)
                 h = _hashFile(f, dataHdu, s)
                 if h in dataDict.values():
                     collision = _findKeyForValue(dataDict, h, warnOnCollision=False)
-                    logger.warning(f"Duplicate file (or hash collision!) for files {filename} and "
-                                   f"{collision}!")
+                    logger.warning(
+                        f"Duplicate file (or hash collision!) for files {filename} and " f"{collision}!"
+                    )
                     if filecmp.cmp(filename, collision):
                         logger.warning("Filecmp shows files are identical")
                     else:
-                        logger.warning("Filecmp shows files differ - "
-                                       "likely just zeros for data (or a genuine hash collision!)")
+                        logger.warning(
+                            "Filecmp shows files differ - "
+                            "likely just zeros for data (or a genuine hash collision!)"
+                        )
 
                 dataDict[filename] = h
             except Exception:
@@ -184,14 +188,17 @@ def buildHashAndHeaderDicts(fileList, dataHdu='Segment00', libraryLocation=None)
 def sorted(inlist, replacementValue="<BLANK VALUE>"):
     """Redefinition of sorted() to deal with blank values and str/int mixes"""
     from builtins import sorted as _sorted
-    output = [str(x) if not isinstance(x, astropy.io.fits.card.Undefined)
-              else replacementValue for x in inlist]
+
+    output = [
+        str(x) if not isinstance(x, astropy.io.fits.card.Undefined) else replacementValue for x in inlist
+    ]
     output = _sorted(output)
     return output
 
 
-def keyValuesSetFromFiles(fileList, keys, joinKeys, noWarn=False, printResults=True,
-                          libraryLocation=None, printPerFile=False):
+def keyValuesSetFromFiles(
+    fileList, keys, joinKeys, noWarn=False, printResults=True, libraryLocation=None, printPerFile=False
+):
     """For a list of FITS files, get the set of values for the given keys.
 
     Parameters
@@ -210,10 +217,10 @@ def keyValuesSetFromFiles(fileList, keys, joinKeys, noWarn=False, printResults=T
         of all the individual values, as some combinations may never happen.
     """
     print(f"Scraping headers from {len(fileList)} files...")
-    if printPerFile and (len(fileList)*len(keys) > 200):
+    if printPerFile and (len(fileList) * len(keys) > 200):
         print(f"You asked to print headers per-file, for {len(fileList)} files x {len(keys)} keys.")
         cont = input("Are you sure? Press y to continue, anything else to quit:")
-        if cont.lower()[0] != 'y':
+        if cont.lower()[0] != "y":
             exit()
 
     headerDict, hashDict = buildHashAndHeaderDicts(fileList, libraryLocation=libraryLocation)
@@ -251,8 +258,14 @@ def keyValuesSetFromFiles(fileList, keys, joinKeys, noWarn=False, printResults=T
             # substitute <BLANK_VALUE> when there is an undefined card
             # because str(v) will give the address for each blank value
             # too, meaning each blank card looks like a different value
-            joinedValues.add("+".join([str(v) if not isinstance(v, astropy.io.fits.card.Undefined)
-                                      else "<BLANK_VALUE>" for v in jVals]))
+            joinedValues.add(
+                "+".join(
+                    [
+                        str(v) if not isinstance(v, astropy.io.fits.card.Undefined) else "<BLANK_VALUE>"
+                        for v in jVals
+                    ]
+                )
+            )
 
     if printResults:
         # Do this first because it's messy
@@ -310,7 +323,7 @@ def compareHeaders(filename1, filename2):
         print("Pixel data was not the same - did you really mean to compare these files?")
         print(f"{filename1}\n{filename2}")
         cont = input("Press y to continue, anything else to quit:")
-        if cont.lower()[0] != 'y':
+        if cont.lower()[0] != "y":
             exit()
 
     # you might think you don't want to always call sorted() on the key sets
@@ -341,7 +354,7 @@ def compareHeaders(filename1, filename2):
         else:
             differing.append(key)
 
-    assert len(identical)+len(differing) == len(commonKeys)
+    assert len(identical) + len(differing) == len(commonKeys)
 
     if len(identical) == len(commonKeys):
         print("All keys in common have identical values :)")
@@ -364,12 +377,12 @@ def compareHeaders(filename1, filename2):
     numbering1, numbering2 = [], []
     with fits.open(filename1) as f1, fits.open(filename2) as f2:
         for hduF1, hduF2 in zip(f1[1:], f2[1:]):  # skip the PDU
-            if 'EXTNAME' in hduF1.header and 'EXTNAME' in hduF2.header:
-                numbering1.append(hduF1.header['EXTNAME'])
-                numbering2.append(hduF2.header['EXTNAME'])
+            if "EXTNAME" in hduF1.header and "EXTNAME" in hduF2.header:
+                numbering1.append(hduF1.header["EXTNAME"])
+                numbering2.append(hduF2.header["EXTNAME"])
 
     if numbering1 != numbering2:
-        print('\nSection numbering differs between files!')
+        print("\nSection numbering differs between files!")
         for s1, s2 in zip(numbering1, numbering2):
             print(f"{s1.ljust(12)} vs {s2.ljust(12)}")
     if len(numbering1) != len(numbering2):
