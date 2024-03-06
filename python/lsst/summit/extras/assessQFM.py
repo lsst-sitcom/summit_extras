@@ -19,17 +19,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import pandas as pd
-import time
-import numpy as np
-from multiprocessing import Pool
 import argparse
+import time
+from multiprocessing import Pool
 
-from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
+import numpy as np
+import pandas as pd
+
 import lsst.summit.utils.butlerUtils as butlerUtils
+from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
 
 
-class AssessQFM():
+class AssessQFM:
     """Test a new version of quickFrameMeasurementTask against the baseline
     results.
 
@@ -58,10 +59,16 @@ class AssessQFM():
         that only CRITICAL messages will be printed.
     """
 
-    def __init__(self, butler, dataProduct='quickLookExp',
-                 dataset='data/qfm_baseline_assessment.parq',
-                 successCut=2, nearSuccessCut=10, donutCut=10, logLevel=50):
-
+    def __init__(
+        self,
+        butler,
+        dataProduct="quickLookExp",
+        dataset="data/qfm_baseline_assessment.parq",
+        successCut=2,
+        nearSuccessCut=10,
+        donutCut=10,
+        logLevel=50,
+    ):
         self.butler = butler
 
         qfmTaskConfig = QuickFrameMeasurementTaskConfig()
@@ -70,26 +77,27 @@ class AssessQFM():
 
         self.testData = pd.read_parquet(dataset)
         self.dataProduct = dataProduct
-        self.dataIds = [{'day_obs': row['day_obs'], 'seq_num': row['sequence_number'],
-                         'detector': row['detector']} for i, row in self.testData.iterrows()]
+        self.dataIds = [
+            {"day_obs": row["day_obs"], "seq_num": row["sequence_number"], "detector": row["detector"]}
+            for i, row in self.testData.iterrows()
+        ]
 
-        self.cuts = {'G': successCut,
-                     'QG': nearSuccessCut,
-                     'DG': donutCut}
+        self.cuts = {"G": successCut, "QG": nearSuccessCut, "DG": donutCut}
 
-        self.resultKey = {'G': "Success",  # Centroid is centered on the brightest star
-                          'QG': "Near success",  # Centroid is near the center of the brightest star
-                          'BI': "Bad image",  # A tracking issue, for example. Don't expect good fit
-                          'WF': "Wrong star",  # Centroid is not on the brightest star
-                          'OF': "Other failure",  # Other source of failure
-                          'FG': "Good failure",  # Calibration image, so failure is expected
-                          'FP': "False positive",  # No stars, so fit should have failed
-                          'DG': "Success (Donut)",  # Donut image, centroid is somewhere on donut
-                          'DF': "Failure (Donut)",  # Donut image, fit failed
-                          'SG': "Success (Giant donut)",  # Giant donut, centroid is somewhere on donut
-                          'SF': "Failure (Giant donut)",  # Giant donut, fit failed
-                          'U': "Ambiguous",  # Centroid is on a star, but unclear whether it is the brightest
-                          }
+        self.resultKey = {
+            "G": "Success",  # Centroid is centered on the brightest star
+            "QG": "Near success",  # Centroid is near the center of the brightest star
+            "BI": "Bad image",  # A tracking issue, for example. Don't expect good fit
+            "WF": "Wrong star",  # Centroid is not on the brightest star
+            "OF": "Other failure",  # Other source of failure
+            "FG": "Good failure",  # Calibration image, so failure is expected
+            "FP": "False positive",  # No stars, so fit should have failed
+            "DG": "Success (Donut)",  # Donut image, centroid is somewhere on donut
+            "DF": "Failure (Donut)",  # Donut image, fit failed
+            "SG": "Success (Giant donut)",  # Giant donut, centroid is somewhere on donut
+            "SF": "Failure (Giant donut)",  # Giant donut, fit failed
+            "U": "Ambiguous",  # Centroid is on a star, but unclear whether it is the brightest
+        }
 
     def run(self, nSamples=None, nProcesses=1, outputFile=None):
         """Run quickFrameMeasurement on a sample dataset, save the new results,
@@ -144,8 +152,11 @@ class AssessQFM():
 
         qfmResults = pd.DataFrame(index=testset.index, columns=self.testData.columns)
         for i, row in testset.iterrows():
-            dataId = {'day_obs': row['day_obs'], 'seq_num': row['sequence_number'],
-                      'detector': row['detector']}
+            dataId = {
+                "day_obs": row["day_obs"],
+                "seq_num": row["sequence_number"],
+                "detector": row["detector"],
+            }
 
             exp = self.butler.get(self.dataProduct, dataId=dataId)
             qfmRes = qfmResults.loc[i]
@@ -153,16 +164,16 @@ class AssessQFM():
             t1 = time.time()
             result = self.qfmTask.run(exp)
             t2 = time.time()
-            qfmRes['runtime'] = t2 - t1
+            qfmRes["runtime"] = t2 - t1
 
             if result.success:
                 pixCoord = result.brightestObjCentroid
-                qfmRes['centroid_x'] = pixCoord[0]
-                qfmRes['centroid_y'] = pixCoord[1]
-                qfmRes['finalTag'] = 'P'
+                qfmRes["centroid_x"] = pixCoord[0]
+                qfmRes["centroid_y"] = pixCoord[1]
+                qfmRes["finalTag"] = "P"
 
             else:
-                qfmRes['finalTag'] = 'F'
+                qfmRes["finalTag"] = "F"
         return qfmResults
 
     def compareToBaseline(self, comparisonData):
@@ -177,63 +188,89 @@ class AssessQFM():
         baselineData = self.testData.loc[comparisonData.index]
 
         # First the cases that succeeded in the baseline results:
-        for key in ['G', 'QG', 'WF', 'DG', 'SG', 'FP', 'U']:
-            key_inds = baselineData['finalTag'] == key
+        for key in ["G", "QG", "WF", "DG", "SG", "FP", "U"]:
+            key_inds = baselineData["finalTag"] == key
             if key_inds.sum() == 0:
                 continue
             origResults = baselineData[key_inds]
             newResults = comparisonData[key_inds]
 
-            stillSucceeds = (newResults['finalTag'] == 'P').sum()
+            stillSucceeds = (newResults["finalTag"] == "P").sum()
             print(f"Results for '{self.resultKey[key]}' cases:")
             print(f"    {stillSucceeds} out of {len(origResults)} still succeed")
 
-            centroid_distances = ((origResults['centroid_x'] - newResults['centroid_x'])**2 +
-                                  (origResults['centroid_y'] - newResults['centroid_y'])**2)**0.5
+            centroid_distances = (
+                (origResults["centroid_x"] - newResults["centroid_x"]) ** 2
+                + (origResults["centroid_y"] - newResults["centroid_y"]) ** 2
+            ) ** 0.5
 
-            if key in ['G', 'QG', 'DG']:
+            if key in ["G", "QG", "DG"]:
                 inCut = centroid_distances < self.cuts[key]
-                print(f"    {inCut.sum()} out of {len(origResults)} centroids are within {self.cuts[key]} "
-                      "pixels of the baseline centroid fit.")
-            if key in ['U', 'WF', 'QG']:
+                print(
+                    f"    {inCut.sum()} out of {len(origResults)} centroids are within {self.cuts[key]} "
+                    "pixels of the baseline centroid fit."
+                )
+            if key in ["U", "WF", "QG"]:
                 print("    Individual exposures:")
                 print(f"    {'day_obs':<10}{'sequence_number':<17}{'old centroid':<17}{'new centroid':<17}")
                 for i, res in origResults.iterrows():
                     newRes = newResults.loc[i]
                     old_centroid = f"({res['centroid_x']:.1f}, {res['centroid_y']:.1f})"
                     new_centroid = f"({newRes['centroid_x']:.1f}, {newRes['centroid_y']:.1f})"
-                    print(f"    {res['day_obs']:<10}{res['sequence_number']:<17}{old_centroid:<17}"
-                          f"{new_centroid:<17}")
+                    print(
+                        f"    {res['day_obs']:<10}{res['sequence_number']:<17}{old_centroid:<17}"
+                        f"{new_centroid:<17}"
+                    )
 
         # Next the cases that failed in the past:
-        for key in ['FG', 'DF', 'SF', 'OF']:
-            key_inds = baselineData['finalTag'] == key
+        for key in ["FG", "DF", "SF", "OF"]:
+            key_inds = baselineData["finalTag"] == key
             if key_inds.sum() == 0:
                 continue
             origResults = baselineData[key_inds]
             newResults = comparisonData[key_inds]
 
-            stillFails = (newResults['finalTag'] == 'F').sum()
+            stillFails = (newResults["finalTag"] == "F").sum()
             print(f"Results for '{self.resultKey[key]}' cases:")
             print(f"    {stillFails} out of {len(origResults)} still fail")
 
         print("Runtime comparison:")
-        print(f"    Baseline: {np.mean(baselineData['runtime']):.2f}+/-"
-              f"{np.std(baselineData['runtime']):.2f} seconds")
-        print(f"    Current: {np.mean(comparisonData['runtime']):.2f}+/-"
-              f"{np.std(comparisonData['runtime']):.2f} seconds")
+        print(
+            f"    Baseline: {np.mean(baselineData['runtime']):.2f}+/-"
+            f"{np.std(baselineData['runtime']):.2f} seconds"
+        )
+        print(
+            f"    Current: {np.mean(comparisonData['runtime']):.2f}+/-"
+            f"{np.std(comparisonData['runtime']):.2f} seconds"
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--embargo", dest="embargo", action=argparse.BooleanOptionalAction, default=True,
-                        help="Whether to use embargo butler")
-    parser.add_argument("--nPool", dest="nPool", default=1, type=int,
-                        help="Number of threads to use in multiprocessing")
-    parser.add_argument("--nSamples", dest="nSamples", default=None, type=int,
-                        help="Number of sample exposures to use in assessment (default is all)")
-    parser.add_argument("-o", "--output-file", dest="outputFile", default="newQFMresults.parq",
-                        help="Name of output file for new quickFrameMeasurement results")
+    parser.add_argument(
+        "--embargo",
+        dest="embargo",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Whether to use embargo butler",
+    )
+    parser.add_argument(
+        "--nPool", dest="nPool", default=1, type=int, help="Number of threads to use in multiprocessing"
+    )
+    parser.add_argument(
+        "--nSamples",
+        dest="nSamples",
+        default=None,
+        type=int,
+        help="Number of sample exposures to use in assessment (default is all)",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-file",
+        dest="outputFile",
+        default="newQFMresults.parq",
+        help="Name of output file for new quickFrameMeasurement results",
+    )
     args = parser.parse_args()
 
     butler = butlerUtils.makeDefaultLatissButler(embargo=args.embargo)
@@ -245,4 +282,4 @@ if __name__ == '__main__':
     t1 = time.time()
     if nSamples is None:
         nSamples = assess.testData.shape[0]
-    print(f'Total time for {nSamples} samples and {args.nPool} cores: {(t1 - t0):.2f} seconds')
+    print(f"Total time for {nSamples} samples and {args.nPool} cores: {(t1 - t0):.2f} seconds")

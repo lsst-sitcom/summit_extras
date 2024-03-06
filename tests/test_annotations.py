@@ -19,40 +19,41 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import unittest
-import tempfile
 import pickle
+import tempfile
+import unittest
 
 import lsst.utils.tests
 from lsst.summit.extras.annotations import Annotations, _idTrans
 
+tagId1 = {"dayObs": "1970-01-01", "seqNum": 1}  # A
+tagId2 = {"dayObs": "1970-01-02", "seqNum": 2}  # AB
+tagId3 = {"dayObs": "1970-01-03", "seqNum": 3}  # ABC
+tagAndNotesId = {"dayObs": "1970-01-04", "seqNum": 4}  # D tag with a note
+notesOnlyId = {"dayObs": "1970-01-05", "seqNum": 5}  # this is a note alone
+checkedOnlyId = {"dayObs": "1970-01-06", "seqNum": 6}  # ""
+nonexistentId = {"dayObs": "3030-13-32", "seqNum": 666}  # 6
+testTuple = (tagId1["dayObs"], tagId1["seqNum"])
+testTupleNonExistent = (nonexistentId["dayObs"], nonexistentId["seqNum"])
 
-tagId1 = {'dayObs': '1970-01-01', 'seqNum': 1}  # A
-tagId2 = {'dayObs': '1970-01-02', 'seqNum': 2}  # AB
-tagId3 = {'dayObs': '1970-01-03', 'seqNum': 3}  # ABC
-tagAndNotesId = {'dayObs': '1970-01-04', 'seqNum': 4}  # D tag with a note
-notesOnlyId = {'dayObs': '1970-01-05', 'seqNum': 5}  # this is a note alone
-checkedOnlyId = {'dayObs': '1970-01-06', 'seqNum': 6}  # ""
-nonexistentId = {'dayObs': '3030-13-32', 'seqNum': 666}  # 6
-testTuple = (tagId1['dayObs'], tagId1['seqNum'])
-testTupleNonExistent = (nonexistentId['dayObs'], nonexistentId['seqNum'])
-
-allGoodIdsInternalFormat = set([_idTrans(x) for x in [tagId1, tagId2, tagId3, notesOnlyId,
-                                                      tagAndNotesId, checkedOnlyId]])
+allGoodIdsInternalFormat = set(
+    [_idTrans(x) for x in [tagId1, tagId2, tagId3, notesOnlyId, tagAndNotesId, checkedOnlyId]]
+)
 
 
 class AnnotationsTestCase(lsst.utils.tests.TestCase):
     """A test case for annotations."""
 
     def setUp(self):
-
-        inputFile = tempfile.mktemp() + '.pickle'
-        tags = {('1970-01-01', 1): 'a',
-                ('1970-01-02', 2): 'aB',
-                ('1970-01-03', 3): 'Abc',
-                ('1970-01-04', 4): 'd tag with a note',
-                ('1970-01-05', 5): ' this is a note alone',
-                ('1970-01-06', 6): ''}
+        inputFile = tempfile.mktemp() + ".pickle"
+        tags = {
+            ("1970-01-01", 1): "a",
+            ("1970-01-02", 2): "aB",
+            ("1970-01-03", 3): "Abc",
+            ("1970-01-04", 4): "d tag with a note",
+            ("1970-01-05", 5): " this is a note alone",
+            ("1970-01-06", 6): "",
+        }
         with open(inputFile, "wb") as f:
             pickle.dump(tags, f)
 
@@ -74,35 +75,36 @@ class AnnotationsTestCase(lsst.utils.tests.TestCase):
         self.assertFalse(self.annotations.isExamined(testTupleNonExistent))
 
     def test_getTags(self):
-        self.assertTrue(self.annotations.getTags(tagId1) == 'A')
-        self.assertTrue(self.annotations.getTags(tagId2) == 'AB')
-        self.assertTrue(self.annotations.getTags(tagId3) == 'ABC')
-        self.assertTrue(self.annotations.getTags(tagAndNotesId) == 'D')
-        self.assertTrue(self.annotations.getTags(notesOnlyId) == '')  # examined but no tags so not None
+        self.assertTrue(self.annotations.getTags(tagId1) == "A")
+        self.assertTrue(self.annotations.getTags(tagId2) == "AB")
+        self.assertTrue(self.annotations.getTags(tagId3) == "ABC")
+        self.assertTrue(self.annotations.getTags(tagAndNotesId) == "D")
+        self.assertTrue(self.annotations.getTags(notesOnlyId) == "")  # examined but no tags so not None
         self.assertTrue(self.annotations.getTags(nonexistentId) is None)  # not examined so is None
 
     def test_getNotes(self):
         self.assertTrue(self.annotations.getNotes(tagId1) is None)
         self.assertTrue(self.annotations.getNotes(tagId2) is None)
         self.assertTrue(self.annotations.getNotes(tagId3) is None)
-        self.assertTrue(self.annotations.getNotes(tagAndNotesId) == 'tag with a note')
-        self.assertTrue(self.annotations.getNotes(notesOnlyId) == 'this is a note alone')
+        self.assertTrue(self.annotations.getNotes(tagAndNotesId) == "tag with a note")
+        self.assertTrue(self.annotations.getNotes(notesOnlyId) == "this is a note alone")
 
     def test_hasTags(self):
-        self.assertTrue(self.annotations.hasTags(tagId1, 'a'))
-        self.assertTrue(self.annotations.hasTags(tagId1, 'A'))  # case insensitive on tags
-        self.assertTrue(self.annotations.hasTags(tagId2, 'AB'))  # multicharacter
-        self.assertTrue(self.annotations.hasTags(tagId2, 'Ab'))  # mixed case
-        self.assertFalse(self.annotations.hasTags(tagId1, 'B+'))  # false multichar
+        self.assertTrue(self.annotations.hasTags(tagId1, "a"))
+        self.assertTrue(self.annotations.hasTags(tagId1, "A"))  # case insensitive on tags
+        self.assertTrue(self.annotations.hasTags(tagId2, "AB"))  # multicharacter
+        self.assertTrue(self.annotations.hasTags(tagId2, "Ab"))  # mixed case
+        self.assertFalse(self.annotations.hasTags(tagId1, "B+"))  # false multichar
 
-        self.assertTrue(self.annotations.hasTags(tagAndNotesId, 'd'))
-        self.assertFalse(self.annotations.hasTags(notesOnlyId, 'a'))
-        self.assertTrue(self.annotations.hasTags(notesOnlyId, ''))
+        self.assertTrue(self.annotations.hasTags(tagAndNotesId, "d"))
+        self.assertFalse(self.annotations.hasTags(notesOnlyId, "a"))
+        self.assertTrue(self.annotations.hasTags(notesOnlyId, ""))
         # XXX fix or remove after other tests
 
     def test_getListOfCheckedData(self):
-        correctIds = set([_idTrans(x) for x in [tagId1, tagId2, tagId3, notesOnlyId,
-                                                tagAndNotesId, checkedOnlyId]])
+        correctIds = set(
+            [_idTrans(x) for x in [tagId1, tagId2, tagId3, notesOnlyId, tagAndNotesId, checkedOnlyId]]
+        )
         ids = self.annotations.getListOfCheckedData()
         self.assertTrue(correctIds == set(ids))
 
@@ -115,24 +117,24 @@ class AnnotationsTestCase(lsst.utils.tests.TestCase):
         allIds = allGoodIdsInternalFormat
         _t = _idTrans
 
-        ids = self.annotations.getIdsWithGivenTags('', exactMatches=False)
+        ids = self.annotations.getIdsWithGivenTags("", exactMatches=False)
         self.assertTrue(allIds == set(ids))
-        ids = self.annotations.getIdsWithGivenTags('', exactMatches=True)
+        ids = self.annotations.getIdsWithGivenTags("", exactMatches=True)
         self.assertTrue(allIds != set(ids))
 
-        ids = self.annotations.getIdsWithGivenTags('b', exactMatches=False)
+        ids = self.annotations.getIdsWithGivenTags("b", exactMatches=False)
         correct = set([_t(dId) for dId in [tagId2, tagId3]])
         self.assertTrue(set(ids) == correct)
 
-        ids = self.annotations.getIdsWithGivenTags('b', exactMatches=True)  # nothing only 'b' alone
+        ids = self.annotations.getIdsWithGivenTags("b", exactMatches=True)  # nothing only 'b' alone
         self.assertTrue(ids == [])
 
-        ids = self.annotations.getIdsWithGivenTags('Ba', exactMatches=False)  # reversed so not a substring
+        ids = self.annotations.getIdsWithGivenTags("Ba", exactMatches=False)  # reversed so not a substring
         correct = set([_t(dId) for dId in [tagId2, tagId3]])
         self.assertTrue(set(ids) == correct)
 
         # check exact matches for multiple tags
-        ids = self.annotations.getIdsWithGivenTags('ab', exactMatches=True)
+        ids = self.annotations.getIdsWithGivenTags("ab", exactMatches=True)
         correct = set([_t(dId) for dId in [tagId2]])
         self.assertTrue(set(ids) == correct)
 

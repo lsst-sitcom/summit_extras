@@ -19,20 +19,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from time import sleep
+
 import numpy as np
+
 import lsst.afw.cameraGeom.utils as cgUtils
+import lsst.geom as geom
 from lsst.pex.exceptions import NotFoundError
 from lsst.summit.utils.bestEffort import BestEffortIsr
-import lsst.geom as geom
-from time import sleep
-from lsst.summit.utils.butlerUtils import (makeDefaultLatissButler,
-                                           getMostRecentDataId, getExpIdFromDayObsSeqNum,
-                                           getExpRecordFromDataId)
+from lsst.summit.utils.butlerUtils import (
+    getExpIdFromDayObsSeqNum,
+    getExpRecordFromDataId,
+    getMostRecentDataId,
+    makeDefaultLatissButler,
+)
 
 # TODO: maybe add option to create display and return URL?
 
 
-class Monitor():
+class Monitor:
     """Create a monitor for AuxTel.
 
     Scans the butler repo for new images and sends each one, after running
@@ -45,6 +50,7 @@ class Monitor():
     fireflyDisplay : `lsst.afw.display.Display`
         A Firefly display instance.
     """
+
     cadence = 1  # in seconds
     runIsr = True
 
@@ -58,10 +64,9 @@ class Monitor():
         self.measureFromChipCenter = False
 
     def _getLatestImageDataIdAndExpId(self):
-        """Get the dataId and expId for the most recent image in the repo.
-        """
+        """Get the dataId and expId for the most recent image in the repo."""
         dataId = getMostRecentDataId(self.butler)
-        expId = getExpIdFromDayObsSeqNum(self.butler, dataId)['exposure']
+        expId = getExpIdFromDayObsSeqNum(self.butler, dataId)["exposure"]
         return dataId, expId
 
     def _calcImageStats(self, exp):
@@ -87,10 +92,10 @@ class Monitor():
         expRecord = getExpRecordFromDataId(self.butler, dataId)
         imageType = expRecord.observation_type
         obj = None
-        if imageType.upper() not in ['BIAS', 'DARK', 'FLAT']:
+        if imageType.upper() not in ["BIAS", "DARK", "FLAT"]:
             try:
                 obj = expRecord.target_name
-                obj = obj.replace(' ', '')
+                obj = obj.replace(" ", "")
             except Exception:
                 pass
 
@@ -123,9 +128,9 @@ class Monitor():
         # TODO: add a with buffering and a .flush()
         # Also maybe a sleep as it seems buggy
         for i, item in enumerate(elements):
-            y = top - (i*vSpacing)
-            x = xnom + (size * 18.5 * len(item)//2)
-            self.display.dot(str(item), x, y, size, ctype='red', fontFamily="courier")
+            y = top - (i * vSpacing)
+            x = xnom + (size * 18.5 * len(item) // 2)
+            self.display.dot(str(item), x, y, size, ctype="red", fontFamily="courier")
 
     def run(self, durationInSeconds=-1):
         """Run the monitor, displaying new images as they are taken.
@@ -139,7 +144,7 @@ class Monitor():
         if durationInSeconds == -1:
             nLoops = int(1e9)
         else:
-            nLoops = int(durationInSeconds//self.cadence)
+            nLoops = int(durationInSeconds // self.cadence)
 
         lastDisplayed = -1
         for i in range(nLoops):
@@ -153,7 +158,7 @@ class Monitor():
                 if self.runIsr:
                     exp = self.bestEffort.getExposure(dataId)
                 else:
-                    exp = self.butler.get('raw', dataId=dataId)
+                    exp = self.butler.get("raw", dataId=dataId)
 
                 # TODO: add logic to deal with amp overlay and chip center
                 # being mutually exclusive
@@ -165,10 +170,10 @@ class Monitor():
                 # too long of a title breaks Java FITS i/o
                 fireflyTitle = " ".join([s for s in imageInfoText])[:67]
                 try:
-                    self.display.scale('asinh', 'zscale')
+                    self.display.scale("asinh", "zscale")
                     self.display.mtv(exp, title=fireflyTitle)
                 except Exception as e:  # includes JSONDecodeError, HTTPError, anything else
-                    print(f'Caught error {e}, skipping this image')  # TODO: try again maybe?
+                    print(f"Caught error {e}, skipping this image")  # TODO: try again maybe?
 
                 if self.overlayAmps:
                     cgUtils.overlayCcdBoxes(exp.getDetector(), display=self.display, isTrimmed=True)
@@ -177,5 +182,5 @@ class Monitor():
                 lastDisplayed = expId
 
             except NotFoundError as e:  # NotFoundError when filters aren't defined
-                print(f'Skipped displaying {dataId} due to {e}')
+                print(f"Skipped displaying {dataId} due to {e}")
         return
