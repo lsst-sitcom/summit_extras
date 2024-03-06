@@ -148,7 +148,7 @@ class Animator:
             return os.path.join(self.pngPath, filename)
 
     def exists(self, obj):
-        if type(obj) == str:
+        if isinstance(obj, str):
             return os.path.exists(obj)
         raise RuntimeError("Other type checks not yet implemented")
 
