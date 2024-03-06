@@ -24,16 +24,18 @@ from lsst.summit.extras.imageSorter import TAGS, ImageSorter
 
 def _idTrans(dataIdDictOrTuple):
     """Take a dataId and turn it into the internal tuple format."""
-    if type(dataIdDictOrTuple) == tuple:
+    if isinstance(dataIdDictOrTuple, tuple):
         return dataIdDictOrTuple
-    elif type(dataIdDictOrTuple) == dict:
+    elif isinstance(dataIdDictOrTuple, dict):
         return (dataIdDictOrTuple["dayObs"], dataIdDictOrTuple["seqNum"])
     else:
         raise RuntimeError(f"Failed to parse dataId {dataIdDictOrTuple}")
 
 
 class Annotations:
-    """Class for interfacing with annotations, as written by the imageSorter."""
+    """Class for interfacing with annotations, as written by the
+    imageSorter.
+    """
 
     def __init__(self, filename):
         self.filename = filename
