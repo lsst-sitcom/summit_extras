@@ -6,7 +6,7 @@ on:
       - main  # Adjust to your main branch name
 
 jobs:
-  pre-commit:
+  lint:
     runs-on: ubuntu-latest
 
     steps:
