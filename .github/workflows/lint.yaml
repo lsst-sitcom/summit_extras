@@ -1,24 +1,25 @@
-name: lint
+name: Pre-commit Check
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
+    branches:
+      - main  # Adjust to your main branch name
 
 jobs:
-  lint:
+  pre-commit:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v2
+      - name: Check out code
+        uses: actions/checkout@v2
 
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.11  # Adjust to your Python version
 
-      - name: Install
-        run: pip install -r <(curl https://raw.githubusercontent.com/lsst/linting/main/requirements.txt)
+      - name: Install pre-commit
+        run: pip install pre-commit
 
-      - name: Run linter
-        run: flake8
+      - name: Run pre-commit
+        run: pre-commit run --all-files

@@ -22,28 +22,33 @@
 import unittest
 from typing import Iterable
 
+import matplotlib as mpl
+
 import lsst.utils.tests
 
-import matplotlib as mpl
-mpl.use('Agg')
+mpl.use("Agg")
 
-from lsst.summit.extras import SpectralFocusAnalyzer, NonSpectralFocusAnalyzer  # noqa: E402
 import lsst.summit.utils.butlerUtils as butlerUtils  # noqa: E402
+from lsst.summit.extras import (  # noqa: E402
+    NonSpectralFocusAnalyzer,
+    SpectralFocusAnalyzer,
+)
 
 
 class FocusAnalysisTestCase(lsst.utils.tests.TestCase):
-
     @classmethod
     def setUpClass(cls):
         try:
             cls.butler = butlerUtils.makeDefaultLatissButler()
         except FileNotFoundError:
-            raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
+            raise unittest.SkipTest(
+                "Skipping tests that require the LATISS butler repo."
+            )
 
         # dataIds have been chosen match those of a spectral focus sweep which
         # is in the LATISS-test-data collection at the summit, TTS and USDF
         cls.dayObs = 20220628
-        cls.seqNums = range(280, 288+1)
+        cls.seqNums = range(280, 288 + 1)
         cls.focusAnalyzer = SpectralFocusAnalyzer()
 
         # default is 3 boxes, so setting four tests the generality of the code.
@@ -69,19 +74,20 @@ class FocusAnalysisTestCase(lsst.utils.tests.TestCase):
 
 
 class NonSpectralFocusAnalysisTestCase(lsst.utils.tests.TestCase):
-
     @classmethod
     def setUpClass(cls):
         try:
             cls.butler = butlerUtils.makeDefaultLatissButler()
         except FileNotFoundError:
-            raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
+            raise unittest.SkipTest(
+                "Skipping tests that require the LATISS butler repo."
+            )
 
         # dataIds have been chosen match those of a non-spectral focus sweep
         # which is in the LATISS-test-data collection at the summit, TTS and
         # USDF
         cls.dayObs = 20220405
-        cls.seqNums = range(523, 531+1)
+        cls.seqNums = range(523, 531 + 1)
         cls.focusAnalyzer = NonSpectralFocusAnalyzer()
 
     def test_run(self):
@@ -110,7 +116,7 @@ class NonSpectralFocusAnalysisTestCase(lsst.utils.tests.TestCase):
             self.assertIsInstance(k, str)
             self.assertIsInstance(v, float)
 
-            if k == 'fwhmFitMin':
+            if k == "fwhmFitMin":
                 # everything else is strictly positive but the fwhm position
                 # can be negative.
                 v = abs(v)

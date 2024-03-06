@@ -19,46 +19,53 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import unittest
-import tempfile
 import os
 import shutil
+import tempfile
+import unittest
 
 import lsst.utils.tests
-
 from lsst.summit.extras.animation import Animator
 from lsst.summit.utils.butlerUtils import makeDefaultLatissButler
 
 
 class AnimationTestCase(lsst.utils.tests.TestCase):
-
     @classmethod
     def setUpClass(cls):
         # test for the existence of ffmpeg and skip test if not found
-        if shutil.which('ffmpeg') is None:
+        if shutil.which("ffmpeg") is None:
             raise unittest.SkipTest("Skipping tests that require ffmpeg.")
 
         try:
             cls.butler = makeDefaultLatissButler()
         except FileNotFoundError:
-            raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
+            raise unittest.SkipTest(
+                "Skipping tests that require the LATISS butler repo."
+            )
 
-        cls.dataIds = [{'day_obs': 20200315, 'seq_num': 120, 'detector': 0},
-                       {'day_obs': 20200315, 'seq_num': 121, 'detector': 0}]
+        cls.dataIds = [
+            {"day_obs": 20200315, "seq_num": 120, "detector": 0},
+            {"day_obs": 20200315, "seq_num": 121, "detector": 0},
+        ]
         cls.outputDir = tempfile.mkdtemp()
-        cls.outputFilename = os.path.join(cls.outputDir, 'testAnimation.mp4')
+        cls.outputFilename = os.path.join(cls.outputDir, "testAnimation.mp4")
 
     def test_animation(self):
         """Test that the animator produces a large file without worrying about
         the contents?
         """
-        animator = Animator(self.butler, self.dataIds, self.outputDir, self.outputFilename,
-                            dataProductToPlot='raw',
-                            remakePngs=True,
-                            debug=False,
-                            clobberVideoAndGif=True,
-                            plotObjectCentroids=True,
-                            useQfmForCentroids=True)
+        animator = Animator(
+            self.butler,
+            self.dataIds,
+            self.outputDir,
+            self.outputFilename,
+            dataProductToPlot="raw",
+            remakePngs=True,
+            debug=False,
+            clobberVideoAndGif=True,
+            plotObjectCentroids=True,
+            useQfmForCentroids=True,
+        )
         writtenFilename = animator.run()
 
         self.assertTrue(writtenFilename == self.outputFilename)

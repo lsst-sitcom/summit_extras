@@ -19,31 +19,29 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from lsst.summit.extras.imageSorter import ImageSorter, TAGS
+from lsst.summit.extras.imageSorter import TAGS, ImageSorter
 
 
 def _idTrans(dataIdDictOrTuple):
-    """Take a dataId and turn it into the internal tuple format.
-    """
-    if type(dataIdDictOrTuple) == tuple:
+    """Take a dataId and turn it into the internal tuple format."""
+    if type(dataIdDictOrTuple) is tuple:
         return dataIdDictOrTuple
-    elif type(dataIdDictOrTuple) == dict:
-        return (dataIdDictOrTuple['dayObs'], dataIdDictOrTuple['seqNum'])
+    elif type(dataIdDictOrTuple) is dict:
+        return (dataIdDictOrTuple["dayObs"], dataIdDictOrTuple["seqNum"])
     else:
-        raise RuntimeError(f'Failed to parse dataId {dataIdDictOrTuple}')
+        raise RuntimeError(f"Failed to parse dataId {dataIdDictOrTuple}")
 
 
-class Annotations():
-    """Class for interfacing with annotations, as written by the imageSorter.
-    """
+class Annotations:
+    """Class for interfacing with annotations,
+    as written by the imageSorter."""
 
     def __init__(self, filename):
         self.filename = filename
         self.tags, self.notes = self._load(filename)
 
     def _load(self, filename):
-        """Load tags and notes from specified file.
-        """
+        """Load tags and notes from specified file."""
         tags, notes = ImageSorter.loadAnnotations(filename)
         return tags, notes
 
@@ -54,40 +52,44 @@ class Annotations():
         return self.tags.get(_idTrans(dataId), None)
 
     def getNotes(self, dataId):
-        """Get the notes for the specified dataId.
-        """
+        """Get the notes for the specified dataId."""
         return self.notes.get(_idTrans(dataId), None)
 
     def hasTags(self, dataId, flags):
         """Check if a dataId has all the specificed tags"""
         tag = self.getTags(dataId)
-        if tag is None:  # not just 'if tag' becuase '' is not the same as None but both as False-y
+        if (
+            tag is None
+        ):  # not just 'if tag' becuase '' is not the same as None but both as False-y
             return None
         return all(i in tag for i in flags.upper())
 
     def getListOfCheckedData(self):
-        """Return a list of all dataIds which have been examined.
-        """
+        """Return a list of all dataIds which have been examined."""
         return sorted(list(self.tags.keys()))
 
     def getListOfDataWithNotes(self):
-        """Return a list of all dataIds which have notes associated.
-        """
+        """Return a list of all dataIds which have notes associated."""
         return sorted(list(self.notes.keys()))
 
     def isExamined(self, dataId):
-        """Check if the dataId has been examined or not.
-        """
+        """Check if the dataId has been examined or not."""
         return _idTrans(dataId) in self.tags
 
     def printTags(self):
-        """Display the list of tag definitions.
-        """
+        """Display the list of tag definitions."""
         print(TAGS)
 
     def getIdsWithGivenTags(self, tags, exactMatches=False):
         if exactMatches:
-            return [dId for (dId, tag) in self.tags.items() if (all(t in tag for t in tags.upper()) and
-                                                                (len(tags) == len(tag)))]
+            return [
+                dId
+                for (dId, tag) in self.tags.items()
+                if (all(t in tag for t in tags.upper()) and (len(tags) == len(tag)))
+            ]
         else:
-            return [dId for (dId, tag) in self.tags.items() if all(t in tag for t in tags.upper())]
+            return [
+                dId
+                for (dId, tag) in self.tags.items()
+                if all(t in tag for t in tags.upper())
+            ]

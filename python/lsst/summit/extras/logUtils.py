@@ -55,12 +55,13 @@ class LogBrowser:
     logBrowser.SPECIAL_ZOO_CASES.append(fail)
     logBrowser.doFailZoology()
     """
+
     IGNORE_LOGS_FROM = [
         # butler.datastores is verbose by default and not interesting to most
-        'lsst.daf.butler.datastores',
+        "lsst.daf.butler.datastores",
     ]
     SPECIAL_ZOO_CASES = [
-        'with gufunc signature (n?,k),(k,m?)->(n?,m?)',
+        "with gufunc signature (n?,k),(k,m?)->(n?,m?)",
     ]
 
     def __init__(self, butler, taskName, collection):
@@ -80,11 +81,13 @@ class LogBrowser:
         -------
         dataRefs : `list` [`lsst.daf.butler.core.datasets.ref.DatasetRef`]
         """
-        results = self.butler.registry.queryDatasets(f'{self.taskName}_log',
-                                                     collections=self.collection,
-                                                     findFirst=True)
+        results = self.butler.registry.queryDatasets(
+            f"{self.taskName}_log", collections=self.collection, findFirst=True
+        )
         results = list(set(results))
-        self.log.info(f"Found {len(results)} datasets in collection for task {self.taskName}")
+        self.log.info(
+            f"Found {len(results)} datasets in collection for task {self.taskName}"
+        )
         return sorted(results)
 
     def _loadLogs(self, dataRefs):
@@ -98,7 +101,7 @@ class LogBrowser:
         """
         logs = {}
         for i, dataRef in enumerate(dataRefs):
-            if (i+1) % 100 == 0:
+            if (i + 1) % 100 == 0:
                 self.log.info(f"Loaded {i+1} logs...")
             log = self.butler.get(dataRef)
             logs[dataRef] = log
@@ -126,27 +129,23 @@ class LogBrowser:
         return [r.dataId for r in fails]
 
     def printPasses(self):
-        """Print out all the passing dataIds.
-        """
+        """Print out all the passing dataIds."""
         passes = self.getPassingDataIds()
         for dataId in passes:
             print(dataId)
 
     def printFails(self):
-        """Print out all the failing dataIds.
-        """
+        """Print out all the failing dataIds."""
         fails = self.getFailingDataIds()
         for dataId in fails:
             print(dataId)
 
     def countFails(self):
-        """Print a count of all the failing dataIds.
-        """
+        """Print a count of all the failing dataIds."""
         print(f"{len(self._getFailDataRefs())} failing cases found")
 
     def countPasses(self):
-        """Print a count of all the passing dataIds.
-        """
+        """Print a count of all the passing dataIds."""
         print(f"{len(self.getPassingDataIds())} passing cases found")
 
     def _getFailDataRefs(self):
@@ -170,7 +169,7 @@ class LogBrowser:
             # the final task failure message always comes in the last line
             # of the log and contains the string 'failed' as this is the
             # pipeline executor reporting on success/fail and the time and id.
-            if log[-1].message.find('failed') != -1:
+            if log[-1].message.find("failed") != -1:
                 fails.append(dataRef)
         return fails
 
@@ -214,7 +213,7 @@ class LogBrowser:
         """
         fails = self._getFailDataRefs()
         for dataRef in fails:
-            print(f'\n{dataRef.dataId}:')
+            print(f"\n{dataRef.dataId}:")
             log = self.logs[dataRef]
             if full:  # print the whole thing
                 for line in log:
@@ -223,7 +222,7 @@ class LogBrowser:
                 # print the last line from the Exception onwards if found,
                 # failing over to printing the whole thing just in case.
                 msg = log[-1].message
-                parts = msg.split('Exception ')
+                parts = msg.split("Exception ")
                 if len(parts) == 2:
                     print(parts[1])
                 else:
@@ -245,16 +244,20 @@ class LogBrowser:
         fails = self._getFailDataRefs()
         for dataRef in fails:
             log = self.logs[dataRef]
-            msg = log[-1].message  # log[-1].message is the text of the last line of the log
-            parts = msg.split('Exception ')
-            if len(parts) != 2:  # pretty sure all fails contain one and only one 'Exception' but be safe
-                self.log.warning(f'Surprise parsing log for {dataRef.dataId}')
+            msg = log[
+                -1
+            ].message  # log[-1].message is the text of the last line of the log
+            parts = msg.split("Exception ")
+            if (
+                len(parts) != 2
+            ):  # pretty sure all fails contain one and only one 'Exception' but be safe
+                self.log.warning(f"Surprise parsing log for {dataRef.dataId}")
                 continue
             else:
                 error = parts[1]
                 for error_string in self.SPECIAL_ZOO_CASES:
                     if error.find(error_string) != -1:
-                        error = error.split(error_string)[0] + error_string + '...'
+                        error = error.split(error_string)[0] + error_string + "..."
                 if error not in zoo:
                     zoo[error] = 1
                     if giveExampleId:
@@ -266,7 +269,9 @@ class LogBrowser:
         if not giveExampleId:
             if zoo.values():
                 maxCount = max([v for v in zoo.values()])
-                pad = math.ceil(math.log10(maxCount))  # number of digits in the largest count
+                pad = math.ceil(
+                    math.log10(maxCount)
+                )  # number of digits in the largest count
 
         for error in sorted(zoo.keys()):
             count = zoo[error]
@@ -292,14 +297,16 @@ class LogBrowser:
             raise ValueError(f"Found {len(dRefs)} for {dataId}, expected exactly 1.")
         dataRef = dRefs[0]
 
-        print(f'\n{dataRef.dataId}:')
+        print(f"\n{dataRef.dataId}:")
         log = self.logs[dataRef]
         if full:
             for line in log:
                 self._printLineIf(line)
         else:
-            msg = log[-1].message  # log[-1].message is the text of the last line of the log
-            parts = msg.split('Exception ')
+            msg = log[
+                -1
+            ].message  # log[-1].message is the text of the last line of the log
+            parts = msg.split("Exception ")
             if len(parts) == 2:
                 print(parts[1])
             else:
