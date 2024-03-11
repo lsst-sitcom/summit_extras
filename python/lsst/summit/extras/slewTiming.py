@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import itertools
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 from astropy.time import TimeDelta
@@ -29,6 +30,16 @@ from matplotlib.patches import Patch
 
 import lsst.summit.utils.butlerUtils as butlerUtils
 from lsst.summit.utils.efdUtils import getCommands, getEfdData
+
+if TYPE_CHECKING:
+    from typing import Tuple
+
+    import astropy
+    import matplotlib
+    import pandas as pd
+    from lsst_efd_client import EfdClient
+
+    import lsst.daf.butler as dafButler
 
 __all__ = ["plotExposureTiming"]
 
@@ -74,7 +85,13 @@ COMMANDS_TO_QUERY = [
 ]
 
 
-def getMountPositionData(client, begin, end, prePadding=0, postPadding=0):
+def getMountPositionData(
+    client: EfdClient,
+    begin: astropy.time.Time,
+    end: astropy.time.Time,
+    prePadding: int = 0,
+    postPadding: int = 0,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Retrieve the mount position data from the EFD.
 
     Parameters
@@ -119,7 +136,13 @@ def getMountPositionData(client, begin, end, prePadding=0, postPadding=0):
     return az, el, rot
 
 
-def getAxesInPosition(client, begin, end, prePadding, postPadding):
+def getAxesInPosition(
+    client: EfdClient,
+    begin: astropy.time.Time,
+    end: astropy.time.Time,
+    prePadding: int = 0,
+    postPadding: int = 0,
+) -> pd.DataFrame:
     return getEfdData(
         client,
         "lsst.sal.ATMCS.logevent_allAxesInPosition",
@@ -130,7 +153,9 @@ def getAxesInPosition(client, begin, end, prePadding, postPadding):
     )
 
 
-def plotExposureTiming(client, expRecords, plotHexapod=False, prePadding=1, postPadding=3):
+def plotExposureTiming(
+    client: EfdClient, expRecords: dafButler.DimensionRecord, prePadding: int = 1, postPadding: int = 3
+) -> matplotlib.figure.Figure:
     """Plot the mount command timings for a set of exposures.
 
     This function plots the mount position data for the entire time range of

@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
@@ -40,6 +41,11 @@ from lsst.summit.utils.bestEffort import BestEffortIsr
 from lsst.summit.utils.butlerUtils import getExpRecordFromDataId, makeDefaultLatissButler
 from lsst.summit.utils.utils import FWHMTOSIGMA, SIGMATOFWHM
 
+if TYPE_CHECKING:
+    from typing import List, Tuple
+
+    import lsst.afw.image as afwImage
+
 __all__ = ["SpectralFocusAnalyzer", "NonSpectralFocusAnalyzer"]
 
 
@@ -50,7 +56,7 @@ class FitResult:
     sigma: float
 
 
-def getFocusFromExposure(exp):
+def getFocusFromExposure(exp: afwImage.Exposure) -> float:
     """Get the focus value from an exposure.
 
     This was previously accessed via raw metadata but now lives inside the
@@ -90,7 +96,7 @@ class SpectralFocusAnalyzer:
     focusAnalyzer.run() can be used instead of the last two lines separately.
     """
 
-    def __init__(self, embargo=False):
+    def __init__(self, embargo: bool = False):
         self.butler = makeDefaultLatissButler(embargo=embargo)
         self._bestEffort = BestEffortIsr(embargo=embargo)
         qfmTaskConfig = QuickFrameMeasurementTaskConfig()
@@ -101,7 +107,7 @@ class SpectralFocusAnalyzer:
         self._spectrumBoxOffsets = [882, 1170, 1467]
         self._setColors(len(self._spectrumBoxOffsets))
 
-    def setSpectrumBoxOffsets(self, offsets):
+    def setSpectrumBoxOffsets(self, offsets: List[float]):
         """Set the current spectrum slice offsets.
 
         Parameters
@@ -113,7 +119,7 @@ class SpectralFocusAnalyzer:
         self._spectrumBoxOffsets = offsets
         self._setColors(len(offsets))
 
-    def getSpectrumBoxOffsets(self):
+    def getSpectrumBoxOffsets(self) -> List[float]:
         """Get the current spectrum slice offsets.
 
         Returns
@@ -124,10 +130,10 @@ class SpectralFocusAnalyzer:
         """
         return self._spectrumBoxOffsets
 
-    def _setColors(self, nPoints):
+    def _setColors(self, nPoints: int) -> None:
         self.COLORS = cm.rainbow(np.linspace(0, 1, nPoints))
 
-    def _getBboxes(self, centroid):
+    def _getBboxes(self, centroid: List[float]) -> geom.Box2I:
         x, y = centroid
         bboxes = []
 
@@ -139,7 +145,7 @@ class SpectralFocusAnalyzer:
             bboxes.append(bbox)
         return bboxes
 
-    def _bboxToMplRectangle(self, bbox, colorNum):
+    def _bboxToMplRectangle(self, bbox: geom.Box2I, colorNum: int) -> Rectangle:
         xmin = bbox.getBeginX()
         ymin = bbox.getBeginY()
         xsize = bbox.getWidth()
@@ -150,11 +156,18 @@ class SpectralFocusAnalyzer:
         return rectangle
 
     @staticmethod
-    def gauss(x, *pars):
+    def gauss(x: float, *pars: List[float]) -> float:
         amp, mean, sigma = pars
         return amp * np.exp(-((x - mean) ** 2) / (2.0 * sigma**2))
 
-    def run(self, dayObs, seqNums, doDisplay=False, hideFit=False, hexapodZeroPoint=0):
+    def run(
+        self,
+        dayObs: int,
+        seqNums: List[int],
+        doDisplay: bool = False,
+        hideFit: bool = False,
+        hexapodZeroPoint: float = 0,
+    ) -> List[float]:
         """Perform a focus sweep analysis for spectral data.
 
         For each seqNum for the specified dayObs, take a slice through the
@@ -189,7 +202,7 @@ class SpectralFocusAnalyzer:
         bestFits = self.fitDataAndPlot(hideFit=hideFit, hexapodZeroPoint=hexapodZeroPoint)
         return bestFits
 
-    def getFocusData(self, dayObs, seqNums, doDisplay=False):
+    def getFocusData(self, dayObs: int, seqNums: List[int], doDisplay: bool = False) -> None:
         """Perform a focus sweep analysis for spectral data.
 
         For each seqNum for the specified dayObs, take a slice through the
@@ -289,7 +302,7 @@ class SpectralFocusAnalyzer:
 
         return
 
-    def fitDataAndPlot(self, hideFit=False, hexapodZeroPoint=0):
+    def fitDataAndPlot(self, hideFit: bool = False, hexapodZeroPoint: float = 0) -> List[float]:
         """Fit a parabola to each series of slices and return the best focus.
 
         For each offset distance, fit a parabola to the fitted spectral widths
@@ -373,7 +386,7 @@ class SpectralFocusAnalyzer:
             print(f"Best fit for spectrum slice {i} = {bestFit:.4f}mm")
         return bestFits
 
-    def _generateLegendText(self, nSpectrumSlices):
+    def _generateLegendText(self, nSpectrumSlices: int) -> str:
         if nSpectrumSlices == 1:
             return ["m=+1 spectrum slice"]
         if nSpectrumSlices == 2:
@@ -406,25 +419,25 @@ class NonSpectralFocusAnalyzer:
     focusAnalyzer.run() can be used instead of the last two lines separately.
     """
 
-    def __init__(self, embargo=False):
+    def __init__(self, embargo: bool = False):
         self.butler = makeDefaultLatissButler(embargo=embargo)
         self._bestEffort = BestEffortIsr(embargo=embargo)
 
     @staticmethod
-    def gauss(x, *pars):
+    def gauss(x: float, *pars: List[float]):
         amp, mean, sigma = pars
         return amp * np.exp(-((x - mean) ** 2) / (2.0 * sigma**2))
 
     def run(
         self,
-        dayObs,
-        seqNums,
+        dayObs: int,
+        seqNums: List[int],
         *,
-        manualCentroid=None,
-        doCheckDispersed=True,
-        doDisplay=False,
-        doForceCoM=False,
-    ):
+        manualCentroid: Tuple[float] | None = None,
+        doCheckDispersed: bool = True,
+        doDisplay: bool = False,
+        doForceCoM: bool = False,
+    ) -> dict:
         """Perform a focus sweep analysis for direct imaging data.
 
         For each seqNum for the specified dayObs, run the image through imExam
@@ -469,14 +482,14 @@ class NonSpectralFocusAnalyzer:
 
     def getFocusData(
         self,
-        dayObs,
-        seqNums,
+        dayObs: int,
+        seqNums: List[int],
         *,
-        manualCentroid=None,
-        doCheckDispersed=True,
-        doDisplay=False,
-        doForceCoM=False,
-    ):
+        manualCentroid: Tuple[float] | None = None,
+        doCheckDispersed: bool = True,
+        doDisplay: bool = False,
+        doForceCoM: bool = False,
+    ) -> None:
         """Perform a focus sweep analysis for direct imaging data.
 
         For each seqNum for the specified dayObs, run the image through imExam
@@ -560,7 +573,7 @@ class NonSpectralFocusAnalyzer:
 
         return
 
-    def fitDataAndPlot(self):
+    def fitDataAndPlot(self) -> dict:
         """Fit a parabola to each width metric, returning their best focuses.
 
         For each of the [Gaussian fit, 50%, 80%, 90% encircled energy] metrics,
