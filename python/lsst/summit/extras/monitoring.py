@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from time import sleep
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -33,6 +34,12 @@ from lsst.summit.utils.butlerUtils import (
     getMostRecentDataId,
     makeDefaultLatissButler,
 )
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, List
+
+    import lsst.afw.display as afwDisplay
+    import lsst.afw.image as afwImage
 
 # TODO: maybe add option to create display and return URL?
 
@@ -54,7 +61,7 @@ class Monitor:
     cadence = 1  # in seconds
     runIsr = True
 
-    def __init__(self, fireflyDisplay, **kwargs):
+    def __init__(self, fireflyDisplay: afwDisplay, **kwargs: Dict[str, Any]):
         """"""
         self.butler = makeDefaultLatissButler()
         self.display = fireflyDisplay
@@ -63,13 +70,13 @@ class Monitor:
         self.overlayAmps = False  # do the overlay?
         self.measureFromChipCenter = False
 
-    def _getLatestImageDataIdAndExpId(self):
+    def _getLatestImageDataIdAndExpId(self) -> tuple:
         """Get the dataId and expId for the most recent image in the repo."""
         dataId = getMostRecentDataId(self.butler)
         expId = getExpIdFromDayObsSeqNum(self.butler, dataId)["exposure"]
         return dataId, expId
 
-    def _calcImageStats(self, exp):
+    def _calcImageStats(self, exp: afwImage.Exposure) -> List[float]:
         elements = []
         median = np.median(exp.image.array)
         elements.append(f"Median={median:.2f}")
@@ -79,7 +86,7 @@ class Monitor:
 
         return elements
 
-    def _makeImageInfoText(self, dataId, exp, asList=False):
+    def _makeImageInfoText(self, dataId: dict, exp: afwImage.Exposure, asList: bool = False) -> list | str:
         # TODO: add the following to the display:
         # az, el, zenith angle
         # main source centroid
@@ -119,7 +126,7 @@ class Monitor:
             return elements
         return " ".join([e for e in elements])
 
-    def _printImageInfo(self, elements):
+    def _printImageInfo(self, elements: list) -> None:
         size = 3
         top = 3850  # just under title for size=3
         xnom = -600  # 0 is the left edge of the image
@@ -132,7 +139,7 @@ class Monitor:
             x = xnom + (size * 18.5 * len(item) // 2)
             self.display.dot(str(item), x, y, size, ctype="red", fontFamily="courier")
 
-    def run(self, durationInSeconds=-1):
+    def run(self, durationInSeconds: int = -1) -> None:
         """Run the monitor, displaying new images as they are taken.
 
         Parameters

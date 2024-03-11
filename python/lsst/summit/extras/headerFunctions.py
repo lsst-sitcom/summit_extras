@@ -25,17 +25,21 @@ import logging
 import os
 import pickle
 import sys
+from typing import TYPE_CHECKING
 
 import astropy
 import numpy as np
 from astropy.io import fits
+
+if TYPE_CHECKING:
+    from typing import Any, List, Tuple
 
 # redirect logger to stdout so that logger messages appear in notebooks too
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger("headerFunctions")
 
 
-def loadHeaderDictsFromLibrary(libraryFilename):
+def loadHeaderDictsFromLibrary(libraryFilename: str) -> Tuple[dict, dict]:
     """Load the header and hash dicts from a pickle file.
 
     Parameters
@@ -76,7 +80,7 @@ def loadHeaderDictsFromLibrary(libraryFilename):
     return headersDict, dataDict
 
 
-def _saveToLibrary(libraryFilename, headersDict, dataDict):
+def _saveToLibrary(libraryFilename: str, headersDict: dict, dataDict: dict) -> None:
     try:
         with open(libraryFilename, "wb") as dumpFile:
             pickle.dump((headersDict, dataDict), dumpFile, pickle.HIGHEST_PROTOCOL)
@@ -87,7 +91,9 @@ def _saveToLibrary(libraryFilename, headersDict, dataDict):
         pdb.set_trace()
 
 
-def _findKeyForValue(dictionary, value, warnOnCollision=True, returnCollisions=False):
+def _findKeyForValue(
+    dictionary: dict, value: Any, warnOnCollision: bool = True, returnCollisions: bool = False
+) -> Any:
     listOfKeys = [k for (k, v) in dictionary.items() if v == value]
     if warnOnCollision and len(listOfKeys) != 1:
         logger.warning("Found multiple keys for value! Returning only first.")
@@ -96,7 +102,7 @@ def _findKeyForValue(dictionary, value, warnOnCollision=True, returnCollisions=F
     return listOfKeys[0]
 
 
-def _hashFile(fileToHash, dataHdu, sliceToUse):
+def _hashFile(fileToHash, dataHdu, sliceToUse) -> str:
     """Put in place so that if hashing multiple HDUs is desired when one
     is filled with zeros it will be easy to add"""
     data = fileToHash[dataHdu].data[sliceToUse, sliceToUse].tostring()
@@ -104,7 +110,7 @@ def _hashFile(fileToHash, dataHdu, sliceToUse):
     return h
 
 
-def _hashData(data):
+def _hashData(data: str) -> str:
     h = hashlib.sha256(data).hexdigest()  # hex because we want it readable in the dict
     return h
 
@@ -112,7 +118,9 @@ def _hashData(data):
 ZERO_HASH = _hashData(np.zeros((100, 100), dtype=np.int32))
 
 
-def buildHashAndHeaderDicts(fileList, dataHdu="Segment00", libraryLocation=None):
+def buildHashAndHeaderDicts(
+    fileList: List[str], dataHdu: int | str = "Segment00", libraryLocation: str | None = None
+) -> dict:
     """For a list of files, build dicts of hashed data and headers.
 
     Data is hashed using a currently-hard-coded 100x100 region of the pixels
@@ -185,7 +193,7 @@ def buildHashAndHeaderDicts(fileList, dataHdu="Segment00", libraryLocation=None)
     return headersDict, dataDict
 
 
-def sorted(inlist, replacementValue="<BLANK VALUE>"):
+def sorted(inlist: list, replacementValue: str = "<BLANK VALUE>") -> list:
     """Redefinition of sorted() to deal with blank values and str/int mixes"""
     from builtins import sorted as _sorted
 
@@ -197,8 +205,14 @@ def sorted(inlist, replacementValue="<BLANK VALUE>"):
 
 
 def keyValuesSetFromFiles(
-    fileList, keys, joinKeys, noWarn=False, printResults=True, libraryLocation=None, printPerFile=False
-):
+    fileList: List[str],
+    keys: List[str],
+    joinKeys: List[str],
+    noWarn: bool = False,
+    printResults: bool = True,
+    libraryLocation: str | None = None,
+    printPerFile: bool = False,
+) -> List[str]:
     """For a list of FITS files, get the set of values for the given keys.
 
     Parameters
@@ -290,7 +304,7 @@ def keyValuesSetFromFiles(
     return kValues
 
 
-def compareHeaders(filename1, filename2):
+def compareHeaders(filename1: str, filename2: str) -> None:
     """Compare the headers of two files in detail.
 
     First, the two files are confirmed to have the same pixel data to ensure
