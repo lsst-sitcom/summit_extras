@@ -64,8 +64,6 @@ def getStreamingSequences(dayObs):
     Note that this will need rewriting very soon once the way the data is
     organised on disk is changed.
 
-    TODO: Will be moved to summit_extras on DM-43269
-
     Parameters
     ----------
     dayObs : `int`
