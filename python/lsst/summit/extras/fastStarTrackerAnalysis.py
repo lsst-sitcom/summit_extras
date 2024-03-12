@@ -43,6 +43,7 @@ from lsst.summit.utils.utils import bboxToMatplotlibRectanle, detectObjectsInExp
 from lsst.utils.iteration import ensure_iterable
 
 __all__ = (
+    "getStreamingSequences",
     "getFlux",
     "getBackgroundLevel",
     "countOverThresholdPixels",
@@ -50,8 +51,10 @@ __all__ = (
     "findFastStarTrackerImageSources",
     "checkResultConsistency",
     "plotSourceMovement",
-    "plotSource",
     "plotSourcesOnImage",
+    "plotSource",
+    "Source",
+    "NanSource",
 )
 
 
