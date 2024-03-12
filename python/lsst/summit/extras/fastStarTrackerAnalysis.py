@@ -196,7 +196,7 @@ def sortSourcesByFlux(sources, reverse=False):
     Parameters
     ----------
     sources : `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         The list of sources to sort.
     reverse : `bool`, optional
         Return the brightest at the start of the list if ``reverse`` is
@@ -205,7 +205,7 @@ def sortSourcesByFlux(sources, reverse=False):
     Returns
     -------
     sources : `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         The sources, sorted by flux.
     """
     # invert reverse because we want brightest first by default, but want the
@@ -285,7 +285,7 @@ def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
     Returns
     -------
     sources : `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         The sources in the image, sorted by rawFlux.
     """
     exp = openFile(filename)
@@ -343,7 +343,7 @@ def checkResultConsistency(results, maxAllowableShift=5, silent=False):
     Parameters
     ----------
     results : `dict` of `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         A dict, keyed by sequence number, with each value being a list of the
         sources found in the image, e.g. as returned by
         ``findFastStarTrackerImageSources()``.
@@ -447,7 +447,7 @@ def plotSourceMovement(results, sourceIndex=0, allowInconsistent=False):
     Parameters
     ----------
     results : `dict` of `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         A dict, keyed by sequence number, with each value being a list of the
         sources found in the image, e.g. as returned by
         ``findFastStarTrackerImageSources()``.
@@ -567,8 +567,8 @@ def plotSourcesOnImage(parentFilename, sources):
     parentFilename : `str`
         The full path to the parent (.tif) file.
     sources : `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source` or
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source` or
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         The sources found in the image.
     """
     exp = openFile(parentFilename)
@@ -603,7 +603,7 @@ def plotSource(source):
 
     Parameters
     ----------
-    source : `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+    source : `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         The source to plot.
     """
     if source.cutout is None:
