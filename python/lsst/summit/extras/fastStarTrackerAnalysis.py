@@ -275,7 +275,7 @@ def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
     Parameters
     ----------
     filename : `str`
-        The full
+        The full name and path of the file.
     boxSize : `int`
         The size of the box to put around each source for measurement.
     attachCutouts : `bool`, optional
