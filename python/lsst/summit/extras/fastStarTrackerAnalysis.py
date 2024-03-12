@@ -1,4 +1,4 @@
-# This file is part of summit_extras.
+# This file is part of summit_utils.
 #
 # Developed for the LSST Data Management System.
 # This product includes software developed by the LSST Project
@@ -23,7 +23,6 @@ import glob
 import os
 import typing
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import galsim
 import matplotlib.pyplot as plt
@@ -43,36 +42,26 @@ from lsst.summit.utils.starTracker import (
 from lsst.summit.utils.utils import bboxToMatplotlibRectanle, detectObjectsInExp, getBboxAround, getSite
 from lsst.utils.iteration import ensure_iterable
 
-if TYPE_CHECKING:
-    from typing import Dict, List
-
-    import matplotlib
-
-    import lsst.afw.image as afwImage
-    import lsst.summit.extras as summitExtras
-
-
 __all__ = (
-    "getStreamingSequences",
     "getFlux",
     "getBackgroundLevel",
     "countOverThresholdPixels",
     "sortSourcesByFlux",
-    "Source",
-    "NanSource",
     "findFastStarTrackerImageSources",
     "checkResultConsistency",
     "plotSourceMovement",
-    "plotSourcesOnImage",
     "plotSource",
+    "plotSourcesOnImage",
 )
 
 
-def getStreamingSequences(dayObs: int) -> Dict[int, List[str]]:
+def getStreamingSequences(dayObs):
     """Get the streaming sequences for a dayObs.
 
     Note that this will need rewriting very soon once the way the data is
     organised on disk is changed.
+
+    TODO: Will be moved to summit_extras on DM-43269
 
     Parameters
     ----------
@@ -126,7 +115,7 @@ def getStreamingSequences(dayObs: int) -> Dict[int, List[str]]:
     return data
 
 
-def getFlux(cutout: np.array, backgroundLevel: int = 0):
+def getFlux(cutout, backgroundLevel=0):
     """Get the flux inside a cutout, subtracting the image-background.
 
     Here the flux is simply summed, and if the image background level is
@@ -152,7 +141,7 @@ def getFlux(cutout: np.array, backgroundLevel: int = 0):
     return rawFlux - (cutout.size * backgroundLevel)
 
 
-def getBackgroundLevel(exp: afwImage.Exposure, nSigma: int = 3):
+def getBackgroundLevel(exp, nSigma=3):
     """Calculate the clipped image mean and stddev of an exposure.
 
     Testing shows on images like this, 2 rounds of sigma clipping is more than
@@ -182,7 +171,7 @@ def getBackgroundLevel(exp: afwImage.Exposure, nSigma: int = 3):
     return mean, std
 
 
-def countOverThresholdPixels(cutout: np.array, bgMean: float, bgStd: float, nSigma: float = 15) -> int:
+def countOverThresholdPixels(cutout, bgMean, bgStd, nSigma=15):
     """Get the number of pixels in the cutout which are 'in the source'.
 
     From the one image I've looked at so far, the drop-off is quite slow
@@ -211,15 +200,13 @@ def countOverThresholdPixels(cutout: np.array, bgMean: float, bgStd: float, nSig
     return len(inds[0])
 
 
-def sortSourcesByFlux(
-    sources: List[summitExtras.fastStarTrackerAnalysis.Source], reverse: bool = False
-) -> List[summitExtras.fastStarTrackerAnalysis.Source]:
+def sortSourcesByFlux(sources, reverse=False):
     """Sort the sources by flux, returning the brightest first.
 
     Parameters
     ----------
     sources : `list` of
-              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
+              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
         The list of sources to sort.
     reverse : `bool`, optional
         Return the brightest at the start of the list if ``reverse`` is
@@ -228,7 +215,7 @@ def sortSourcesByFlux(
     Returns
     -------
     sources : `list` of
-              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
+              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
         The sources, sorted by flux.
     """
     # invert reverse because we want brightest first by default, but want the
@@ -267,7 +254,7 @@ class Source:
     parentImageHeight: int | float = np.nan
     expTime: float = np.nan
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         """Print everything except the full details of the moments."""
         retStr = ""
         for itemName in self.__slots__:
@@ -293,15 +280,13 @@ class NanSource:
         return np.nan
 
 
-def findFastStarTrackerImageSources(
-    filename: str, boxSize: int, attachCutouts: bool = True
-) -> List[summitExtras.fastStarTrackerAnalysis.Source]:
+def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
     """Analyze a single FastStarTracker image.
 
     Parameters
     ----------
     filename : `str`
-        The full name and path of the file.
+        The full
     boxSize : `int`
         The size of the box to put around each source for measurement.
     attachCutouts : `bool`, optional
@@ -311,7 +296,7 @@ def findFastStarTrackerImageSources(
     Returns
     -------
     sources : `list` of
-              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
+              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
         The sources in the image, sorted by rawFlux.
     """
     exp = openFile(filename)
@@ -359,11 +344,7 @@ def findFastStarTrackerImageSources(
     return sortSourcesByFlux(sources)
 
 
-def checkResultConsistency(
-    results: List[List[summitExtras.fastStarTrackerAnalysis.Source]],
-    maxAllowableShift: int = 5,
-    silent: bool = False,
-) -> bool:
+def checkResultConsistency(results, maxAllowableShift=5, silent=False):
     """Check if a set of results are self-consistent.
 
     Check the number of detected sources are the same in each image, that no
@@ -377,7 +358,7 @@ def checkResultConsistency(
     Parameters
     ----------
     results : `dict` of `list` of
-              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
+              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
         A dict, keyed by sequence number, with each value being a list of the
         sources found in the image, e.g. as returned by
         ``findFastStarTrackerImageSources()``.
@@ -471,11 +452,7 @@ def checkResultConsistency(
     return consistent
 
 
-def plotSourceMovement(
-    results: Dict[int, List[summitExtras.fastStarTrackerAnalysis.Source]],
-    sourceIndex: int = 0,
-    allowInconsistent: bool = False,
-) -> List[matplotlib.figure.Figure]:
+def plotSourceMovement(results, sourceIndex=0, allowInconsistent=False):
     """Plot the centroid movements and fluxes etc for a set of results.
 
     By default the brightest source in each image is plotted, but this can be
@@ -485,7 +462,7 @@ def plotSourceMovement(
     Parameters
     ----------
     results : `dict` of `list` of
-              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
+              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
         A dict, keyed by sequence number, with each value being a list of the
         sources found in the image, e.g. as returned by
         ``findFastStarTrackerImageSources()``.
@@ -597,12 +574,7 @@ def plotSourceMovement(
 # -------------- plotting tools
 
 
-def plotSourcesOnImage(
-    parentFilename: str,
-    sources: (
-        summitExtras.fastStarTrackerAnalysis.Source | List[summitExtras.fastStarTrackerAnalysis.Source]
-    ),
-) -> None:
+def plotSourcesOnImage(parentFilename, sources):
     """Plot one of more source on top of an image.
 
     Parameters
@@ -610,8 +582,8 @@ def plotSourcesOnImage(
     parentFilename : `str`
         The full path to the parent (.tif) file.
     sources : `list` of
-              `lsst.summit.extras.fastStarTrackerAnalysis.Source` or
-              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
+              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source` or
+              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
         The sources found in the image.
     """
     exp = openFile(parentFilename)
@@ -641,12 +613,12 @@ def plotSourcesOnImage(
     plt.tight_layout()
 
 
-def plotSource(source: summitExtras.fastStarTrackerAnalysis.Source) -> None:
+def plotSource(source):
     """Plot a single source.
 
     Parameters
     ----------
-    source : `lsst.summit.extras.fastStarTrackerAnalysis.Source`
+    source : `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
         The source to plot.
     """
     if source.cutout is None:
