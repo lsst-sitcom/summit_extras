@@ -48,13 +48,13 @@ __all__ = (
     "getBackgroundLevel",
     "countOverThresholdPixels",
     "sortSourcesByFlux",
+    "Source",
+    "NanSource",
     "findFastStarTrackerImageSources",
     "checkResultConsistency",
     "plotSourceMovement",
     "plotSourcesOnImage",
     "plotSource",
-    "Source",
-    "NanSource",
 )
 
 
