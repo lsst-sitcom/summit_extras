@@ -91,6 +91,8 @@ def getStreamingSequences(dayObs):
 
     data = {}
     if dayObs < 20240311:
+        # after this is when we changed the data layout on disk for streaming
+        # mode data in the GenericCamera
         for filename in sorted(streamingFiles):
             basename = os.path.basename(filename)
             seqNum = int(basename.split("_")[3])
