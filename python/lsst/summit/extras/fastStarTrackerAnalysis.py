@@ -301,7 +301,9 @@ def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
         The sources in the image, sorted by rawFlux.
     """
     exp = openFile(filename)
-    expTime = exp.visitInfo.exposureTime  # defaults to nan if not set
+    # if the upstream exposure reading code hasn't set the
+    # visitInfo.exposureTime then this will return nan, as desired
+    expTime = exp.visitInfo.exposureTime
     footprintSet = detectObjectsInExp(exp)
     footprints = footprintSet.getFootprints()
     bgMean, bgStd = getBackgroundLevel(exp)
