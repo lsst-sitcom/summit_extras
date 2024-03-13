@@ -23,6 +23,7 @@ import glob
 import os
 import typing
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import galsim
 import matplotlib.pyplot as plt
@@ -42,6 +43,15 @@ from lsst.summit.utils.starTracker import (
 from lsst.summit.utils.utils import bboxToMatplotlibRectanle, detectObjectsInExp, getBboxAround, getSite
 from lsst.utils.iteration import ensure_iterable
 
+if TYPE_CHECKING:
+    from typing import Dict, List
+
+    import matplotlib
+
+    import lsst.afw.image as afwImage
+    import lsst.summit.extras as summitExtras
+
+
 __all__ = (
     "getStreamingSequences",
     "getFlux",
@@ -58,7 +68,7 @@ __all__ = (
 )
 
 
-def getStreamingSequences(dayObs):
+def getStreamingSequences(dayObs: int) -> Dict[int, List[str]]:
     """Get the streaming sequences for a dayObs.
 
     Note that this will need rewriting very soon once the way the data is
@@ -116,7 +126,7 @@ def getStreamingSequences(dayObs):
     return data
 
 
-def getFlux(cutout, backgroundLevel=0):
+def getFlux(cutout: np.array, backgroundLevel: int = 0):
     """Get the flux inside a cutout, subtracting the image-background.
 
     Here the flux is simply summed, and if the image background level is
@@ -142,7 +152,7 @@ def getFlux(cutout, backgroundLevel=0):
     return rawFlux - (cutout.size * backgroundLevel)
 
 
-def getBackgroundLevel(exp, nSigma=3):
+def getBackgroundLevel(exp: afwImage.Exposure, nSigma: int = 3):
     """Calculate the clipped image mean and stddev of an exposure.
 
     Testing shows on images like this, 2 rounds of sigma clipping is more than
@@ -172,7 +182,7 @@ def getBackgroundLevel(exp, nSigma=3):
     return mean, std
 
 
-def countOverThresholdPixels(cutout, bgMean, bgStd, nSigma=15):
+def countOverThresholdPixels(cutout: np.array, bgMean: float, bgStd: float, nSigma: float = 15) -> int:
     """Get the number of pixels in the cutout which are 'in the source'.
 
     From the one image I've looked at so far, the drop-off is quite slow
@@ -201,7 +211,9 @@ def countOverThresholdPixels(cutout, bgMean, bgStd, nSigma=15):
     return len(inds[0])
 
 
-def sortSourcesByFlux(sources, reverse=False):
+def sortSourcesByFlux(
+    sources: List[summitExtras.fastStarTrackerAnalysis.Source], reverse: bool = False
+) -> List[summitExtras.fastStarTrackerAnalysis.Source]:
     """Sort the sources by flux, returning the brightest first.
 
     Parameters
@@ -255,7 +267,7 @@ class Source:
     parentImageHeight: int | float = np.nan
     expTime: float = np.nan
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Print everything except the full details of the moments."""
         retStr = ""
         for itemName in self.__slots__:
@@ -281,7 +293,9 @@ class NanSource:
         return np.nan
 
 
-def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
+def findFastStarTrackerImageSources(
+    filename: str, boxSize: int, attachCutouts: bool = True
+) -> List[summitExtras.fastStarTrackerAnalysis.Source]:
     """Analyze a single FastStarTracker image.
 
     Parameters
@@ -345,7 +359,11 @@ def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
     return sortSourcesByFlux(sources)
 
 
-def checkResultConsistency(results, maxAllowableShift=5, silent=False):
+def checkResultConsistency(
+    results: List[List[summitExtras.fastStarTrackerAnalysis.Source]],
+    maxAllowableShift: int = 5,
+    silent: bool = False,
+) -> bool:
     """Check if a set of results are self-consistent.
 
     Check the number of detected sources are the same in each image, that no
@@ -453,7 +471,11 @@ def checkResultConsistency(results, maxAllowableShift=5, silent=False):
     return consistent
 
 
-def plotSourceMovement(results, sourceIndex=0, allowInconsistent=False):
+def plotSourceMovement(
+    results: Dict[int, List[summitExtras.fastStarTrackerAnalysis.Source]],
+    sourceIndex: int = 0,
+    allowInconsistent: bool = False,
+) -> List[matplotlib.figure.Figure]:
     """Plot the centroid movements and fluxes etc for a set of results.
 
     By default the brightest source in each image is plotted, but this can be
@@ -575,7 +597,12 @@ def plotSourceMovement(results, sourceIndex=0, allowInconsistent=False):
 # -------------- plotting tools
 
 
-def plotSourcesOnImage(parentFilename, sources):
+def plotSourcesOnImage(
+    parentFilename: str,
+    sources: (
+        summitExtras.fastStarTrackerAnalysis.Source | List[summitExtras.fastStarTrackerAnalysis.Source]
+    ),
+) -> None:
     """Plot one of more source on top of an image.
 
     Parameters
@@ -614,7 +641,7 @@ def plotSourcesOnImage(parentFilename, sources):
     plt.tight_layout()
 
 
-def plotSource(source):
+def plotSource(source: summitExtras.fastStarTrackerAnalysis.Source) -> None:
     """Plot a single source.
 
     Parameters
