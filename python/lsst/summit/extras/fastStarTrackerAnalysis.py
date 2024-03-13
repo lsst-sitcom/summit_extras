@@ -81,7 +81,7 @@ def getStreamingSequences(dayObs):
     elif site == "summit":
         rootDataPath = "/project"
     else:
-        raise ValueError(f"StarTracker data isn't available at {site}")
+        raise ValueError(f"Finding StarTracker data isn't supported at {site}")
 
     dataDir = getRawDataDirForDayObs(rootDataPath, fastCam, dayObs)
     files = glob.glob(os.path.join(dataDir, "*.fits"))
@@ -90,13 +90,24 @@ def getStreamingSequences(dayObs):
     print(f"Found {len(regularFiles)} regular files on dayObs {dayObs}")
 
     data = {}
-    for filename in sorted(streamingFiles):
-        basename = os.path.basename(filename)
-        seqNum = int(basename.split("_")[3])
-        if seqNum not in data:
-            data[seqNum] = [filename]
-        else:
-            data[seqNum].append(filename)
+    if dayObs < 20240311:
+        # after this is when we changed the data layout on disk for streaming
+        # mode data in the GenericCamera
+        for filename in sorted(streamingFiles):
+            basename = os.path.basename(filename)
+            seqNum = int(basename.split("_")[3])
+            if seqNum not in data:
+                data[seqNum] = [filename]
+            else:
+                data[seqNum].append(filename)
+    else:
+        # dirNames here doesn't contain the full path, it's just the individual
+        # directory name and needs joining with dataDir for the full path
+        dirNames = sorted(d for d in os.listdir(dataDir) if os.path.isdir(os.path.join(dataDir, d)))
+        for d in dirNames:
+            files = sorted(glob.glob(os.path.join(dataDir, d, "*.fits")))
+            seqNum = int(d.split("_")[3])
+            data[seqNum] = files
 
     print(f"Found {len(data)} streaming sequences on dayObs {dayObs}:")
     for seqNum, files in data.items():
@@ -242,6 +253,7 @@ class Source:
     nSourcesInImage: int | float = np.nan
     parentImageWidth: int | float = np.nan
     parentImageHeight: int | float = np.nan
+    expTime: float = np.nan
 
     def __repr__(self):
         """Print everything except the full details of the moments."""
@@ -289,6 +301,9 @@ def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
         The sources in the image, sorted by rawFlux.
     """
     exp = openFile(filename)
+    # if the upstream exposure reading code hasn't set the
+    # visitInfo.exposureTime then this will return nan, as desired
+    expTime = exp.visitInfo.exposureTime
     footprintSet = detectObjectsInExp(exp)
     footprints = footprintSet.getFootprints()
     bgMean, bgStd = getBackgroundLevel(exp)
@@ -302,6 +317,7 @@ def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
 
     for footprint in footprints:
         source = Source(dayObs=dayObs, seqNum=seqNum, frameNum=frameNum)
+        source.expTime = expTime
         source.nSourcesInImage = len(footprints)
         source.parentImageWidth, source.parentImageHeight = exp.getDimensions()
 
