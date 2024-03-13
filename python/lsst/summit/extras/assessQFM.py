@@ -180,7 +180,7 @@ class AssessQFM:
                 qfmRes["finalTag"] = "F"
         return qfmResults
 
-    def compareToBaseline(self, comparisonData: pd.DataFrame):
+    def compareToBaseline(self, comparisonData: pd.DataFrame) -> None:
         """Compare a table of quickFrameMeasurement results with the
         baseline vetted data, and print output of the comparison.
 
