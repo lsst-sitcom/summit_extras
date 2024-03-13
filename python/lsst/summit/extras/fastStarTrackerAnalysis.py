@@ -81,7 +81,7 @@ def getStreamingSequences(dayObs):
     elif site == "summit":
         rootDataPath = "/project"
     else:
-        raise ValueError(f"StarTracker data isn't available at {site}")
+        raise ValueError(f"Finding StarTracker data isn't supported at {site}")
 
     dataDir = getRawDataDirForDayObs(rootDataPath, fastCam, dayObs)
     files = glob.glob(os.path.join(dataDir, "*.fits"))
