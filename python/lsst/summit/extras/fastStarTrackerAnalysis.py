@@ -250,6 +250,7 @@ class Source:
     nSourcesInImage: int | float = np.nan
     parentImageWidth: int | float = np.nan
     parentImageHeight: int | float = np.nan
+    expTime: float = np.nan
 
     def __repr__(self):
         """Print everything except the full details of the moments."""
@@ -297,6 +298,7 @@ def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
         The sources in the image, sorted by rawFlux.
     """
     exp = openFile(filename)
+    expTime = exp.visitInfo.exposureTime  # defaults to nan if not set
     footprintSet = detectObjectsInExp(exp)
     footprints = footprintSet.getFootprints()
     bgMean, bgStd = getBackgroundLevel(exp)
@@ -310,6 +312,7 @@ def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
 
     for footprint in footprints:
         source = Source(dayObs=dayObs, seqNum=seqNum, frameNum=frameNum)
+        source.expTime = expTime
         source.nSourcesInImage = len(footprints)
         source.parentImageWidth, source.parentImageHeight = exp.getDimensions()
 
