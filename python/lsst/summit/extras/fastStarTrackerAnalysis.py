@@ -90,13 +90,21 @@ def getStreamingSequences(dayObs):
     print(f"Found {len(regularFiles)} regular files on dayObs {dayObs}")
 
     data = {}
-    for filename in sorted(streamingFiles):
-        basename = os.path.basename(filename)
-        seqNum = int(basename.split("_")[3])
-        if seqNum not in data:
-            data[seqNum] = [filename]
-        else:
-            data[seqNum].append(filename)
+    if dayObs < 20240311:
+        for filename in sorted(streamingFiles):
+            basename = os.path.basename(filename)
+            seqNum = int(basename.split("_")[3])
+            if seqNum not in data:
+                data[seqNum] = [filename]
+            else:
+                data[seqNum].append(filename)
+    else:
+        # dirs here isn't the fully dirname, it's just the base dirname
+        dirs = sorted(d for d in os.listdir(dataDir) if os.path.isdir(os.path.join(dataDir, d)))
+        for d in dirs:
+            files = sorted(glob.glob(os.path.join(dataDir, d, "*.fits")))
+            seqNum = int(d.split("_")[3])
+            data[seqNum] = files
 
     print(f"Found {len(data)} streaming sequences on dayObs {dayObs}:")
     for seqNum, files in data.items():
