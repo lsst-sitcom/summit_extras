@@ -101,9 +101,10 @@ def getStreamingSequences(dayObs):
             else:
                 data[seqNum].append(filename)
     else:
-        # dirs here isn't the fully dirname, it's just the base dirname
-        dirs = sorted(d for d in os.listdir(dataDir) if os.path.isdir(os.path.join(dataDir, d)))
-        for d in dirs:
+        # dirNames here doesn't contain the full path, it's just the individual
+        # directory name and needs joining with dataDir for the full path
+        dirNames = sorted(d for d in os.listdir(dataDir) if os.path.isdir(os.path.join(dataDir, d)))
+        for d in dirNames:
             files = sorted(glob.glob(os.path.join(dataDir, d, "*.fits")))
             seqNum = int(d.split("_")[3])
             data[seqNum] = files
