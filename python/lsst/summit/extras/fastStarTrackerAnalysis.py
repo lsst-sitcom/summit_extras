@@ -597,9 +597,7 @@ def plotSourceMovement(
 
 def plotSourcesOnImage(
     parentFilename: str,
-    sources: (
-        summitExtras.fastStarTrackerAnalysis.Source | List[summitExtras.fastStarTrackerAnalysis.Source]
-    ),
+    sources: summitExtras.fastStarTrackerAnalysis.Source | List[summitExtras.fastStarTrackerAnalysis.Source],
 ) -> None:
     """Plot one of more source on top of an image.
 
