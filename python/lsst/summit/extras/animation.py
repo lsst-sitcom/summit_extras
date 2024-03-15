@@ -106,16 +106,17 @@ class Animator:
         self.disp.setImageColormap("gray")
         self.disp.scale("asinh", "zscale")
 
-        self.pngsToMakeDataIds = []
+        self.pngsToMakeDataIds: List[int] = []
+
         self.preRun()  # sets the above list
 
     @staticmethod
-    def _strDataId(dataId: dict) -> str:
+    def _strDataId(dataId: int) -> str:
         """Make a dataId into a string suitable for use as a filename.
 
         Parameters
         ----------
-        dataId : `dict`
+        dataId : `int`
             The data id.
 
         Returns
@@ -136,7 +137,7 @@ class Animator:
         dIdStr = dIdStr.replace(",", "-")
         return dIdStr
 
-    def dataIdToFilename(self, dataId: dict, includeNumber: bool = False, imNum: bool | None = None) -> str:
+    def dataIdToFilename(self, dataId: int, includeNumber: bool = False, imNum: int | None = None) -> str:
         """Convert dataId to filename.
 
         Returns a full path+filename by default. if includeNumber then
@@ -254,7 +255,7 @@ class Animator:
         logger.info(f"Finished! Output at {self.outputFilename}")
         return self.outputFilename
 
-    def _titleFromExp(self, exp: "Any", dataId: dict) -> str:
+    def _titleFromExp(self, exp: "Any", dataId: int) -> str:
         expRecord = getExpRecordFromDataId(self.butler, dataId)
         obj = expRecord.target_name
         expTime = expRecord.exposure_time
@@ -289,7 +290,7 @@ class Animator:
             pixCoord = getTargetCentroidFromWcs(exp, target, doMotionCorrection=doMotionCorrection)
         return pixCoord
 
-    def makePng(self, dataId: dict, saveFilename: str) -> None:
+    def makePng(self, dataId: int, saveFilename: str) -> None:
         if self.exists(saveFilename) and not self.remakePngs:  # should not be possible due to prerun
             assert False, f"Almost overwrote {saveFilename} - how is this possible?"
 

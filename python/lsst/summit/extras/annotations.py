@@ -51,17 +51,17 @@ class Annotations:
         tags, notes = ImageSorter.loadAnnotations(filename)
         return tags, notes
 
-    def getTags(self, dataId: dict | tuple) -> str | None:
+    def getTags(self, dataId: "dict | Tuple[int, int]") -> str | None:
         """Get the tags for a specified dataId.
 
         Empty string means no tags, None means not examined"""
         return self.tags.get(_idTrans(dataId), None)
 
-    def getNotes(self, dataId: dict | tuple) -> str | None:
+    def getNotes(self, dataId: "dict | Tuple[int, int]") -> str | None:
         """Get the notes for the specified dataId."""
         return self.notes.get(_idTrans(dataId), None)
 
-    def hasTags(self, dataId: dict | tuple, flags: str) -> bool | None:
+    def hasTags(self, dataId: "dict | Tuple[int, int]", flags: str) -> bool | None:
         """Check if a dataId has all the specificed tags"""
         tag = self.getTags(dataId)
         if tag is None:  # not just 'if tag' becuase '' is not the same as None but both as False-y

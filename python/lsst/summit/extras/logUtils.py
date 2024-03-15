@@ -231,7 +231,7 @@ class LogBrowser:
             self._printFormattedLine(logLine)
 
     @staticmethod
-    def _printFormattedLine(logLine: "List[dafButler.logging.ButlerLogRecord]") -> None:
+    def _printFormattedLine(logLine: "dafButler.logging.ButlerLogRecord") -> None:
         """Print the line, formatted as it would be for a normal task.
 
         Parameters
