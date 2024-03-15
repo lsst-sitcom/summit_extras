@@ -61,22 +61,22 @@ class ImageSorter:
     Returns a dict of dataId dictionaries with values being the corresponding
     """
 
-    def __init__(self, fileList: List[str], outputFilename: str):
+    def __init__(self, fileList: "List[str]", outputFilename: str):
         self.fileList = fileList
         self.outputFilename = outputFilename
 
     @staticmethod
-    def _getDataIdFromFilename(filename: str) -> Tuple[int, int]:
+    def _getDataIdFromFilename(filename: str) -> "Tuple[str, int]":
         # filename of the form 2021-02-18-705-quickLookExp.png
         filename = os.path.basename(filename)
         mat = re.match(r"^(\d{4}-\d{2}-\d{2})-(\d*)-.*$", filename)
         if not mat:
             raise RuntimeError(f"Failed to extract dayObs/seqNum from {filename}")
-        dayObs = mat.group(1)
-        seqNum = int(mat.group(2))
+        dayObs = mat.group(1)  # type: str
+        seqNum = int(mat.group(2))  # type: int
         return (dayObs, seqNum)
 
-    def getPreviousAnnotation(self, info: List[str], imNum: int) -> str:
+    def getPreviousAnnotation(self, info: "List[str]", imNum: int) -> str:
         if imNum == 0:
             raise RuntimeError("There is no previous annotation for the first image.")
 
@@ -105,7 +105,7 @@ class ImageSorter:
         return
 
     @classmethod
-    def loadAnnotations(cls, pickleFilename: str) -> Tuple[dict, dict]:
+    def loadAnnotations(cls, pickleFilename: str) -> "Tuple[dict, dict]":
         """Load back and split up annotations for easy use.
 
         Anything after a space is returned as a whole string,
@@ -173,7 +173,7 @@ class ImageSorter:
             else:
                 print("Unrecognised response - try again")
                 self.sortImages()
-                return  # don't run twice in this case!
+                return None  # don't run twice in this case!
 
         # need to write file first, even if empty, because _load and _save
         # are inside the loop to ensure that annotations aren't lost even on

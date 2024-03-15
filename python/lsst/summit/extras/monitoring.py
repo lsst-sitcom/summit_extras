@@ -61,7 +61,7 @@ class Monitor:
     cadence = 1  # in seconds
     runIsr = True
 
-    def __init__(self, fireflyDisplay: afwDisplay, **kwargs: Dict[str, Any]):
+    def __init__(self, fireflyDisplay: "afwDisplay", **kwargs: "Dict[str, Any]"):
         """"""
         self.butler = makeDefaultLatissButler()
         self.display = fireflyDisplay
@@ -76,7 +76,7 @@ class Monitor:
         expId = getExpIdFromDayObsSeqNum(self.butler, dataId)["exposure"]
         return dataId, expId
 
-    def _calcImageStats(self, exp: afwImage.Exposure) -> List[float]:
+    def _calcImageStats(self, exp: "afwImage.Exposure") -> "List[str]":
         elements = []
         median = np.median(exp.image.array)
         elements.append(f"Median={median:.2f}")
@@ -86,7 +86,7 @@ class Monitor:
 
         return elements
 
-    def _makeImageInfoText(self, dataId: dict, exp: afwImage.Exposure, asList: bool = False) -> list | str:
+    def _makeImageInfoText(self, dataId: dict, exp: "afwImage.Exposure", asList: bool = False) -> list | str:
         # TODO: add the following to the display:
         # az, el, zenith angle
         # main source centroid

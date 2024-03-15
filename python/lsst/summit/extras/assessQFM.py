@@ -65,7 +65,7 @@ class AssessQFM:
 
     def __init__(
         self,
-        butler: dafButler.Butler,
+        butler: "dafButler.Butler",
         dataProduct: str = "quickLookExp",
         dataset: str = "data/qfm_baseline_assessment.parq",
         successCut: int = 2,
@@ -103,7 +103,7 @@ class AssessQFM:
             "U": "Ambiguous",  # Centroid is on a star, but unclear whether it is the brightest
         }
 
-    def run(self, nSamples: int = None, nProcesses: int = 1, outputFile: str = None) -> None:
+    def run(self, nSamples: int | None = None, nProcesses: int = 1, outputFile: str | None = None) -> None:
         """Run quickFrameMeasurement on a sample dataset, save the new results,
         and compare them with the baseline, vetted by-eye results.
 
@@ -140,7 +140,7 @@ class AssessQFM:
 
         self.compareToBaseline(qfmResults)
 
-    def _runQFM(self, testset: pd.DataFrame) -> pd.DataFrame:
+    def _runQFM(self, testset: "pd.DataFrame") -> "pd.DataFrame":
         """Run quickFrameMeasurement on a subset of the dataset.
 
         Parameters
@@ -180,7 +180,7 @@ class AssessQFM:
                 qfmRes["finalTag"] = "F"
         return qfmResults
 
-    def compareToBaseline(self, comparisonData: pd.DataFrame) -> None:
+    def compareToBaseline(self, comparisonData: "pd.DataFrame") -> None:
         """Compare a table of quickFrameMeasurement results with the
         baseline vetted data, and print output of the comparison.
 

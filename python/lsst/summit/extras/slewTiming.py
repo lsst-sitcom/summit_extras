@@ -91,7 +91,7 @@ def getMountPositionData(
     end: astropy.time.Time,
     prePadding: int = 0,
     postPadding: int = 0,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> "Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]":
     """Retrieve the mount position data from the EFD.
 
     Parameters
@@ -137,12 +137,12 @@ def getMountPositionData(
 
 
 def getAxesInPosition(
-    client: EfdClient,
-    begin: astropy.time.Time,
-    end: astropy.time.Time,
+    client: "EfdClient",
+    begin: "astropy.time.Time",
+    end: "astropy.time.Time",
     prePadding: int = 0,
     postPadding: int = 0,
-) -> pd.DataFrame:
+) -> "pd.DataFrame":
     return getEfdData(
         client,
         "lsst.sal.ATMCS.logevent_allAxesInPosition",
@@ -154,8 +154,8 @@ def getAxesInPosition(
 
 
 def plotExposureTiming(
-    client: EfdClient, expRecords: dafButler.DimensionRecord, prePadding: int = 1, postPadding: int = 3
-) -> matplotlib.figure.Figure:
+    client: "EfdClient", expRecords: "dafButler.DimensionRecord", prePadding: int = 1, postPadding: int = 3
+) -> "matplotlib.figure.Figure":
     """Plot the mount command timings for a set of exposures.
 
     This function plots the mount position data for the entire time range of
