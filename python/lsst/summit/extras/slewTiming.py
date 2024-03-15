@@ -130,7 +130,7 @@ def getAxesInPosition(client, begin, end, prePadding, postPadding):
     )
 
 
-def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
+def plotExposureTiming(client, expRecords, plotHexapod=False, prePadding=1, postPadding=3):
     """Plot the mount command timings for a set of exposures.
 
     This function plots the mount position data for the entire time range of
@@ -147,9 +147,12 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
         A list of exposure records to plot. The timings will be plotted from
         the start of the first exposure to the end of the last exposure,
         regardless of whether intermediate exposures are included.
-    prePadding : float
+    plotHexapod : `bool`, optional
+        Plot the ATAOS.logevent_hexapodCorrectionStarted and
+        ATAOS.logevent_hexapodCorrectionCompleted transitions?
+    prePadding : `float`, optional
         The amount of time to pad before the start of the first exposure.
-    postPadding : float
+    postPadding : `float`, optional
         The amount of time to pad after the end of the last exposure.
 
     Returns
@@ -239,6 +242,28 @@ def plotExposureTiming(client, expRecords, prePadding=1, postPadding=3):
     commandTimes = getCommands(
         client, COMMANDS_TO_QUERY, begin, end, prePadding, postPadding, timeFormat="python"
     )
+    if plotHexapod:
+        hexMoveStarts = getEfdData(
+            client,
+            "lsst.sal.ATAOS.logevent_hexapodCorrectionStarted",
+            expRecord=record,
+            prePadding=prePadding,
+            postPadding=postPadding,
+        )
+        hexMoveEnds = getEfdData(
+            client,
+            "lsst.sal.ATAOS.logevent_hexapodCorrectionCompleted",
+            expRecord=record,
+            prePadding=prePadding,
+            postPadding=postPadding,
+        )
+        newCommands = {}
+        for time, data in hexMoveStarts.iterrows():
+            newCommands[time] = "lsst.sal.ATAOS.logevent_hexapodCorrectionStarted"
+        for time, data in hexMoveEnds.iterrows():
+            newCommands[time] = "lsst.sal.ATAOS.logevent_hexapodCorrectionCompleted"
+        commandTimes.update(newCommands)
+
     uniqueCommands = list(set(commandTimes.values()))
     colorCycle = itertools.cycle(["b", "g", "r", "c", "m", "y", "k"])
     commandColors = {command: next(colorCycle) for command in uniqueCommands}
