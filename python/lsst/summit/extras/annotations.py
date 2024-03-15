@@ -24,10 +24,10 @@ from typing import TYPE_CHECKING
 from lsst.summit.extras.imageSorter import TAGS, ImageSorter
 
 if TYPE_CHECKING:
-    from typing import List, Tuple
+    from typing import Tuple
 
 
-def _idTrans(dataIdDictOrTuple: dict | tuple) -> Tuple[int, int]:
+def _idTrans(dataIdDictOrTuple: "dict | Tuple[int, int]") -> "Tuple[int, int]":
     """Take a dataId and turn it into the internal tuple format."""
     if isinstance(dataIdDictOrTuple, tuple):
         return dataIdDictOrTuple
@@ -46,7 +46,7 @@ class Annotations:
         self.filename = filename
         self.tags, self.notes = self._load(filename)
 
-    def _load(self, filename: str) -> Tuple[dict, dict]:
+    def _load(self, filename: str) -> "Tuple[dict, dict]":
         """Load tags and notes from specified file."""
         tags, notes = ImageSorter.loadAnnotations(filename)
         return tags, notes
@@ -61,7 +61,7 @@ class Annotations:
         """Get the notes for the specified dataId."""
         return self.notes.get(_idTrans(dataId), None)
 
-    def hasTags(self, dataId: dict | tuple, flags: List[str]) -> bool:
+    def hasTags(self, dataId: dict | tuple, flags: str) -> bool | None:
         """Check if a dataId has all the specificed tags"""
         tag = self.getTags(dataId)
         if tag is None:  # not just 'if tag' becuase '' is not the same as None but both as False-y
@@ -84,7 +84,7 @@ class Annotations:
         """Display the list of tag definitions."""
         print(TAGS)
 
-    def getIdsWithGivenTags(self, tags: dict, exactMatches=False) -> list:
+    def getIdsWithGivenTags(self, tags: str, exactMatches: bool = False) -> list:
         if exactMatches:
             return [
                 dId

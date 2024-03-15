@@ -47,7 +47,7 @@ from lsst.summit.utils.butlerUtils import (
 from lsst.summit.utils.utils import dayObsIntToString, setupLogging
 
 if TYPE_CHECKING:
-    from typing import List, Object, Tuple
+    from typing import Any, List, Tuple
 
     import lsst.daf.butler as dafButler
 
@@ -61,8 +61,8 @@ class Animator:
 
     def __init__(
         self,
-        butler: dafButler.Butler,
-        dataIdList: List[int],
+        butler: "dafButler.Butler",
+        dataIdList: "List[int]",
         outputPath: str,
         outputFilename: str,
         *,
@@ -136,7 +136,7 @@ class Animator:
         dIdStr = dIdStr.replace(",", "-")
         return dIdStr
 
-    def dataIdToFilename(self, dataId: dict, includeNumber: bool = False, imNum: bool = None) -> str:
+    def dataIdToFilename(self, dataId: dict, includeNumber: bool = False, imNum: bool | None = None) -> str:
         """Convert dataId to filename.
 
         Returns a full path+filename by default. if includeNumber then
@@ -162,7 +162,7 @@ class Animator:
         # check the paths work
         if not os.path.exists(self.pngPath):
             os.makedirs(self.pngPath)
-        assert os.path.exists(self.pngPath), f"Failed to create output dir: {self.pngsPath}"
+        assert os.path.exists(self.pngPath), f"Failed to create output dir: {self.pngPath}"
 
         if self.exists(self.outputFilename):
             if self.clobberVideoAndGif:
@@ -208,7 +208,7 @@ class Animator:
             msg += " because remakePngs=True"
         logger.info(msg)
 
-    def run(self) -> str:
+    def run(self) -> str | None:
         # make the missing pngs
         if self.pngsToMakeDataIds:
             logger.info("Creating necessary pngs...")
@@ -219,7 +219,7 @@ class Animator:
         # stage files in temp dir with numbers prepended to filenames
         if not self.dataIdList:
             logger.warning("No files to animate - nothing to do")
-            return
+            return None
 
         logger.info("Copying files to ordered temp dir...")
         pngFilesOriginal = [self.dataIdToFilename(d) for d in self.dataIdList]
@@ -254,7 +254,7 @@ class Animator:
         logger.info(f"Finished! Output at {self.outputFilename}")
         return self.outputFilename
 
-    def _titleFromExp(self, exp: Object, dataId: dict) -> str:
+    def _titleFromExp(self, exp: "Any", dataId: dict) -> str:
         expRecord = getExpRecordFromDataId(self.butler, dataId)
         obj = expRecord.target_name
         expTime = expRecord.exposure_time
@@ -273,8 +273,8 @@ class Animator:
         return title
 
     def getStarPixCoord(
-        self, exp: Object, doMotionCorrection: bool = True, useQfm: bool = False
-    ) -> Tuple[float, float] | None:
+        self, exp: "Any", doMotionCorrection: bool = True, useQfm: bool = False
+    ) -> "Tuple[float, float] | None":
         target = exp.visitInfo.object
 
         if self.useQfmForCentroids:
@@ -382,7 +382,7 @@ class Animator:
         shutil.rmtree(tempDir)
         return
 
-    def _smoothExp(self, exp: Object, smoothing: float, kernelSize: int = 7):
+    def _smoothExp(self, exp: "Any", smoothing: float, kernelSize: int = 7):
         """Use for DISPLAY ONLY!
 
         Return a smoothed copy of the exposure
@@ -398,8 +398,8 @@ class Animator:
 
 
 def animateDay(
-    butler: dafButler.Butler, dayObs: int, outputPath: str, dataProductToPlot: str = "quickLookExp"
-) -> str:
+    butler: "dafButler.Butler", dayObs: int, outputPath: str, dataProductToPlot: str = "quickLookExp"
+) -> str | None:
     outputFilename = f"{dayObs}.mp4"
 
     onSkyIds = getLatissOnSkyDataIds(butler, startDate=dayObs, endDate=dayObs)
