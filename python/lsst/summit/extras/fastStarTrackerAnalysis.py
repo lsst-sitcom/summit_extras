@@ -473,7 +473,7 @@ def plotSourceMovement(
     results: "Dict[int, List[summitExtras.fastStarTrackerAnalysis.Source]]",
     sourceIndex: int = 0,
     allowInconsistent: bool = False,
-) -> "matplotlib.figure.Figure":
+) -> "List[matplotlib.figure.Figure]":
     """Plot the centroid movements and fluxes etc for a set of results.
 
     By default the brightest source in each image is plotted, but this can be

@@ -381,7 +381,7 @@ class SpectralFocusAnalyzer:
         legendText = self._generateLegendText(nSpectrumSlices)
         axes[0].legend(pointsForLegend, legendText, fontsize=legendFontSize)
         axes[1].legend(pointsForLegend, legendText, fontsize=legendFontSize)
-        f.tight_layout(rect=[0, 0.03, 1, 0.95])
+        f.tight_layout(rect=(0, 0.03, 1, 0.95))
         plt.show()
 
         for i, bestFit in enumerate(bestFits):

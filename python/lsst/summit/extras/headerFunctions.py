@@ -110,7 +110,7 @@ def _hashFile(fileToHash, dataHdu, sliceToUse) -> str:
     return h
 
 
-def _hashData(data: str) -> str:
+def _hashData(data: np.array) -> str:
     h = hashlib.sha256(data).hexdigest()  # hex because we want it readable in the dict
     return h
 
@@ -120,7 +120,7 @@ ZERO_HASH = _hashData(np.zeros((100, 100), dtype=np.int32))
 
 def buildHashAndHeaderDicts(
     fileList: "List[str]", dataHdu: int | str = "Segment00", libraryLocation: str | None = None
-) -> dict:
+) -> "Tuple[dict, dict]":
     """For a list of files, build dicts of hashed data and headers.
 
     Data is hashed using a currently-hard-coded 100x100 region of the pixels

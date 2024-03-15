@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 if TYPE_CHECKING:
-    from typing import List, Tuple
+    from typing import Dict, List, Tuple
 
 
 TAGS = """
@@ -76,7 +76,7 @@ class ImageSorter:
         seqNum = int(mat.group(2))  # type: int
         return (dayObs, seqNum)
 
-    def getPreviousAnnotation(self, info: "List[str]", imNum: int) -> str:
+    def getPreviousAnnotation(self, info: "Dict[Tuple[str, int], str]", imNum: int) -> str:
         if imNum == 0:
             raise RuntimeError("There is no previous annotation for the first image.")
 
@@ -146,7 +146,7 @@ class ImageSorter:
         with open(filename, "wb") as dumpFile:
             pickle.dump(info, dumpFile)
 
-    def sortImages(self) -> dict:
+    def sortImages(self) -> dict | None:
         mode = "A"
         info = {}
         if os.path.exists(self.outputFilename):
