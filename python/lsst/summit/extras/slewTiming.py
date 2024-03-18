@@ -149,7 +149,11 @@ def getAxesInPosition(
 
 
 def plotExposureTiming(
-    client: EfdClient, expRecords: dafButler.DimensionRecord, prePadding: int = 1, postPadding: int = 3
+    client: EfdClient,
+    expRecords: dafButler.DimensionRecord,
+    plotHexapod=False,
+    prePadding: int = 1,
+    postPadding: int = 3,
 ) -> matplotlib.figure.Figure:
     """Plot the mount command timings for a set of exposures.
 
