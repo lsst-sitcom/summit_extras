@@ -21,12 +21,23 @@
 
 import unittest
 from typing import Iterable
-
+import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 import lsst.utils.tests
 
 mpl.use("Agg")
+
+
+def custom_show(*args, **kwargs):
+    pass
+
+
+# Override the show function with our custom one
+# to avoid getting the next Warning:
+# UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+# plt.show()
+plt.show = custom_show
 
 import lsst.summit.utils.butlerUtils as butlerUtils  # noqa: E402
 from lsst.summit.extras import NonSpectralFocusAnalyzer, SpectralFocusAnalyzer  # noqa: E402
@@ -54,6 +65,7 @@ class FocusAnalysisTestCase(lsst.utils.tests.TestCase):
     def test_run(self):
         # we don't check the plots, but set doDisplay to True to check the
         # plots are generated without error
+
         self.focusAnalyzer.getFocusData(self.dayObs, self.seqNums, doDisplay=True)
         result = self.focusAnalyzer.fitDataAndPlot()
         self.assertIsInstance(result, Iterable)

@@ -253,7 +253,7 @@ class SpectralFocusAnalyzer:
                 arrowy, arrowx = centroid[0] - 400, centroid[1]  # numpy is backwards
                 dx, dy = 0, 300
                 arrow = Arrow(arrowy, arrowx, dy, dx, width=200.0, color="red")
-                circle = Circle(centroid, radius=25, facecolor="none", color="red")
+                circle = Circle(centroid, radius=25, facecolor="none", edgecolor="red")
                 axes[0].add_patch(arrow)
                 axes[0].add_patch(circle)
                 for i, bbox in enumerate(spectrumSliceBboxes):
