@@ -35,7 +35,6 @@ import lsst.meas.algorithms as measAlg
 from lsst.atmospec.utils import airMassFromRawMetadata, getTargetCentroidFromWcs
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
 from lsst.summit.utils.butlerUtils import (
-    datasetExists,
     getDayObs,
     getExpRecordFromDataId,
     getLatissOnSkyDataIds,
@@ -175,7 +174,7 @@ class Animator:
         missingData = [
             d
             for d in dIdsWithoutPngs
-            if not datasetExists(self.butler, self.dataProductToPlot, d, detector=0)
+            if not self.butler.exists(self.dataProductToPlot, d, detector=0)
         ]
 
         logger.info(f"Of the provided {len(self.dataIdList)} dataIds:")
