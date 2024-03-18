@@ -22,16 +22,13 @@
 import argparse
 import time
 from multiprocessing import Pool
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
+import lsst.daf.butler as dafButler
 import lsst.summit.utils.butlerUtils as butlerUtils
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
-
-if TYPE_CHECKING:
-    import lsst.daf.butler as dafButler
 
 
 class AssessQFM:
@@ -65,7 +62,7 @@ class AssessQFM:
 
     def __init__(
         self,
-        butler: "dafButler.Butler",
+        butler: dafButler.Butler,
         dataProduct: str = "quickLookExp",
         dataset: str = "data/qfm_baseline_assessment.parq",
         successCut: int = 2,
@@ -140,7 +137,7 @@ class AssessQFM:
 
         self.compareToBaseline(qfmResults)
 
-    def _runQFM(self, testset: "pd.DataFrame") -> "pd.DataFrame":
+    def _runQFM(self, testset: pd.DataFrame) -> pd.DataFrame:
         """Run quickFrameMeasurement on a subset of the dataset.
 
         Parameters
@@ -180,7 +177,7 @@ class AssessQFM:
                 qfmRes["finalTag"] = "F"
         return qfmResults
 
-    def compareToBaseline(self, comparisonData: "pd.DataFrame") -> None:
+    def compareToBaseline(self, comparisonData: pd.DataFrame) -> None:
         """Compare a table of quickFrameMeasurement results with the
         baseline vetted data, and print output of the comparison.
 

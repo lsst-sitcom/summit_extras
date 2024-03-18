@@ -25,21 +25,18 @@ import logging
 import os
 import pickle
 import sys
-from typing import TYPE_CHECKING
+from typing import Any, List, Tuple
 
 import astropy
 import numpy as np
 from astropy.io import fits
-
-if TYPE_CHECKING:
-    from typing import Any, List, Tuple
 
 # redirect logger to stdout so that logger messages appear in notebooks too
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger("headerFunctions")
 
 
-def loadHeaderDictsFromLibrary(libraryFilename: str) -> "Tuple[dict, dict]":
+def loadHeaderDictsFromLibrary(libraryFilename: str) -> Tuple[dict, dict]:
     """Load the header and hash dicts from a pickle file.
 
     Parameters
@@ -92,8 +89,8 @@ def _saveToLibrary(libraryFilename: str, headersDict: dict, dataDict: dict) -> N
 
 
 def _findKeyForValue(
-    dictionary: dict, value: "Any", warnOnCollision: bool = True, returnCollisions: bool = False
-) -> "Any":
+    dictionary: dict, value: Any, warnOnCollision: bool = True, returnCollisions: bool = False
+) -> Any:
     listOfKeys = [k for (k, v) in dictionary.items() if v == value]
     if warnOnCollision and len(listOfKeys) != 1:
         logger.warning("Found multiple keys for value! Returning only first.")
@@ -119,8 +116,8 @@ ZERO_HASH = _hashData(np.zeros((100, 100), dtype=np.int32))
 
 
 def buildHashAndHeaderDicts(
-    fileList: "List[str]", dataHdu: int | str = "Segment00", libraryLocation: str | None = None
-) -> "Tuple[dict, dict]":
+    fileList: List[str], dataHdu: int | str = "Segment00", libraryLocation: str | None = None
+) -> Tuple[dict, dict]:
     """For a list of files, build dicts of hashed data and headers.
 
     Data is hashed using a currently-hard-coded 100x100 region of the pixels
@@ -205,14 +202,14 @@ def sorted(inlist: list, replacementValue: str = "<BLANK VALUE>") -> list:
 
 
 def keyValuesSetFromFiles(
-    fileList: "List[str]",
-    keys: "List[str]",
-    joinKeys: "List[str]",
+    fileList: List[str],
+    keys: List[str],
+    joinKeys: List[str],
     noWarn: bool = False,
     printResults: bool = True,
     libraryLocation: str | None = None,
     printPerFile: bool = False,
-) -> "List[str]":
+) -> List[str]:
     """For a list of FITS files, get the set of values for the given keys.
 
     Parameters

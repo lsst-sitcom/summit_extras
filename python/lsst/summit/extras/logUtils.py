@@ -70,7 +70,7 @@ class LogBrowser:
         "with gufunc signature (n?,k),(k,m?)->(n?,m?)",
     ]
 
-    def __init__(self, butler: "dafButler.Butler", taskName: str, collection: str):
+    def __init__(self, butler: dafButler.Butler, taskName: str, collection: str):
         self.taskName = taskName
         self.collection = collection
 
@@ -96,7 +96,7 @@ class LogBrowser:
 
     def _loadLogs(
         self, dataRefs: list
-    ) -> "Dict[dafButler.core.datasets.ref.DatasetRef, dafButler.core.logging.ButlerLogRecords]":
+    ) -> Dict[dafButler.core.datasets.ref.DatasetRef, dafButler.core.logging.ButlerLogRecords]:
         """Load all the logs for the dataRefs.
 
         Returns
@@ -113,7 +113,7 @@ class LogBrowser:
             logs[dataRef] = log
         return logs
 
-    def getPassingDataIds(self) -> "List[dafButler.dimensions.DataCoordinate]":
+    def getPassingDataIds(self) -> List[dafButler.dimensions.DataCoordinate]:
         """Get the dataIds for all passes within the collection for the task.
 
         Returns
@@ -124,7 +124,7 @@ class LogBrowser:
         passes = [r.dataId for r in self.dataRefs if r not in fails]
         return passes
 
-    def getFailingDataIds(self) -> "List[dafButler.dimensions.DataCoordinate]":
+    def getFailingDataIds(self) -> List[dafButler.dimensions.DataCoordinate]:
         """Get the dataIds for all fails within the collection for the task.
 
         Returns
@@ -154,7 +154,7 @@ class LogBrowser:
         """Print a count of all the passing dataIds."""
         print(f"{len(self.getPassingDataIds())} passing cases found")
 
-    def _getFailDataRefs(self) -> "List[dafButler.core.datasets.ref.DatasetRef]":
+    def _getFailDataRefs(self) -> List[dafButler.core.datasets.ref.DatasetRef]:
         """Get a list of all the failing dataRefs.
 
         Note that these are dataset references to the logs, and as such are
@@ -179,7 +179,7 @@ class LogBrowser:
                 fails.append(dataRef)
         return fails
 
-    def _printLineIf(self, logLine: "dafButler.logging.ButlerLogRecord") -> None:
+    def _printLineIf(self, logLine: dafButler.logging.ButlerLogRecord) -> None:
         """Print the line if the name of the logger isn't in IGNORE_LOGS_FROM.
 
         Parameters
@@ -196,7 +196,7 @@ class LogBrowser:
             self._printFormattedLine(logLine)
 
     @staticmethod
-    def _printFormattedLine(logLine: "dafButler.logging.ButlerLogRecord") -> None:
+    def _printFormattedLine(logLine: dafButler.logging.ButlerLogRecord) -> None:
         """Print the line, formatted as it would be for a normal task.
 
         Parameters
@@ -279,7 +279,7 @@ class LogBrowser:
             if giveExampleId:
                 print(f"example dataId: {examples[error]}\n")
 
-    def printSingleLog(self, dataId: "dict | dafButler.dimensions.DataCoordinate", full: bool = True) -> None:
+    def printSingleLog(self, dataId: dict | dafButler.dimensions.DataCoordinate, full: bool = True) -> None:
         """Convenience function for printing a single log by its dataId.
 
         Useful because you are given example dataIds by `doFailZoology()` but

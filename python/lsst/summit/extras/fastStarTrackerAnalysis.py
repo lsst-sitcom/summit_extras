@@ -23,16 +23,19 @@ import glob
 import os
 import typing
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import Dict, List, Tuple
 
 import galsim
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import PatchCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.geom as geom
+import lsst.summit.extras as summitExtras
 from lsst.summit.utils.starTracker import (
     dayObsSeqNumFrameNumFromFilename,
     fastCam,
@@ -42,14 +45,6 @@ from lsst.summit.utils.starTracker import (
 )
 from lsst.summit.utils.utils import bboxToMatplotlibRectanle, detectObjectsInExp, getBboxAround, getSite
 from lsst.utils.iteration import ensure_iterable
-
-if TYPE_CHECKING:
-    from typing import Dict, List, Tuple
-
-    import matplotlib
-
-    import lsst.afw.image as afwImage
-    import lsst.summit.extras as summitExtras
 
 __all__ = (
     "getFlux",
@@ -64,7 +59,7 @@ __all__ = (
 )
 
 
-def getStreamingSequences(dayObs: int) -> "Dict[int, list[str]]":
+def getStreamingSequences(dayObs: int) -> Dict[int, list[str]]:
     """Get the streaming sequences for a dayObs.
 
     Note that this will need rewriting very soon once the way the data is
@@ -124,7 +119,7 @@ def getStreamingSequences(dayObs: int) -> "Dict[int, list[str]]":
     return data
 
 
-def getFlux(cutout: "np.ndarray[int]", backgroundLevel: int = 0) -> float:
+def getFlux(cutout: np.ndarray[int], backgroundLevel: int = 0) -> float:
     """Get the flux inside a cutout, subtracting the image-background.
 
     Here the flux is simply summed, and if the image background level is
@@ -150,7 +145,7 @@ def getFlux(cutout: "np.ndarray[int]", backgroundLevel: int = 0) -> float:
     return rawFlux - (cutout.size * backgroundLevel)
 
 
-def getBackgroundLevel(exp: "afwImage.Exposure", nSigma: int = 3) -> "Tuple[float, float]":
+def getBackgroundLevel(exp: afwImage.Exposure, nSigma: int = 3) -> Tuple[float, float]:
     """Calculate the clipped image mean and stddev of an exposure.
 
     Testing shows on images like this, 2 rounds of sigma clipping is more than
@@ -180,7 +175,7 @@ def getBackgroundLevel(exp: "afwImage.Exposure", nSigma: int = 3) -> "Tuple[floa
     return mean, std
 
 
-def countOverThresholdPixels(cutout: "np.ndarray", bgMean: float, bgStd: float, nSigma: float = 15) -> int:
+def countOverThresholdPixels(cutout: np.ndarray, bgMean: float, bgStd: float, nSigma: float = 15) -> int:
     """Get the number of pixels in the cutout which are 'in the source'.
 
     From the one image I've looked at so far, the drop-off is quite slow
@@ -210,7 +205,7 @@ def countOverThresholdPixels(cutout: "np.ndarray", bgMean: float, bgStd: float, 
 
 
 def sortSourcesByFlux(
-    sources: "List[summitExtras.fastStarTrackerAnalysis.Source]", reverse: bool = False
+    sources: List[summitExtras.fastStarTrackerAnalysis.Source], reverse: bool = False
 ) -> "List[summitExtras.fastStarTrackerAnalysis.Source]":
     """Sort the sources by flux, returning the brightest first.
 
@@ -293,7 +288,7 @@ class NanSource:
 
 def findFastStarTrackerImageSources(
     filename: str, boxSize: int, attachCutouts: bool = True
-) -> "List[summitExtras.fastStarTrackerAnalysis.Source | NanSource]":
+) -> List[summitExtras.fastStarTrackerAnalysis.Source | NanSource]:
     """Analyze a single FastStarTracker image.
 
     Parameters
@@ -358,7 +353,7 @@ def findFastStarTrackerImageSources(
 
 
 def checkResultConsistency(
-    results: "Dict[int, List[summitExtras.fastStarTrackerAnalysis.Source]]",
+    results: Dict[int, List[summitExtras.fastStarTrackerAnalysis.Source]],
     maxAllowableShift: int = 5,
     silent: bool = False,
 ) -> bool:
@@ -470,10 +465,10 @@ def checkResultConsistency(
 
 
 def plotSourceMovement(
-    results: "Dict[int, List[summitExtras.fastStarTrackerAnalysis.Source]]",
+    results: Dict[int, List[summitExtras.fastStarTrackerAnalysis.Source]],
     sourceIndex: int = 0,
     allowInconsistent: bool = False,
-) -> "List[matplotlib.figure.Figure]":
+) -> List[matplotlib.figure.Figure]:
     """Plot the centroid movements and fluxes etc for a set of results.
 
     By default the brightest source in each image is plotted, but this can be
@@ -597,9 +592,7 @@ def plotSourceMovement(
 
 def plotSourcesOnImage(
     parentFilename: str,
-    sources: (
-        "summitExtras.fastStarTrackerAnalysis.Source |" "List[summitExtras.fastStarTrackerAnalysis.Source]"
-    ),
+    sources: summitExtras.fastStarTrackerAnalysis.Source | List[summitExtras.fastStarTrackerAnalysis.Source],
 ) -> None:
     """Plot one of more source on top of an image.
 
@@ -639,7 +632,7 @@ def plotSourcesOnImage(
     plt.tight_layout()
 
 
-def plotSource(source: "summitExtras.fastStarTrackerAnalysis.Source") -> None:
+def plotSource(source: summitExtras.fastStarTrackerAnalysis.Source) -> None:
     """Plot a single source.
 
     Parameters

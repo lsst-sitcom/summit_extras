@@ -20,8 +20,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import List, Tuple
 
+import matplotlib
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,6 +32,7 @@ from matplotlib.patches import Arrow, Circle, Rectangle
 from scipy.linalg import norm
 from scipy.optimize import curve_fit
 
+import lsst.afw.image as afwImage
 import lsst.geom as geom
 from lsst.atmospec.utils import isDispersedExp
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
@@ -40,13 +42,6 @@ from lsst.summit.utils import ImageExaminer
 from lsst.summit.utils.bestEffort import BestEffortIsr
 from lsst.summit.utils.butlerUtils import getExpRecordFromDataId, makeDefaultLatissButler
 from lsst.summit.utils.utils import FWHMTOSIGMA, SIGMATOFWHM
-
-if TYPE_CHECKING:
-    from typing import List, Tuple
-
-    import matplotlib
-
-    import lsst.afw.image as afwImage
 
 __all__ = ["SpectralFocusAnalyzer", "NonSpectralFocusAnalyzer"]
 
@@ -58,7 +53,7 @@ class FitResult:
     sigma: float
 
 
-def getFocusFromExposure(exp: "afwImage.Exposure") -> float:
+def getFocusFromExposure(exp: afwImage.Exposure) -> float:
     """Get the focus value from an exposure.
 
     This was previously accessed via raw metadata but now lives inside the
@@ -109,7 +104,7 @@ class SpectralFocusAnalyzer:
         self._spectrumBoxOffsets = [882.0, 1170.0, 1467.0]
         self._setColors(len(self._spectrumBoxOffsets))
 
-    def setSpectrumBoxOffsets(self, offsets: "List[float]"):
+    def setSpectrumBoxOffsets(self, offsets: List[float]) -> None:
         """Set the current spectrum slice offsets.
 
         Parameters
@@ -121,7 +116,7 @@ class SpectralFocusAnalyzer:
         self._spectrumBoxOffsets = offsets
         self._setColors(len(offsets))
 
-    def getSpectrumBoxOffsets(self) -> "List[float]":
+    def getSpectrumBoxOffsets(self) -> List[float]:
         """Get the current spectrum slice offsets.
 
         Returns
@@ -147,7 +142,7 @@ class SpectralFocusAnalyzer:
             bboxes.append(bbox)
         return bboxes
 
-    def _bboxToMplRectangle(self, bbox: "geom.Box2I", colorNum: int) -> "matplotlib.patches.Rectangle":
+    def _bboxToMplRectangle(self, bbox: geom.Box2I, colorNum: int) -> matplotlib.patches.Rectangle:
         xmin = bbox.getBeginX()
         ymin = bbox.getBeginY()
         xsize = bbox.getWidth()
@@ -158,7 +153,7 @@ class SpectralFocusAnalyzer:
         return rectangle
 
     @staticmethod
-    def gauss(x: float, *pars: "float") -> float:
+    def gauss(x: float, *pars: float) -> float:
         amp, mean, sigma = pars
         return amp * np.exp(-((x - mean) ** 2) / (2.0 * sigma**2))
 
@@ -169,7 +164,7 @@ class SpectralFocusAnalyzer:
         doDisplay: bool = False,
         hideFit: bool = False,
         hexapodZeroPoint: float = 0,
-    ) -> "List[float]":
+    ) -> List[float]:
         """Perform a focus sweep analysis for spectral data.
 
         For each seqNum for the specified dayObs, take a slice through the
@@ -204,7 +199,7 @@ class SpectralFocusAnalyzer:
         bestFits = self.fitDataAndPlot(hideFit=hideFit, hexapodZeroPoint=hexapodZeroPoint)
         return bestFits
 
-    def getFocusData(self, dayObs: int, seqNums: "List[int]", doDisplay: bool = False) -> None:
+    def getFocusData(self, dayObs: int, seqNums: List[int], doDisplay: bool = False) -> None:
         """Perform a focus sweep analysis for spectral data.
 
         For each seqNum for the specified dayObs, take a slice through the
@@ -304,7 +299,7 @@ class SpectralFocusAnalyzer:
 
         return
 
-    def fitDataAndPlot(self, hideFit: bool = False, hexapodZeroPoint: float = 0) -> "List[float]":
+    def fitDataAndPlot(self, hideFit: bool = False, hexapodZeroPoint: float = 0) -> List[float]:
         """Fit a parabola to each series of slices and return the best focus.
 
         For each offset distance, fit a parabola to the fitted spectral widths
@@ -433,9 +428,9 @@ class NonSpectralFocusAnalyzer:
     def run(
         self,
         dayObs: int,
-        seqNums: "List[int]",
+        seqNums: List[int],
         *,
-        manualCentroid: "Tuple[float] | None" = None,
+        manualCentroid: Tuple[float] | None = None,
         doCheckDispersed: bool = True,
         doDisplay: bool = False,
         doForceCoM: bool = False,
@@ -485,9 +480,9 @@ class NonSpectralFocusAnalyzer:
     def getFocusData(
         self,
         dayObs: int,
-        seqNums: "List[int]",
+        seqNums: List[int],
         *,
-        manualCentroid: "Tuple[float] | None" = None,
+        manualCentroid: Tuple[float] | None = None,
         doCheckDispersed: bool = True,
         doDisplay: bool = False,
         doForceCoM: bool = False,
