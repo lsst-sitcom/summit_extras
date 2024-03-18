@@ -20,11 +20,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from time import sleep
-from typing import TYPE_CHECKING
+from typing import Any, Dict, List
 
 import numpy as np
 
 import lsst.afw.cameraGeom.utils as cgUtils
+import lsst.afw.display as afwDisplay
+import lsst.afw.image as afwImage
 import lsst.geom as geom
 from lsst.pex.exceptions import NotFoundError
 from lsst.summit.utils.bestEffort import BestEffortIsr
@@ -34,12 +36,6 @@ from lsst.summit.utils.butlerUtils import (
     getMostRecentDataId,
     makeDefaultLatissButler,
 )
-
-if TYPE_CHECKING:
-    from typing import Any, Dict, List
-
-    import lsst.afw.display as afwDisplay
-    import lsst.afw.image as afwImage
 
 # TODO: maybe add option to create display and return URL?
 
@@ -61,7 +57,7 @@ class Monitor:
     cadence = 1  # in seconds
     runIsr = True
 
-    def __init__(self, fireflyDisplay: "afwDisplay", **kwargs: "Dict[str, Any]"):
+    def __init__(self, fireflyDisplay: afwDisplay, **kwargs: Dict[str, Any]):
         """"""
         self.butler = makeDefaultLatissButler()
         self.display = fireflyDisplay
@@ -86,7 +82,7 @@ class Monitor:
 
         return elements
 
-    def _makeImageInfoText(self, dataId: dict, exp: "afwImage.Exposure", asList: bool = False) -> list | str:
+    def _makeImageInfoText(self, dataId: dict, exp: afwImage.Exposure, asList: bool = False) -> list | str:
         # TODO: add the following to the display:
         # az, el, zenith angle
         # main source centroid

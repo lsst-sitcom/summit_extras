@@ -20,26 +20,21 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import itertools
-from typing import TYPE_CHECKING
+from typing import Tuple
 
+import astropy
+import matplotlib
 import matplotlib.pyplot as plt
+import pandas as pd
 from astropy.time import TimeDelta
+from lsst_efd_client import EfdClient
 from lsst_efd_client import merge_packed_time_series as mpts
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
+import lsst.daf.butler as dafButler
 import lsst.summit.utils.butlerUtils as butlerUtils
 from lsst.summit.utils.efdUtils import getCommands, getEfdData
-
-if TYPE_CHECKING:
-    from typing import Tuple
-
-    import astropy
-    import matplotlib
-    import pandas as pd
-    from lsst_efd_client import EfdClient
-
-    import lsst.daf.butler as dafButler
 
 __all__ = ["plotExposureTiming"]
 
@@ -91,7 +86,7 @@ def getMountPositionData(
     end: astropy.time.Time,
     prePadding: int = 0,
     postPadding: int = 0,
-) -> "Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]":
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Retrieve the mount position data from the EFD.
 
     Parameters
@@ -137,12 +132,12 @@ def getMountPositionData(
 
 
 def getAxesInPosition(
-    client: "EfdClient",
-    begin: "astropy.time.Time",
-    end: "astropy.time.Time",
+    client: EfdClient,
+    begin: astropy.time.Time,
+    end: astropy.time.Time,
     prePadding: int = 0,
     postPadding: int = 0,
-) -> "pd.DataFrame":
+) -> pd.DataFrame:
     return getEfdData(
         client,
         "lsst.sal.ATMCS.logevent_allAxesInPosition",
@@ -154,8 +149,8 @@ def getAxesInPosition(
 
 
 def plotExposureTiming(
-    client: "EfdClient", expRecords: "dafButler.DimensionRecord", prePadding: int = 1, postPadding: int = 3
-) -> "matplotlib.figure.Figure":
+    client: EfdClient, expRecords: dafButler.DimensionRecord, prePadding: int = 1, postPadding: int = 3
+) -> matplotlib.figure.Figure:
     """Plot the mount command timings for a set of exposures.
 
     This function plots the mount position data for the entire time range of

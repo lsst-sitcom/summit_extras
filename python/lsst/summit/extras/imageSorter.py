@@ -23,14 +23,10 @@ import os
 import pickle
 import re
 from os import system
-from typing import TYPE_CHECKING
+from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 from PIL import Image
-
-if TYPE_CHECKING:
-    from typing import Dict, List, Tuple
-
 
 TAGS = """
   - (Blank/no annotation) - nominally good, i.e. nothing notable in the image
@@ -61,7 +57,7 @@ class ImageSorter:
     Returns a dict of dataId dictionaries with values being the corresponding
     """
 
-    def __init__(self, fileList: "List[str]", outputFilename: str):
+    def __init__(self, fileList: List[str], outputFilename: str):
         self.fileList = fileList
         self.outputFilename = outputFilename
 
@@ -76,7 +72,7 @@ class ImageSorter:
         seqNum = int(mat.group(2))  # type: int
         return (dayObs, seqNum)
 
-    def getPreviousAnnotation(self, info: "Dict[Tuple[str, int], str]", imNum: int) -> str:
+    def getPreviousAnnotation(self, info: Dict[Tuple[str, int], str], imNum: int) -> str:
         if imNum == 0:
             raise RuntimeError("There is no previous annotation for the first image.")
 
@@ -105,7 +101,7 @@ class ImageSorter:
         return
 
     @classmethod
-    def loadAnnotations(cls, pickleFilename: str) -> "Tuple[dict, dict]":
+    def loadAnnotations(cls, pickleFilename: str) -> Tuple[dict, dict]:
         """Load back and split up annotations for easy use.
 
         Anything after a space is returned as a whole string,

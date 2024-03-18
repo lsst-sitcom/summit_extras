@@ -26,12 +26,13 @@ import os
 import shutil
 import subprocess
 import uuid
-from typing import TYPE_CHECKING
+from typing import Any, List, Tuple
 
 import matplotlib.pyplot as plt
 
 import lsst.afw.display as afwDisplay
 import lsst.afw.math as afwMath
+import lsst.daf.butler as dafButler
 import lsst.meas.algorithms as measAlg
 from lsst.atmospec.utils import airMassFromRawMetadata, getTargetCentroidFromWcs
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
@@ -46,11 +47,6 @@ from lsst.summit.utils.butlerUtils import (
 )
 from lsst.summit.utils.utils import dayObsIntToString, setupLogging
 
-if TYPE_CHECKING:
-    from typing import Any, List, Tuple
-
-    import lsst.daf.butler as dafButler
-
 logger = logging.getLogger("lsst.summit.extras.animation")
 setupLogging()
 
@@ -61,7 +57,7 @@ class Animator:
 
     def __init__(
         self,
-        butler: "dafButler.Butler",
+        butler: dafButler.Butler,
         dataIdList: "List[int]",
         outputPath: str,
         outputFilename: str,
@@ -255,7 +251,7 @@ class Animator:
         logger.info(f"Finished! Output at {self.outputFilename}")
         return self.outputFilename
 
-    def _titleFromExp(self, exp: "Any", dataId: int) -> str:
+    def _titleFromExp(self, exp: Any, dataId: int) -> str:
         expRecord = getExpRecordFromDataId(self.butler, dataId)
         obj = expRecord.target_name
         expTime = expRecord.exposure_time
@@ -399,7 +395,7 @@ class Animator:
 
 
 def animateDay(
-    butler: "dafButler.Butler", dayObs: int, outputPath: str, dataProductToPlot: str = "quickLookExp"
+    butler: dafButler.Butler, dayObs: int, outputPath: str, dataProductToPlot: str = "quickLookExp"
 ) -> str | None:
     outputFilename = f"{dayObs}.mp4"
 
