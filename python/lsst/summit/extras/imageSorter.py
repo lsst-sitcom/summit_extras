@@ -56,22 +56,22 @@ class ImageSorter:
     Returns a dict of dataId dictionaries with values being the corresponding
     """
 
-    def __init__(self, fileList, outputFilename):
+    def __init__(self, fileList: list[str], outputFilename: str):
         self.fileList = fileList
         self.outputFilename = outputFilename
 
     @staticmethod
-    def _getDataIdFromFilename(filename):
+    def _getDataIdFromFilename(filename: str) -> tuple[str, int]:
         # filename of the form 2021-02-18-705-quickLookExp.png
         filename = os.path.basename(filename)
         mat = re.match(r"^(\d{4}-\d{2}-\d{2})-(\d*)-.*$", filename)
         if not mat:
             raise RuntimeError(f"Failed to extract dayObs/seqNum from {filename}")
-        dayObs = mat.group(1)
-        seqNum = int(mat.group(2))
+        dayObs = mat.group(1)  # type: str
+        seqNum = int(mat.group(2))  # type: int
         return (dayObs, seqNum)
 
-    def getPreviousAnnotation(self, info, imNum):
+    def getPreviousAnnotation(self, info: dict[tuple[str, int], str], imNum: int) -> str:
         if imNum == 0:
             raise RuntimeError("There is no previous annotation for the first image.")
 
@@ -80,7 +80,7 @@ class ImageSorter:
         previousAnnotation = info[previousDataId]
         return previousAnnotation
 
-    def addData(self, dataId, info, answer, mode, imNum):
+    def addData(self, dataId, info, answer: str, mode: str, imNum: int) -> None:
         """Modes = O(verwrite), S(kip), A(ppend)"""
         if "=" in answer:
             answer = self.getPreviousAnnotation(info, imNum)
@@ -100,7 +100,7 @@ class ImageSorter:
         return
 
     @classmethod
-    def loadAnnotations(cls, pickleFilename):
+    def loadAnnotations(cls, pickleFilename: str) -> tuple[dict, dict]:
         """Load back and split up annotations for easy use.
 
         Anything after a space is returned as a whole string,
@@ -128,7 +128,7 @@ class ImageSorter:
         return tags, notes
 
     @staticmethod
-    def _load(filename):
+    def _load(filename: str):
         """Internal loading only.
 
         Not to be used by users for reading back annotations"""
@@ -137,11 +137,11 @@ class ImageSorter:
         return info
 
     @staticmethod
-    def _save(info, filename):
+    def _save(info, filename: str) -> None:
         with open(filename, "wb") as dumpFile:
             pickle.dump(info, dumpFile)
 
-    def sortImages(self):
+    def sortImages(self) -> dict | None:
         mode = "A"
         info = {}
         if os.path.exists(self.outputFilename):
@@ -168,7 +168,7 @@ class ImageSorter:
             else:
                 print("Unrecognised response - try again")
                 self.sortImages()
-                return  # don't run twice in this case!
+                return None  # don't run twice in this case!
 
         # need to write file first, even if empty, because _load and _save
         # are inside the loop to ensure that annotations aren't lost even on
