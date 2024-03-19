@@ -20,7 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from time import sleep
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -57,7 +57,7 @@ class Monitor:
     cadence = 1  # in seconds
     runIsr = True
 
-    def __init__(self, fireflyDisplay: afwDisplay, **kwargs: Dict[str, Any]):
+    def __init__(self, fireflyDisplay: afwDisplay, **kwargs: Any):
         """"""
         self.butler = makeDefaultLatissButler()
         self.display = fireflyDisplay
@@ -72,7 +72,7 @@ class Monitor:
         expId = getExpIdFromDayObsSeqNum(self.butler, dataId)["exposure"]
         return dataId, expId
 
-    def _calcImageStats(self, exp: "afwImage.Exposure") -> "List[str]":
+    def _calcImageStats(self, exp: afwImage.Exposure) -> list[str]:
         elements = []
         median = np.median(exp.image.array)
         elements.append(f"Median={median:.2f}")

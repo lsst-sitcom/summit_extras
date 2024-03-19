@@ -1,4 +1,4 @@
-# This file is part of summit_utils.
+# This file is part of summit_extras.
 #
 # Developed for the LSST Data Management System.
 # This product includes software developed by the LSST Project
@@ -23,7 +23,6 @@ import glob
 import os
 import typing
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
 
 import galsim
 import matplotlib
@@ -35,7 +34,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.geom as geom
-import lsst.summit.extras as summitExtras
 from lsst.summit.utils.starTracker import (
     dayObsSeqNumFrameNumFromFilename,
     fastCam,
@@ -49,6 +47,7 @@ from lsst.utils.iteration import ensure_iterable
 __all__ = (
     "getFlux",
     "getBackgroundLevel",
+    "getStreamingSequences",
     "countOverThresholdPixels",
     "sortSourcesByFlux",
     "findFastStarTrackerImageSources",
@@ -56,177 +55,9 @@ __all__ = (
     "plotSourceMovement",
     "plotSource",
     "plotSourcesOnImage",
+    "Source",
+    "NanSource",
 )
-
-
-def getStreamingSequences(dayObs: int) -> Dict[int, list[str]]:
-    """Get the streaming sequences for a dayObs.
-
-    Note that this will need rewriting very soon once the way the data is
-    organised on disk is changed.
-
-    TODO: Will be moved to summit_extras on DM-43269
-
-    Parameters
-    ----------
-    dayObs : `int`
-        The dayObs.
-
-    Returns
-    -------
-    sequences : `dict` [`int`, `list`]
-        The streaming sequences in a dict, keyed by sequence number, with each
-        value being a list of the files in that sequence.
-    """
-    site = getSite()
-    if site in ["rubin-devl", "staff-rsp"]:
-        rootDataPath = "/sdf/data/rubin/offline/s3-backup/lfa/"
-    elif site == "summit":
-        rootDataPath = "/project"
-    else:
-        raise ValueError(f"Finding StarTracker data isn't supported at {site}")
-
-    dataDir = getRawDataDirForDayObs(rootDataPath, fastCam, dayObs)
-    files = glob.glob(os.path.join(dataDir, "*.fits"))
-    regularFiles = [f for f in files if not isStreamingModeFile(f)]
-    streamingFiles = [f for f in files if isStreamingModeFile(f)]
-    print(f"Found {len(regularFiles)} regular files on dayObs {dayObs}")
-
-    data = {}
-    if dayObs < 20240311:
-        # after this is when we changed the data layout on disk for streaming
-        # mode data in the GenericCamera
-        for filename in sorted(streamingFiles):
-            basename = os.path.basename(filename)
-            seqNum = int(basename.split("_")[3])
-            if seqNum not in data:
-                data[seqNum] = [filename]
-            else:
-                data[seqNum].append(filename)
-    else:
-        # dirNames here doesn't contain the full path, it's just the individual
-        # directory name and needs joining with dataDir for the full path
-        dirNames = sorted(d for d in os.listdir(dataDir) if os.path.isdir(os.path.join(dataDir, d)))
-        for d in dirNames:
-            files = sorted(glob.glob(os.path.join(dataDir, d, "*.fits")))
-            seqNum = int(d.split("_")[3])
-            data[seqNum] = files
-
-    print(f"Found {len(data)} streaming sequences on dayObs {dayObs}:")
-    for seqNum, files in data.items():
-        print(f"seqNum {seqNum} with {len(files)} frames")
-
-    return data
-
-
-def getFlux(cutout: np.ndarray[int], backgroundLevel: int = 0) -> float:
-    """Get the flux inside a cutout, subtracting the image-background.
-
-    Here the flux is simply summed, and if the image background level is
-    supplied, it is subtracted off, assuming it is constant over the cutout. A
-    more accurate(?) flux is obtained by the hsm model fit.
-
-    Parameters
-    ----------
-    cutout : `np.array`
-        The cutout as a raw array.
-    backgroundLevel : `float`, optional
-        If supplied, this is subtracted as a constant background level.
-
-    Returns
-    -------
-    flux : `float`
-        The flux of the source in the cutout.
-    """
-    rawFlux = np.sum(cutout)
-    if not backgroundLevel:
-        return rawFlux
-
-    return rawFlux - (cutout.size * backgroundLevel)
-
-
-def getBackgroundLevel(exp: afwImage.Exposure, nSigma: int = 3) -> Tuple[float, float]:
-    """Calculate the clipped image mean and stddev of an exposure.
-
-    Testing shows on images like this, 2 rounds of sigma clipping is more than
-    enough so this is left fixed here.
-
-    Parameters
-    ----------
-    exp : `lsst.afw.image.Exposure`
-        The exposure.
-    nSigma : `float`, optional
-        The number of sigma to clip to for the background estimation.
-
-    Returns
-    -------
-    mean : `float`
-        The clipped mean, as an estimate of the background level
-    stddev : `float`
-        The clipped standard deviation, as an estimate of the background noise.
-    """
-    sctrl = afwMath.StatisticsControl()
-    sctrl.setNumSigmaClip(nSigma)
-    sctrl.setNumIter(2)  # this is always plenty here
-    statTypes = afwMath.MEANCLIP | afwMath.STDEVCLIP
-    stats = afwMath.makeStatistics(exp.maskedImage, statTypes, sctrl)
-    std, _ = stats.getResult(afwMath.STDEVCLIP)
-    mean, _ = stats.getResult(afwMath.MEANCLIP)
-    return mean, std
-
-
-def countOverThresholdPixels(cutout: np.ndarray, bgMean: float, bgStd: float, nSigma: float = 15) -> int:
-    """Get the number of pixels in the cutout which are 'in the source'.
-
-    From the one image I've looked at so far, the drop-off is quite slow
-    probably due to some combination of focus, plate scale, star brightness,
-    pointing quality etc, so the default nSigma is 15 here as that looked about
-    right when I plotted it by eye.
-
-    Parameters
-    ----------
-    cutout : `np.array`
-        The cutout to measure.
-    bgMean : `float`
-        The background level.
-    bgStd : `float`
-        The clipped standard deviation in the image.
-    nSigma : `float`, optional
-        The number of sigma above background at which to count pixels as being
-        over threshold.
-
-    Returns
-    -------
-    nPix : `int`
-        The number of pixels above threshold.
-    """
-    inds = np.where(cutout > (bgMean + 0 * bgStd))
-    return len(inds[0])
-
-
-def sortSourcesByFlux(
-    sources: List[summitExtras.fastStarTrackerAnalysis.Source], reverse: bool = False
-) -> "List[summitExtras.fastStarTrackerAnalysis.Source]":
-    """Sort the sources by flux, returning the brightest first.
-
-    Parameters
-    ----------
-    sources : `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
-        The list of sources to sort.
-    reverse : `bool`, optional
-        Return the brightest at the start of the list if ``reverse`` is
-        ``False``, or the brightest last if ``reverse`` is ``True``.
-
-    Returns
-    -------
-    sources : `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
-        The sources, sorted by flux.
-    """
-    # invert reverse because we want brightest first by default, but want the
-    # reverse arg to still behave as one would expect
-    return sorted(sources, key=lambda s: s.rawFlux, reverse=not reverse)
 
 
 @dataclass(slots=True)
@@ -286,15 +117,181 @@ class NanSource:
         return np.nan
 
 
+def getStreamingSequences(dayObs: int) -> dict[int, list[str]]:
+    """Get the streaming sequences for a dayObs.
+
+    Note that this will need rewriting very soon once the way the data is
+    organised on disk is changed.
+
+    Parameters
+    ----------
+    dayObs : `int`
+        The dayObs.
+
+    Returns
+    -------
+    sequences : `dict` [`int`, `list`]
+        The streaming sequences in a dict, keyed by sequence number, with each
+        value being a list of the files in that sequence.
+    """
+    site = getSite()
+    if site in ["rubin-devl", "staff-rsp"]:
+        rootDataPath = "/sdf/data/rubin/offline/s3-backup/lfa/"
+    elif site == "summit":
+        rootDataPath = "/project"
+    else:
+        raise ValueError(f"Finding StarTracker data isn't supported at {site}")
+
+    dataDir = getRawDataDirForDayObs(rootDataPath, fastCam, dayObs)
+    files = glob.glob(os.path.join(dataDir, "*.fits"))
+    regularFiles = [f for f in files if not isStreamingModeFile(f)]
+    streamingFiles = [f for f in files if isStreamingModeFile(f)]
+    print(f"Found {len(regularFiles)} regular files on dayObs {dayObs}")
+
+    data = {}
+    if dayObs < 20240311:
+        # after this is when we changed the data layout on disk for streaming
+        # mode data in the GenericCamera
+        for filename in sorted(streamingFiles):
+            basename = os.path.basename(filename)
+            seqNum = int(basename.split("_")[3])
+            if seqNum not in data:
+                data[seqNum] = [filename]
+            else:
+                data[seqNum].append(filename)
+    else:
+        # dirNames here doesn't contain the full path, it's just the individual
+        # directory name and needs joining with dataDir for the full path
+        dirNames = sorted(d for d in os.listdir(dataDir) if os.path.isdir(os.path.join(dataDir, d)))
+        for d in dirNames:
+            files = sorted(glob.glob(os.path.join(dataDir, d, "*.fits")))
+            seqNum = int(d.split("_")[3])
+            data[seqNum] = files
+
+    print(f"Found {len(data)} streaming sequences on dayObs {dayObs}:")
+    for seqNum, files in data.items():
+        print(f"seqNum {seqNum} with {len(files)} frames")
+
+    return data
+
+
+def getFlux(cutout: np.ndarray[float], backgroundLevel: int = 0) -> float:
+    """Get the flux inside a cutout, subtracting the image-background.
+
+    Here the flux is simply summed, and if the image background level is
+    supplied, it is subtracted off, assuming it is constant over the cutout. A
+    more accurate(?) flux is obtained by the hsm model fit.
+
+    Parameters
+    ----------
+    cutout : `np.array`
+        The cutout as a raw array.
+    backgroundLevel : `float`, optional
+        If supplied, this is subtracted as a constant background level.
+
+    Returns
+    -------
+    flux : `float`
+        The flux of the source in the cutout.
+    """
+    rawFlux = np.sum(cutout)
+    if not backgroundLevel:
+        return rawFlux
+
+    return rawFlux - (cutout.size * backgroundLevel)
+
+
+def getBackgroundLevel(exp: afwImage.Exposure, nSigma: float = 3) -> tuple[float, float]:
+    """Calculate the clipped image mean and stddev of an exposure.
+
+    Testing shows on images like this, 2 rounds of sigma clipping is more than
+    enough so this is left fixed here.
+
+    Parameters
+    ----------
+    exp : `lsst.afw.image.Exposure`
+        The exposure.
+    nSigma : `float`, optional
+        The number of sigma to clip to for the background estimation.
+
+    Returns
+    -------
+    mean : `float`
+        The clipped mean, as an estimate of the background level
+    stddev : `float`
+        The clipped standard deviation, as an estimate of the background noise.
+    """
+    sctrl = afwMath.StatisticsControl()
+    sctrl.setNumSigmaClip(nSigma)
+    sctrl.setNumIter(2)  # this is always plenty here
+    statTypes = afwMath.MEANCLIP | afwMath.STDEVCLIP
+    stats = afwMath.makeStatistics(exp.maskedImage, statTypes, sctrl)
+    std, _ = stats.getResult(afwMath.STDEVCLIP)
+    mean, _ = stats.getResult(afwMath.MEANCLIP)
+    return mean, std
+
+
+def countOverThresholdPixels(cutout: np.ndarray, bgMean: float, bgStd: float, nSigma: float = 15) -> int:
+    """Get the number of pixels in the cutout which are 'in the source'.
+
+    From the one image I've looked at so far, the drop-off is quite slow
+    probably due to some combination of focus, plate scale, star brightness,
+    pointing quality etc, so the default nSigma is 15 here as that looked about
+    right when I plotted it by eye.
+
+    Parameters
+    ----------
+    cutout : `np.array`
+        The cutout to measure.
+    bgMean : `float`
+        The background level.
+    bgStd : `float`
+        The clipped standard deviation in the image.
+    nSigma : `float`, optional
+        The number of sigma above background at which to count pixels as being
+        over threshold.
+
+    Returns
+    -------
+    nPix : `int`
+        The number of pixels above threshold.
+    """
+    inds = np.where(cutout > (bgMean + 0 * bgStd))
+    return len(inds[0])
+
+
+def sortSourcesByFlux(sources: list[Source], reverse: bool = False) -> list[Source]:
+    """Sort the sources by flux, returning the brightest first.
+
+    Parameters
+    ----------
+    sources : `list` of
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
+        The list of sources to sort.
+    reverse : `bool`, optional
+        Return the brightest at the start of the list if ``reverse`` is
+        ``False``, or the brightest last if ``reverse`` is ``True``.
+
+    Returns
+    -------
+    sources : `list` of
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
+        The sources, sorted by flux.
+    """
+    # invert reverse because we want brightest first by default, but want the
+    # reverse arg to still behave as one would expect
+    return sorted(sources, key=lambda s: s.rawFlux, reverse=not reverse)
+
+
 def findFastStarTrackerImageSources(
     filename: str, boxSize: int, attachCutouts: bool = True
-) -> List[summitExtras.fastStarTrackerAnalysis.Source | NanSource]:
+) -> list[Source | NanSource]:
     """Analyze a single FastStarTracker image.
 
     Parameters
     ----------
     filename : `str`
-        The full
+        The full name and path of the file.
     boxSize : `int`
         The size of the box to put around each source for measurement.
     attachCutouts : `bool`, optional
@@ -304,7 +301,7 @@ def findFastStarTrackerImageSources(
     Returns
     -------
     sources : `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         The sources in the image, sorted by rawFlux.
     """
     exp = openFile(filename)
@@ -353,7 +350,7 @@ def findFastStarTrackerImageSources(
 
 
 def checkResultConsistency(
-    results: Dict[int, List[summitExtras.fastStarTrackerAnalysis.Source]],
+    results: dict[int, list[Source]],
     maxAllowableShift: int = 5,
     silent: bool = False,
 ) -> bool:
@@ -370,7 +367,7 @@ def checkResultConsistency(
     Parameters
     ----------
     results : `dict` of `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         A dict, keyed by sequence number, with each value being a list of the
         sources found in the image, e.g. as returned by
         ``findFastStarTrackerImageSources()``.
@@ -465,10 +462,10 @@ def checkResultConsistency(
 
 
 def plotSourceMovement(
-    results: Dict[int, List[summitExtras.fastStarTrackerAnalysis.Source]],
+    results: dict[int, list[Source]],
     sourceIndex: int = 0,
     allowInconsistent: bool = False,
-) -> List[matplotlib.figure.Figure]:
+) -> list[matplotlib.figure.Figure]:
     """Plot the centroid movements and fluxes etc for a set of results.
 
     By default the brightest source in each image is plotted, but this can be
@@ -478,7 +475,7 @@ def plotSourceMovement(
     Parameters
     ----------
     results : `dict` of `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         A dict, keyed by sequence number, with each value being a list of the
         sources found in the image, e.g. as returned by
         ``findFastStarTrackerImageSources()``.
@@ -592,7 +589,7 @@ def plotSourceMovement(
 
 def plotSourcesOnImage(
     parentFilename: str,
-    sources: summitExtras.fastStarTrackerAnalysis.Source | List[summitExtras.fastStarTrackerAnalysis.Source],
+    sources: Source | list[Source],
 ) -> None:
     """Plot one of more source on top of an image.
 
@@ -601,8 +598,8 @@ def plotSourcesOnImage(
     parentFilename : `str`
         The full path to the parent (.tif) file.
     sources : `list` of
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source` or
-              `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source` or
+              `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         The sources found in the image.
     """
     exp = openFile(parentFilename)
@@ -632,12 +629,12 @@ def plotSourcesOnImage(
     plt.tight_layout()
 
 
-def plotSource(source: summitExtras.fastStarTrackerAnalysis.Source) -> None:
+def plotSource(source: Source) -> None:
     """Plot a single source.
 
     Parameters
     ----------
-    source : `lsst.summit.utils.astrometry.fastStarTrackerAnalysis.Source`
+    source : `lsst.extras.fastStarTrackerAnalysis.Source`
         The source to plot.
     """
     if source.cutout is None:

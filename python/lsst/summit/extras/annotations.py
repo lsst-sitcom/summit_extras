@@ -19,13 +19,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
-from typing import Tuple
-
 from lsst.summit.extras.imageSorter import TAGS, ImageSorter
 
 
-def _idTrans(dataIdDictOrTuple: dict | Tuple[int, int]) -> Tuple[int, int]:
+def _idTrans(dataIdDictOrTuple: dict | tuple[int, int]) -> tuple[int, int]:
     """Take a dataId and turn it into the internal tuple format."""
     if isinstance(dataIdDictOrTuple, tuple):
         return dataIdDictOrTuple
@@ -44,22 +41,22 @@ class Annotations:
         self.filename = filename
         self.tags, self.notes = self._load(filename)
 
-    def _load(self, filename: str) -> Tuple[dict, dict]:
+    def _load(self, filename: str) -> tuple[dict, dict]:
         """Load tags and notes from specified file."""
         tags, notes = ImageSorter.loadAnnotations(filename)
         return tags, notes
 
-    def getTags(self, dataId: dict | Tuple[int, int]) -> str | None:
+    def getTags(self, dataId: dict | tuple[int, int]) -> str | None:
         """Get the tags for a specified dataId.
 
         Empty string means no tags, None means not examined"""
         return self.tags.get(_idTrans(dataId), None)
 
-    def getNotes(self, dataId: dict | Tuple[int, int]) -> str | None:
+    def getNotes(self, dataId: dict | tuple[int, int]) -> str | None:
         """Get the notes for the specified dataId."""
         return self.notes.get(_idTrans(dataId), None)
 
-    def hasTags(self, dataId: dict | Tuple[int, int], flags: str) -> bool | None:
+    def hasTags(self, dataId: dict | tuple[int, int], flags: str) -> bool | None:
         """Check if a dataId has all the specificed tags"""
         tag = self.getTags(dataId)
         if tag is None:  # not just 'if tag' becuase '' is not the same as None but both as False-y
@@ -74,7 +71,7 @@ class Annotations:
         """Return a list of all dataIds which have notes associated."""
         return sorted(list(self.notes.keys()))
 
-    def isExamined(self, dataId: dict | tuple) -> bool:
+    def isExamined(self, dataId: dict) -> bool:
         """Check if the dataId has been examined or not."""
         return _idTrans(dataId) in self.tags
 

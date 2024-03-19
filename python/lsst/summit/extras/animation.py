@@ -26,11 +26,12 @@ import os
 import shutil
 import subprocess
 import uuid
-from typing import Any, List, Tuple
+from typing import Any
 
 import matplotlib.pyplot as plt
 
 import lsst.afw.display as afwDisplay
+import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.daf.butler as dafButler
 import lsst.meas.algorithms as measAlg
@@ -58,7 +59,7 @@ class Animator:
     def __init__(
         self,
         butler: dafButler.Butler,
-        dataIdList: "List[int]",
+        dataIdList: list[int],
         outputPath: str,
         outputFilename: str,
         *,
@@ -102,7 +103,7 @@ class Animator:
         self.disp.setImageColormap("gray")
         self.disp.scale("asinh", "zscale")
 
-        self.pngsToMakeDataIds: List[dict] = []
+        self.pngsToMakeDataIds: list[dict] = []
 
         self.preRun()  # sets the above list
 
@@ -112,7 +113,7 @@ class Animator:
 
         Parameters
         ----------
-        dataId : `int`
+        dataId : `dict`
             The data id.
 
         Returns
@@ -251,7 +252,7 @@ class Animator:
         logger.info(f"Finished! Output at {self.outputFilename}")
         return self.outputFilename
 
-    def _titleFromExp(self, exp: Any, dataId: dict) -> str:
+    def _titleFromExp(self, exp: afwImage.Exposure, dataId: dict) -> str:
         expRecord = getExpRecordFromDataId(self.butler, dataId)
         obj = expRecord.target_name
         expTime = expRecord.exposure_time
@@ -270,8 +271,8 @@ class Animator:
         return title
 
     def getStarPixCoord(
-        self, exp: "Any", doMotionCorrection: bool = True, useQfm: bool = False
-    ) -> "Tuple[float, float] | None":
+        self, exp: Any, doMotionCorrection: bool = True, useQfm: bool = False
+    ) -> tuple[float, float] | None:
         target = exp.visitInfo.object
 
         if self.useQfmForCentroids:
@@ -379,7 +380,7 @@ class Animator:
         shutil.rmtree(tempDir)
         return
 
-    def _smoothExp(self, exp: "Any", smoothing: float, kernelSize: int = 7):
+    def _smoothExp(self, exp: afwImage.Exposure, smoothing: float, kernelSize: int = 7) -> afwImage.Exposure:
         """Use for DISPLAY ONLY!
 
         Return a smoothed copy of the exposure
