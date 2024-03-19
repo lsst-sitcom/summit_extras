@@ -20,7 +20,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import itertools
-from typing import Tuple
 
 import astropy
 import matplotlib
@@ -84,9 +83,9 @@ def getMountPositionData(
     client: EfdClient,
     begin: astropy.time.Time,
     end: astropy.time.Time,
-    prePadding: int = 0,
-    postPadding: int = 0,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    prePadding: float = 0,
+    postPadding: float = 0,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Retrieve the mount position data from the EFD.
 
     Parameters
@@ -135,8 +134,8 @@ def getAxesInPosition(
     client: EfdClient,
     begin: astropy.time.Time,
     end: astropy.time.Time,
-    prePadding: int = 0,
-    postPadding: int = 0,
+    prePadding: float = 0,
+    postPadding: float = 0,
 ) -> pd.DataFrame:
     return getEfdData(
         client,
@@ -150,10 +149,10 @@ def getAxesInPosition(
 
 def plotExposureTiming(
     client: EfdClient,
-    expRecords: dafButler.DimensionRecord,
-    plotHexapod=False,
-    prePadding: int = 1,
-    postPadding: int = 3,
+    expRecords: list[dafButler.DimensionRecord],
+    plotHexapod: bool = False,
+    prePadding: float = 1,
+    postPadding: float = 3,
 ) -> matplotlib.figure.Figure:
     """Plot the mount command timings for a set of exposures.
 

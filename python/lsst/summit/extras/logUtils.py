@@ -21,12 +21,8 @@
 
 import logging
 import math
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from typing import Dict, List
-
-    import lsst.daf.butler as dafButler
+import lsst.daf.butler as dafButler
 
 __all__ = ["LogBrowser"]
 
@@ -111,7 +107,7 @@ class LogBrowser:
         self.dataRefs = self._getDataRefs()
         self.logs = self._loadLogs(self.dataRefs)
 
-    def _getDataRefs(self) -> "List[dafButler.core.datasets.ref.DatasetRef]":
+    def _getDataRefs(self) -> list[dafButler.core.datasets.ref.DatasetRef]:
         """Get the dataRefs for the specified task and collection.
 
         Returns
@@ -131,7 +127,7 @@ class LogBrowser:
 
     def _loadLogs(
         self, dataRefs: list
-    ) -> Dict[dafButler.core.datasets.ref.DatasetRef, dafButler.core.logging.ButlerLogRecords]:
+    ) -> dict[dafButler.core.datasets.ref.DatasetRef, dafButler.core.logging.ButlerLogRecords]:
         """Load all the logs for the dataRefs.
 
         Returns
@@ -148,7 +144,7 @@ class LogBrowser:
             logs[dataRef] = log
         return logs
 
-    def getPassingDataIds(self) -> List[dafButler.dimensions.DataCoordinate]:
+    def getPassingDataIds(self) -> list[dafButler.dimensions.DataCoordinate]:
         """Get the dataIds for all passes within the collection for the task.
 
         Returns
@@ -159,7 +155,7 @@ class LogBrowser:
         passes = [r.dataId for r in self.dataRefs if r not in fails]
         return passes
 
-    def getFailingDataIds(self) -> List[dafButler.dimensions.DataCoordinate]:
+    def getFailingDataIds(self) -> list[dafButler.dimensions.DataCoordinate]:
         """Get the dataIds for all fails within the collection for the task.
 
         Returns
@@ -189,7 +185,7 @@ class LogBrowser:
         """Print a count of all the passing dataIds."""
         print(f"{len(self.getPassingDataIds())} passing cases found")
 
-    def _getFailDataRefs(self) -> List[dafButler.core.datasets.ref.DatasetRef]:
+    def _getFailDataRefs(self) -> list[dafButler.core.datasets.ref.DatasetRef]:
         """Get a list of all the failing dataRefs.
 
         Note that these are dataset references to the logs, and as such are

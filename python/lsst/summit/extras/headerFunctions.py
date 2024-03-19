@@ -25,7 +25,7 @@ import logging
 import os
 import pickle
 import sys
-from typing import Any, List, Tuple
+from typing import Any
 
 import astropy
 import numpy as np
@@ -36,7 +36,7 @@ logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdo
 logger = logging.getLogger("headerFunctions")
 
 
-def loadHeaderDictsFromLibrary(libraryFilename: str) -> Tuple[dict, dict]:
+def loadHeaderDictsFromLibrary(libraryFilename: str) -> tuple[dict, dict]:
     """Load the header and hash dicts from a pickle file.
 
     Parameters
@@ -116,8 +116,8 @@ ZERO_HASH = _hashData(np.zeros((100, 100), dtype=np.int32))
 
 
 def buildHashAndHeaderDicts(
-    fileList: List[str], dataHdu: int | str = "Segment00", libraryLocation: str | None = None
-) -> Tuple[dict, dict]:
+    fileList: list[str], dataHdu: int | str = "Segment00", libraryLocation: str | None = None
+) -> tuple[dict, dict]:
     """For a list of files, build dicts of hashed data and headers.
 
     Data is hashed using a currently-hard-coded 100x100 region of the pixels
@@ -202,14 +202,14 @@ def sorted(inlist: list, replacementValue: str = "<BLANK VALUE>") -> list:
 
 
 def keyValuesSetFromFiles(
-    fileList: List[str],
-    keys: List[str],
-    joinKeys: List[str],
+    fileList: list[str],
+    keys: list[str],
+    joinKeys: list[str],
     noWarn: bool = False,
     printResults: bool = True,
     libraryLocation: str | None = None,
     printPerFile: bool = False,
-) -> List[str]:
+) -> list[str]:
     """For a list of FITS files, get the set of values for the given keys.
 
     Parameters

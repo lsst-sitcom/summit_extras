@@ -23,7 +23,6 @@ import os
 import pickle
 import re
 from os import system
-from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -57,12 +56,12 @@ class ImageSorter:
     Returns a dict of dataId dictionaries with values being the corresponding
     """
 
-    def __init__(self, fileList: List[str], outputFilename: str):
+    def __init__(self, fileList: list[str], outputFilename: str):
         self.fileList = fileList
         self.outputFilename = outputFilename
 
     @staticmethod
-    def _getDataIdFromFilename(filename: str) -> "Tuple[str, int]":
+    def _getDataIdFromFilename(filename: str) -> tuple[str, int]:
         # filename of the form 2021-02-18-705-quickLookExp.png
         filename = os.path.basename(filename)
         mat = re.match(r"^(\d{4}-\d{2}-\d{2})-(\d*)-.*$", filename)
@@ -72,7 +71,7 @@ class ImageSorter:
         seqNum = int(mat.group(2))  # type: int
         return (dayObs, seqNum)
 
-    def getPreviousAnnotation(self, info: Dict[Tuple[str, int], str], imNum: int) -> str:
+    def getPreviousAnnotation(self, info: dict[tuple[str, int], str], imNum: int) -> str:
         if imNum == 0:
             raise RuntimeError("There is no previous annotation for the first image.")
 
@@ -101,7 +100,7 @@ class ImageSorter:
         return
 
     @classmethod
-    def loadAnnotations(cls, pickleFilename: str) -> Tuple[dict, dict]:
+    def loadAnnotations(cls, pickleFilename: str) -> tuple[dict, dict]:
         """Load back and split up annotations for easy use.
 
         Anything after a space is returned as a whole string,

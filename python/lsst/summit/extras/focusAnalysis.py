@@ -20,7 +20,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
-from typing import List, Tuple
 
 import matplotlib
 import matplotlib.cm as cm
@@ -101,22 +100,22 @@ class SpectralFocusAnalyzer:
 
         self.spectrumHalfWidth = 100
         self.spectrumBoxLength = 20
-        self._spectrumBoxOffsets = [882.0, 1170.0, 1467.0]
+        self._spectrumBoxOffsets = [882, 1170, 1467]
         self._setColors(len(self._spectrumBoxOffsets))
 
-    def setSpectrumBoxOffsets(self, offsets: List[float]) -> None:
+    def setSpectrumBoxOffsets(self, offsets: list[int]) -> None:
         """Set the current spectrum slice offsets.
 
         Parameters
         ----------
-        offsets : `list` of `float`
+        offsets : `list` of `int`
             The distance at which to slice the spectrum, measured in pixels
             from the main star's location.
         """
         self._spectrumBoxOffsets = offsets
         self._setColors(len(offsets))
 
-    def getSpectrumBoxOffsets(self) -> List[float]:
+    def getSpectrumBoxOffsets(self) -> list[int]:
         """Get the current spectrum slice offsets.
 
         Returns
@@ -130,7 +129,7 @@ class SpectralFocusAnalyzer:
     def _setColors(self, nPoints: int) -> None:
         self.COLORS = cm.rainbow(np.linspace(0, 1, nPoints))
 
-    def _getBboxes(self, centroid: "List[float]") -> "geom.Box2I":
+    def _getBboxes(self, centroid: list[float]) -> geom.Box2I:
         x, y = centroid
         bboxes = []
 
@@ -160,11 +159,11 @@ class SpectralFocusAnalyzer:
     def run(
         self,
         dayObs: int,
-        seqNums: "List[int]",
+        seqNums: list[int],
         doDisplay: bool = False,
         hideFit: bool = False,
         hexapodZeroPoint: float = 0,
-    ) -> List[float]:
+    ) -> list[float]:
         """Perform a focus sweep analysis for spectral data.
 
         For each seqNum for the specified dayObs, take a slice through the
@@ -199,7 +198,7 @@ class SpectralFocusAnalyzer:
         bestFits = self.fitDataAndPlot(hideFit=hideFit, hexapodZeroPoint=hexapodZeroPoint)
         return bestFits
 
-    def getFocusData(self, dayObs: int, seqNums: List[int], doDisplay: bool = False) -> None:
+    def getFocusData(self, dayObs: int, seqNums: list[int], doDisplay: bool = False) -> None:
         """Perform a focus sweep analysis for spectral data.
 
         For each seqNum for the specified dayObs, take a slice through the
@@ -299,7 +298,7 @@ class SpectralFocusAnalyzer:
 
         return
 
-    def fitDataAndPlot(self, hideFit: bool = False, hexapodZeroPoint: float = 0) -> List[float]:
+    def fitDataAndPlot(self, hideFit: bool = False, hexapodZeroPoint: float = 0) -> list[float]:
         """Fit a parabola to each series of slices and return the best focus.
 
         For each offset distance, fit a parabola to the fitted spectral widths
@@ -421,16 +420,16 @@ class NonSpectralFocusAnalyzer:
         self._bestEffort = BestEffortIsr(embargo=embargo)
 
     @staticmethod
-    def gauss(x: float, *pars: "float"):
+    def gauss(x: float, *pars: float) -> float:
         amp, mean, sigma = pars
         return amp * np.exp(-((x - mean) ** 2) / (2.0 * sigma**2))
 
     def run(
         self,
         dayObs: int,
-        seqNums: List[int],
+        seqNums: list[int],
         *,
-        manualCentroid: Tuple[float] | None = None,
+        manualCentroid: tuple[float, float] | None = None,
         doCheckDispersed: bool = True,
         doDisplay: bool = False,
         doForceCoM: bool = False,
@@ -480,9 +479,9 @@ class NonSpectralFocusAnalyzer:
     def getFocusData(
         self,
         dayObs: int,
-        seqNums: List[int],
+        seqNums: list[int],
         *,
-        manualCentroid: Tuple[float] | None = None,
+        manualCentroid: tuple[float, float] | None = None,
         doCheckDispersed: bool = True,
         doDisplay: bool = False,
         doForceCoM: bool = False,
