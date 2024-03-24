@@ -39,6 +39,19 @@ class LogBrowser:
         The name of the task, e.g. ``isr``, ``characterizeImage``, etc.
     collection : `str`
         The processing collection to use.
+    where : `str`, optional
+        A dataId search string formatted appropriately (i.e. similary to a
+        SQL WHERE clause) for a where clause in butler.registry.queryDatasets.
+        E.g.
+        where = ("instrument=\'{}\' AND skymap=\'{}\' AND
+                 "visit IN (0..100).format("LATISS", "latiss_v1"))
+    bind : `~collections.abc.Mapping`, optional
+        Mapping containing literal values to be injected into the ``where``
+        expression, keyed by the identifiers they replace (note that the name
+        of the bind key cannot be the same as any butler dimension name).
+        E.g.
+        where = "exposure IN (exposures)"
+        bind = {"exposures": exposure_list}
 
     Notes
     -----
@@ -50,7 +63,8 @@ class LogBrowser:
     animal.
 
     example usage:
-    logBrowser = LogBrowser(butler, taskName, collection)
+    logBrowser = LogBrowser(butler, taskName, collection, where=where,
+                            bind=bind)
     fail = 'TaskError: Fatal astrometry failure detected: mean on-sky distance'
     logBrowser.SPECIAL_ZOO_CASES.append(fail)
     logBrowser.doFailZoology()
@@ -64,12 +78,22 @@ class LogBrowser:
         "with gufunc signature (n?,k),(k,m?)->(n?,m?)",
     ]
 
-    def __init__(self, butler, taskName, collection):
+    def __init__(self, butler, taskName, collection, where="", bind=None):
         self.taskName = taskName
         self.collection = collection
+        self.where = where
+        self.bind = bind
 
         self.log = _LOG.getChild("logBrowser")
         self.butler = butler
+
+        if self.bind is not None:
+            for key in self.bind.keys():
+                if key not in self.where:
+                    self.log.warn(
+                        f"Key '{key}' in bind is not in the where string provided: "
+                        f"'{self.where}', so no binding will take effect."
+                    )
 
         self.dataRefs = self._getDataRefs()
         self.logs = self._loadLogs(self.dataRefs)
@@ -82,7 +106,11 @@ class LogBrowser:
         dataRefs : `list` [`lsst.daf.butler.core.datasets.ref.DatasetRef`]
         """
         results = self.butler.registry.queryDatasets(
-            f"{self.taskName}_log", collections=self.collection, findFirst=True
+            f"{self.taskName}_log",
+            collections=self.collection,
+            findFirst=True,
+            where=self.where,
+            bind=self.bind,
         )
         results = list(set(results))
         self.log.info(f"Found {len(results)} datasets in collection for task {self.taskName}")
