@@ -86,7 +86,7 @@ class LogBrowser:
         taskName: str,
         collection: str,
         where: str = "",
-        bind: dict | None = None
+        bind: dict | None = None,
     ):
         self.taskName = taskName
         self.collection = collection
