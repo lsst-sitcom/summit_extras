@@ -36,6 +36,7 @@ import lsst.afw.math as afwMath
 import lsst.geom as geom
 from lsst.summit.utils.starTracker import (
     dayObsSeqNumFrameNumFromFilename,
+    dayObsSeqNumFromFilename,
     fastCam,
     getRawDataDirForDayObs,
     isStreamingModeFile,
@@ -46,6 +47,7 @@ from lsst.utils.iteration import ensure_iterable
 
 __all__ = (
     "getStreamingSequences",
+    "getRegularSequences",
     "getFlux",
     "getBackgroundLevel",
     "countOverThresholdPixels",
@@ -174,6 +176,44 @@ def getStreamingSequences(dayObs: int) -> dict[int, list[str]]:
 
     return data
 
+def getRegularSequences(dayObs):
+    """Get the regular sequences for a dayObs.
+
+    Note that this will need rewriting very soon once the way the data is
+    organised on disk is changed.
+
+    Parameters
+    ----------
+    dayObs : `int`
+        The dayObs.
+
+    Returns
+    -------
+    sequences : `dict` [`int`, `list`]
+        The streaming sequences in a dict, keyed by sequence number, with each
+        value being a list of the files in that sequence.
+    """
+    site = getSite()
+    if site in ["rubin-devl", "staff-rsp"]:
+        rootDataPath = "/sdf/data/rubin/offline/s3-backup/lfa/"
+    elif site == "summit":
+        rootDataPath = "/project"
+    else:
+        raise ValueError(f"Finding StarTracker data isn't supported at {site}")
+
+    dataDir = getRawDataDirForDayObs(rootDataPath, fastCam, dayObs)
+    files = glob.glob(os.path.join(dataDir, "*.fits"))
+    regularFiles = [f for f in files if not isStreamingModeFile(f)]
+    print(f"Found {len(regularFiles)} regular files on dayObs {dayObs}")
+
+    data = {}
+    for file in regularFiles:
+        seqNum = int(file.split('/')[-1].split("_")[3].split('.')[0])
+        data[seqNum] = file
+    data = sorted(data.items())
+
+    return data
+
 
 def getFlux(cutout: np.ndarray[float], backgroundLevel: float = 0) -> float:
     """Get the flux inside a cutout, subtracting the image-background.
@@ -283,8 +323,65 @@ def sortSourcesByFlux(sources: list[Source], reverse: bool = False) -> list[Sour
     return sorted(sources, key=lambda s: s.rawFlux, reverse=not reverse)
 
 
+@dataclass(slots=True)
+class Source:
+    """A dataclass for FastStarTracker analysis results."""
+
+    dayObs: int  # mandatory attribute - the dayObs
+    seqNum: int  # mandatory attribute - the seqNum
+    frameNum: int  # mandatory attribute - the sub-sequence number, the position in the sequence
+
+    # raw numbers
+    centroidX: float = np.nan  # in image coordinates
+    centroidY: float = np.nan  # in image coordinates
+    rawFlux: float = np.nan
+    nPix: int | float = np.nan
+    bbox: geom.Box2I | None = None
+    cutout: np.ndarray | None = None
+    localCentroidX: float = np.nan  # in cutout coordinates
+    localCentroidY: float = np.nan  # in cutout coordinates
+
+    # numbers from the hsm moments fit
+    hsmFittedFlux: float = np.nan
+    hsmCentroidX: float = np.nan
+    hsmCentroidY: float = np.nan
+    moments: galsim.hsm.ShapeData | None = None  # keep the full fit even though we pull some things out too
+
+    imageBackground: float = np.nan
+    imageStddev: float = np.nan
+    nSourcesInImage: int | float = np.nan
+    parentImageWidth: int | float = np.nan
+    parentImageHeight: int | float = np.nan
+    expTime: float = np.nan
+
+    def __repr__(self):
+        """Print everything except the full details of the moments."""
+        retStr = ""
+        for itemName in self.__slots__:
+            v = getattr(self, itemName)
+            if isinstance(v, int):  # print ints as ints
+                retStr += f"{itemName} = {v}\n"
+            elif isinstance(v, float):  # but round floats at 3dp
+                retStr += f"{itemName} = {v:.3f}\n"
+            elif itemName == "moments":  # and don't spam the full moments
+                retStr += f"moments = {type(v)}\n"
+            elif itemName == "bbox":  # and don't spam the full moments
+                retStr += f"bbox = lsst.geom.{repr(v)}\n"
+            elif itemName == "cutout":  # and don't spam the full moments
+                if v is None:
+                    retStr += "cutout = None\n"
+                else:
+                    retStr += f"cutout = {type(v)}\n"
+        return retStr
+
+
+class NanSource:
+    def __getattribute__(self):
+        return np.nan
+
+
 def findFastStarTrackerImageSources(
-    filename: str, boxSize: int, attachCutouts: bool = True
+    filename: str, boxSize: int, attachCutouts: bool = True, streaming: bool = True,
 ) -> list[Source | NanSource]:
     """Analyze a single FastStarTracker image.
 
@@ -295,8 +392,11 @@ def findFastStarTrackerImageSources(
     boxSize : `int`
         The size of the box to put around each source for measurement.
     attachCutouts : `bool`, optional
-        Attach the cutouts to the ``Source`` objects? Useful for
-        debug/plotting but adds memory usage.
+        Attach the cutouts to the ``Source`` objects? Useful for debug/plotting
+        but adds memory usage.
+    streaming : `bool`, optional
+        ``True`` if these are streaming data, ``False`` if they are regular
+        data.
 
     Returns
     -------
@@ -311,9 +411,11 @@ def findFastStarTrackerImageSources(
     footprintSet = detectObjectsInExp(exp)
     footprints = footprintSet.getFootprints()
     bgMean, bgStd = getBackgroundLevel(exp)
-
-    dayObs, seqNum, frameNum = dayObsSeqNumFrameNumFromFilename(filename)
-
+    if streaming:
+        dayObs, seqNum, frameNum = dayObsSeqNumFrameNumFromFilename(filename)
+    else:
+        dayObs, seqNum = dayObsSeqNumFromFilename(filename)
+        frameNum = 0
     sources = []
     if len(footprints) == 0:
         sources = [NanSource()]
@@ -510,7 +612,7 @@ def plotSourceMovement(
 
     allDayObs = set(s.dayObs for s in sources)
     allSeqNums = set(s.seqNum for s in sources)
-    if len(allDayObs) > 1 or len(allSeqNums) > 1:
+    if len(allDayObs) > 1:# or len(allSeqNums) > 1:
         raise ValueError(
             "The sources are from multiple days or sequences, found"
             f" {allDayObs} dayObs and {allSeqNums} seqNum values."
