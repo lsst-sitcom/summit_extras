@@ -338,7 +338,7 @@ class Animator:
         del exp
         gc.collect()
 
-    def pngsToMp4(self, indir: str, outfile: str, framerate: int, verbose: bool = False) -> None:
+    def pngsToMp4(self, indir: str, outfile: str, framerate: float, verbose: bool = False) -> None:
         """Create the movie with ffmpeg, from files."""
         # NOTE: the order of ffmpeg arguments *REALLY MATTERS*.
         # Reorder them at your own peril!

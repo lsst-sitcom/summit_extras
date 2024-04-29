@@ -175,7 +175,7 @@ def getStreamingSequences(dayObs: int) -> dict[int, list[str]]:
     return data
 
 
-def getFlux(cutout: np.ndarray[float], backgroundLevel: int = 0) -> float:
+def getFlux(cutout: np.ndarray[float], backgroundLevel: float = 0) -> float:
     """Get the flux inside a cutout, subtracting the image-background.
 
     Here the flux is simply summed, and if the image background level is
@@ -351,7 +351,7 @@ def findFastStarTrackerImageSources(
 
 def checkResultConsistency(
     results: dict[int, list[Source]],
-    maxAllowableShift: int = 5,
+    maxAllowableShift: float = 5,
     silent: bool = False,
 ) -> bool:
     """Check if a set of results are self-consistent.
