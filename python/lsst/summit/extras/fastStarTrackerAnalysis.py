@@ -25,11 +25,13 @@ import typing
 from dataclasses import dataclass
 
 import galsim
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import PatchCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.geom as geom
 from lsst.summit.utils.starTracker import (
@@ -48,17 +50,74 @@ __all__ = (
     "getBackgroundLevel",
     "countOverThresholdPixels",
     "sortSourcesByFlux",
-    "Source",
-    "NanSource",
     "findFastStarTrackerImageSources",
     "checkResultConsistency",
     "plotSourceMovement",
-    "plotSourcesOnImage",
     "plotSource",
+    "plotSourcesOnImage",
+    "Source",
+    "NanSource",
 )
 
 
-def getStreamingSequences(dayObs):
+@dataclass(slots=True)
+class Source:
+    """A dataclass for FastStarTracker analysis results."""
+
+    dayObs: int  # mandatory attribute - the dayObs
+    seqNum: int  # mandatory attribute - the seqNum
+    frameNum: int  # mandatory attribute - the sub-sequence number, the position in the sequence
+
+    # raw numbers
+    centroidX: float = np.nan  # in image coordinates
+    centroidY: float = np.nan  # in image coordinates
+    rawFlux: float = np.nan
+    nPix: int | float = np.nan
+    bbox: geom.Box2I | None = None
+    cutout: np.ndarray | None = None
+    localCentroidX: float = np.nan  # in cutout coordinates
+    localCentroidY: float = np.nan  # in cutout coordinates
+
+    # numbers from the hsm moments fit
+    hsmFittedFlux: float = np.nan
+    hsmCentroidX: float = np.nan
+    hsmCentroidY: float = np.nan
+    moments: galsim.hsm.ShapeData | None = None  # keep the full fit even though we pull some things out too
+
+    imageBackground: float = np.nan
+    imageStddev: float = np.nan
+    nSourcesInImage: int | float = np.nan
+    parentImageWidth: int | float = np.nan
+    parentImageHeight: int | float = np.nan
+    expTime: float = np.nan
+
+    def __repr__(self):
+        """Print everything except the full details of the moments."""
+        retStr = ""
+        for itemName in self.__slots__:
+            v = getattr(self, itemName)
+            if isinstance(v, int):  # print ints as ints
+                retStr += f"{itemName} = {v}\n"
+            elif isinstance(v, float):  # but round floats at 3dp
+                retStr += f"{itemName} = {v:.3f}\n"
+            elif itemName == "moments":  # and don't spam the full moments
+                retStr += f"moments = {type(v)}\n"
+            elif itemName == "bbox":  # and don't spam the full moments
+                retStr += f"bbox = lsst.geom.{repr(v)}\n"
+            elif itemName == "cutout":  # and don't spam the full moments
+                if v is None:
+                    retStr += "cutout = None\n"
+                else:
+                    retStr += f"cutout = {type(v)}\n"
+        return retStr
+
+
+class NanSource:
+    def __getattribute__(self, name: str):
+        return np.nan
+
+
+def getStreamingSequences(dayObs: int) -> dict[int, list[str]]:
     """Get the streaming sequences for a dayObs.
 
     Note that this will need rewriting very soon once the way the data is
@@ -116,7 +175,7 @@ def getStreamingSequences(dayObs):
     return data
 
 
-def getFlux(cutout, backgroundLevel=0):
+def getFlux(cutout: np.ndarray[float], backgroundLevel: float = 0) -> float:
     """Get the flux inside a cutout, subtracting the image-background.
 
     Here the flux is simply summed, and if the image background level is
@@ -142,7 +201,7 @@ def getFlux(cutout, backgroundLevel=0):
     return rawFlux - (cutout.size * backgroundLevel)
 
 
-def getBackgroundLevel(exp, nSigma=3):
+def getBackgroundLevel(exp: afwImage.Exposure, nSigma: float = 3) -> tuple[float, float]:
     """Calculate the clipped image mean and stddev of an exposure.
 
     Testing shows on images like this, 2 rounds of sigma clipping is more than
@@ -172,7 +231,7 @@ def getBackgroundLevel(exp, nSigma=3):
     return mean, std
 
 
-def countOverThresholdPixels(cutout, bgMean, bgStd, nSigma=15):
+def countOverThresholdPixels(cutout: np.ndarray, bgMean: float, bgStd: float, nSigma: float = 15) -> int:
     """Get the number of pixels in the cutout which are 'in the source'.
 
     From the one image I've looked at so far, the drop-off is quite slow
@@ -201,7 +260,7 @@ def countOverThresholdPixels(cutout, bgMean, bgStd, nSigma=15):
     return len(inds[0])
 
 
-def sortSourcesByFlux(sources, reverse=False):
+def sortSourcesByFlux(sources: list[Source], reverse: bool = False) -> list[Source]:
     """Sort the sources by flux, returning the brightest first.
 
     Parameters
@@ -224,64 +283,9 @@ def sortSourcesByFlux(sources, reverse=False):
     return sorted(sources, key=lambda s: s.rawFlux, reverse=not reverse)
 
 
-@dataclass(slots=True)
-class Source:
-    """A dataclass for FastStarTracker analysis results."""
-
-    dayObs: int  # mandatory attribute - the dayObs
-    seqNum: int  # mandatory attribute - the seqNum
-    frameNum: int  # mandatory attribute - the sub-sequence number, the position in the sequence
-
-    # raw numbers
-    centroidX: float = np.nan  # in image coordinates
-    centroidY: float = np.nan  # in image coordinates
-    rawFlux: float = np.nan
-    nPix: int | float = np.nan
-    bbox: geom.Box2I | None = None
-    cutout: np.ndarray | None = None
-    localCentroidX: float = np.nan  # in cutout coordinates
-    localCentroidY: float = np.nan  # in cutout coordinates
-
-    # numbers from the hsm moments fit
-    hsmFittedFlux: float = np.nan
-    hsmCentroidX: float = np.nan
-    hsmCentroidY: float = np.nan
-    moments: galsim.hsm.ShapeData | None = None  # keep the full fit even though we pull some things out too
-
-    imageBackground: float = np.nan
-    imageStddev: float = np.nan
-    nSourcesInImage: int | float = np.nan
-    parentImageWidth: int | float = np.nan
-    parentImageHeight: int | float = np.nan
-    expTime: float = np.nan
-
-    def __repr__(self):
-        """Print everything except the full details of the moments."""
-        retStr = ""
-        for itemName in self.__slots__:
-            v = getattr(self, itemName)
-            if isinstance(v, int):  # print ints as ints
-                retStr += f"{itemName} = {v}\n"
-            elif isinstance(v, float):  # but round floats at 3dp
-                retStr += f"{itemName} = {v:.3f}\n"
-            elif itemName == "moments":  # and don't spam the full moments
-                retStr += f"moments = {type(v)}\n"
-            elif itemName == "bbox":  # and don't spam the full moments
-                retStr += f"bbox = lsst.geom.{repr(v)}\n"
-            elif itemName == "cutout":  # and don't spam the full moments
-                if v is None:
-                    retStr += "cutout = None\n"
-                else:
-                    retStr += f"cutout = {type(v)}\n"
-        return retStr
-
-
-class NanSource:
-    def __getattribute__(self):
-        return np.nan
-
-
-def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
+def findFastStarTrackerImageSources(
+    filename: str, boxSize: int, attachCutouts: bool = True
+) -> list[Source | NanSource]:
     """Analyze a single FastStarTracker image.
 
     Parameters
@@ -345,7 +349,11 @@ def findFastStarTrackerImageSources(filename, boxSize, attachCutouts=True):
     return sortSourcesByFlux(sources)
 
 
-def checkResultConsistency(results, maxAllowableShift=5, silent=False):
+def checkResultConsistency(
+    results: dict[int, list[Source]],
+    maxAllowableShift: float = 5,
+    silent: bool = False,
+) -> bool:
     """Check if a set of results are self-consistent.
 
     Check the number of detected sources are the same in each image, that no
@@ -453,7 +461,11 @@ def checkResultConsistency(results, maxAllowableShift=5, silent=False):
     return consistent
 
 
-def plotSourceMovement(results, sourceIndex=0, allowInconsistent=False):
+def plotSourceMovement(
+    results: dict[int, list[Source]],
+    sourceIndex: int = 0,
+    allowInconsistent: bool = False,
+) -> list[matplotlib.figure.Figure]:
     """Plot the centroid movements and fluxes etc for a set of results.
 
     By default the brightest source in each image is plotted, but this can be
@@ -575,7 +587,10 @@ def plotSourceMovement(results, sourceIndex=0, allowInconsistent=False):
 # -------------- plotting tools
 
 
-def plotSourcesOnImage(parentFilename, sources):
+def plotSourcesOnImage(
+    parentFilename: str,
+    sources: Source | list[Source],
+) -> None:
     """Plot one of more source on top of an image.
 
     Parameters
@@ -614,7 +629,7 @@ def plotSourcesOnImage(parentFilename, sources):
     plt.tight_layout()
 
 
-def plotSource(source):
+def plotSource(source: Source) -> None:
     """Plot a single source.
 
     Parameters

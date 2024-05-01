@@ -26,11 +26,14 @@ import os
 import shutil
 import subprocess
 import uuid
+from typing import Any
 
 import matplotlib.pyplot as plt
 
 import lsst.afw.display as afwDisplay
+import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
+import lsst.daf.butler as dafButler
 import lsst.meas.algorithms as measAlg
 from lsst.atmospec.utils import airMassFromRawMetadata, getTargetCentroidFromWcs
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
@@ -55,19 +58,19 @@ class Animator:
 
     def __init__(
         self,
-        butler,
-        dataIdList,
-        outputPath,
-        outputFilename,
+        butler: dafButler.Butler,
+        dataIdList: list[dict],
+        outputPath: str,
+        outputFilename: str,
         *,
-        remakePngs=False,
-        clobberVideoAndGif=False,
-        keepIntermediateGif=False,
-        smoothImages=True,
-        plotObjectCentroids=True,
-        useQfmForCentroids=False,
-        dataProductToPlot="calexp",
-        debug=False,
+        remakePngs: bool = False,
+        clobberVideoAndGif: bool = False,
+        keepIntermediateGif: bool = False,
+        smoothImages: bool = True,
+        plotObjectCentroids: bool = True,
+        useQfmForCentroids: bool = False,
+        dataProductToPlot: str = "calexp",
+        debug: bool = False,
     ):
         self.butler = butler
         self.dataIdList = dataIdList
@@ -100,11 +103,12 @@ class Animator:
         self.disp.setImageColormap("gray")
         self.disp.scale("asinh", "zscale")
 
-        self.pngsToMakeDataIds = []
+        self.pngsToMakeDataIds: list[dict] = []
+
         self.preRun()  # sets the above list
 
     @staticmethod
-    def _strDataId(dataId):
+    def _strDataId(dataId: dict) -> str:
         """Make a dataId into a string suitable for use as a filename.
 
         Parameters
@@ -130,7 +134,7 @@ class Animator:
         dIdStr = dIdStr.replace(",", "-")
         return dIdStr
 
-    def dataIdToFilename(self, dataId, includeNumber=False, imNum=None):
+    def dataIdToFilename(self, dataId: dict, includeNumber: bool = False, imNum: int | None = None) -> str:
         """Convert dataId to filename.
 
         Returns a full path+filename by default. if includeNumber then
@@ -147,16 +151,16 @@ class Animator:
             filename = self.basicTemplate % (dIdStr, self.dataProductToPlot)
             return os.path.join(self.pngPath, filename)
 
-    def exists(self, obj):
+    def exists(self, obj: Any) -> bool:
         if isinstance(obj, str):
             return os.path.exists(obj)
         raise RuntimeError("Other type checks not yet implemented")
 
-    def preRun(self):
+    def preRun(self) -> None:
         # check the paths work
         if not os.path.exists(self.pngPath):
             os.makedirs(self.pngPath)
-        assert os.path.exists(self.pngPath), f"Failed to create output dir: {self.pngsPath}"
+        assert os.path.exists(self.pngPath), f"Failed to create output dir: {self.pngPath}"
 
         if self.exists(self.outputFilename):
             if self.clobberVideoAndGif:
@@ -202,7 +206,7 @@ class Animator:
             msg += " because remakePngs=True"
         logger.info(msg)
 
-    def run(self):
+    def run(self) -> str | None:
         # make the missing pngs
         if self.pngsToMakeDataIds:
             logger.info("Creating necessary pngs...")
@@ -213,7 +217,7 @@ class Animator:
         # stage files in temp dir with numbers prepended to filenames
         if not self.dataIdList:
             logger.warning("No files to animate - nothing to do")
-            return
+            return None
 
         logger.info("Copying files to ordered temp dir...")
         pngFilesOriginal = [self.dataIdToFilename(d) for d in self.dataIdList]
@@ -248,7 +252,7 @@ class Animator:
         logger.info(f"Finished! Output at {self.outputFilename}")
         return self.outputFilename
 
-    def _titleFromExp(self, exp, dataId):
+    def _titleFromExp(self, exp: afwImage.Exposure, dataId: dict) -> str:
         expRecord = getExpRecordFromDataId(self.butler, dataId)
         obj = expRecord.target_name
         expTime = expRecord.exposure_time
@@ -266,7 +270,9 @@ class Animator:
         title += f"Object: {obj} expTime: {expTime}s Filter: {filt} Grating: {grating} Airmass: {airmass:.3f}"
         return title
 
-    def getStarPixCoord(self, exp, doMotionCorrection=True, useQfm=False):
+    def getStarPixCoord(
+        self, exp: Any, doMotionCorrection: bool = True, useQfm: bool = False
+    ) -> tuple[float, float] | None:
         target = exp.visitInfo.object
 
         if self.useQfmForCentroids:
@@ -281,7 +287,7 @@ class Animator:
             pixCoord = getTargetCentroidFromWcs(exp, target, doMotionCorrection=doMotionCorrection)
         return pixCoord
 
-    def makePng(self, dataId, saveFilename):
+    def makePng(self, dataId: dict, saveFilename: str) -> None:
         if self.exists(saveFilename) and not self.remakePngs:  # should not be possible due to prerun
             assert False, f"Almost overwrote {saveFilename} - how is this possible?"
 
@@ -332,7 +338,7 @@ class Animator:
         del exp
         gc.collect()
 
-    def pngsToMp4(self, indir, outfile, framerate, verbose=False):
+    def pngsToMp4(self, indir: str, outfile: str, framerate: float, verbose: bool = False) -> None:
         """Create the movie with ffmpeg, from files."""
         # NOTE: the order of ffmpeg arguments *REALLY MATTERS*.
         # Reorder them at your own peril!
@@ -370,11 +376,11 @@ class Animator:
 
         subprocess.check_call(r" ".join(cmd), shell=True)
 
-    def tidyUp(self, tempDir):
+    def tidyUp(self, tempDir: str) -> None:
         shutil.rmtree(tempDir)
         return
 
-    def _smoothExp(self, exp, smoothing, kernelSize=7):
+    def _smoothExp(self, exp: afwImage.Exposure, smoothing: float, kernelSize: int = 7) -> afwImage.Exposure:
         """Use for DISPLAY ONLY!
 
         Return a smoothed copy of the exposure
@@ -389,7 +395,9 @@ class Animator:
         return newExp
 
 
-def animateDay(butler, dayObs, outputPath, dataProductToPlot="quickLookExp"):
+def animateDay(
+    butler: dafButler.Butler, dayObs: int, outputPath: str, dataProductToPlot: str = "quickLookExp"
+) -> str | None:
     outputFilename = f"{dayObs}.mp4"
 
     onSkyIds = getLatissOnSkyDataIds(butler, startDate=dayObs, endDate=dayObs)

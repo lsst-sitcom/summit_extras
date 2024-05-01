@@ -26,6 +26,7 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 
+import lsst.daf.butler as dafButler
 import lsst.summit.utils.butlerUtils as butlerUtils
 from lsst.pipe.tasks.quickFrameMeasurement import QuickFrameMeasurementTask, QuickFrameMeasurementTaskConfig
 
@@ -61,13 +62,13 @@ class AssessQFM:
 
     def __init__(
         self,
-        butler,
-        dataProduct="quickLookExp",
-        dataset="data/qfm_baseline_assessment.parq",
-        successCut=2,
-        nearSuccessCut=10,
-        donutCut=10,
-        logLevel=50,
+        butler: dafButler.Butler,
+        dataProduct: str = "quickLookExp",
+        dataset: str = "data/qfm_baseline_assessment.parq",
+        successCut: int = 2,
+        nearSuccessCut: int = 10,
+        donutCut: int = 10,
+        logLevel: int = 50,
     ):
         self.butler = butler
 
@@ -99,7 +100,7 @@ class AssessQFM:
             "U": "Ambiguous",  # Centroid is on a star, but unclear whether it is the brightest
         }
 
-    def run(self, nSamples=None, nProcesses=1, outputFile=None):
+    def run(self, nSamples: int | None = None, nProcesses: int = 1, outputFile: str | None = None) -> None:
         """Run quickFrameMeasurement on a sample dataset, save the new results,
         and compare them with the baseline, vetted by-eye results.
 
@@ -136,7 +137,7 @@ class AssessQFM:
 
         self.compareToBaseline(qfmResults)
 
-    def _runQFM(self, testset):
+    def _runQFM(self, testset: pd.DataFrame) -> pd.DataFrame:
         """Run quickFrameMeasurement on a subset of the dataset.
 
         Parameters
@@ -176,7 +177,7 @@ class AssessQFM:
                 qfmRes["finalTag"] = "F"
         return qfmResults
 
-    def compareToBaseline(self, comparisonData):
+    def compareToBaseline(self, comparisonData: pd.DataFrame) -> None:
         """Compare a table of quickFrameMeasurement results with the
         baseline vetted data, and print output of the comparison.
 

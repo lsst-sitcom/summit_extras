@@ -22,6 +22,8 @@
 import logging
 import math
 
+import lsst.daf.butler as dafButler
+
 __all__ = ["LogBrowser"]
 
 _LOG = logging.getLogger(__name__)
@@ -78,7 +80,14 @@ class LogBrowser:
         "with gufunc signature (n?,k),(k,m?)->(n?,m?)",
     ]
 
-    def __init__(self, butler, taskName, collection, where="", bind=None):
+    def __init__(
+        self,
+        butler: dafButler.Butler,
+        taskName: str,
+        collection: str,
+        where: str = "",
+        bind: dict | None = None,
+    ):
         self.taskName = taskName
         self.collection = collection
         self.where = where
@@ -98,12 +107,12 @@ class LogBrowser:
         self.dataRefs = self._getDataRefs()
         self.logs = self._loadLogs(self.dataRefs)
 
-    def _getDataRefs(self):
+    def _getDataRefs(self) -> list[dafButler.DatasetRef]:
         """Get the dataRefs for the specified task and collection.
 
         Returns
         -------
-        dataRefs : `list` [`lsst.daf.butler.core.datasets.ref.DatasetRef`]
+        dataRefs : `list` [`lsst.daf.butler.DatasetRef`]
         """
         results = self.butler.registry.queryDatasets(
             f"{self.taskName}_log",
@@ -116,13 +125,13 @@ class LogBrowser:
         self.log.info(f"Found {len(results)} datasets in collection for task {self.taskName}")
         return sorted(results)
 
-    def _loadLogs(self, dataRefs):
+    def _loadLogs(self, dataRefs: list) -> dict[dafButler.DatasetRef, dafButler.ButlerLogRecords]:
         """Load all the logs for the dataRefs.
 
         Returns
         -------
-        logs : `dict` {`lsst.daf.butler.core.datasets.ref.DatasetRef`:
-                       `lsst.daf.butler.core.logging.ButlerLogRecords`}
+        logs : `dict` {`lsst.daf.butler.DatasetRef`:
+                       `lsst.daf.butler.ButlerLogRecords`}
             A dict of all the logs, keyed by their dataRef.
         """
         logs = {}
@@ -133,7 +142,7 @@ class LogBrowser:
             logs[dataRef] = log
         return logs
 
-    def getPassingDataIds(self):
+    def getPassingDataIds(self) -> list[dafButler.DataCoordinate]:
         """Get the dataIds for all passes within the collection for the task.
 
         Returns
@@ -144,7 +153,7 @@ class LogBrowser:
         passes = [r.dataId for r in self.dataRefs if r not in fails]
         return passes
 
-    def getFailingDataIds(self):
+    def getFailingDataIds(self) -> list[dafButler.DataCoordinate]:
         """Get the dataIds for all fails within the collection for the task.
 
         Returns
@@ -154,27 +163,27 @@ class LogBrowser:
         fails = self._getFailDataRefs()
         return [r.dataId for r in fails]
 
-    def printPasses(self):
+    def printPasses(self) -> None:
         """Print out all the passing dataIds."""
         passes = self.getPassingDataIds()
         for dataId in passes:
             print(dataId)
 
-    def printFails(self):
+    def printFails(self) -> None:
         """Print out all the failing dataIds."""
         fails = self.getFailingDataIds()
         for dataId in fails:
             print(dataId)
 
-    def countFails(self):
+    def countFails(self) -> None:
         """Print a count of all the failing dataIds."""
         print(f"{len(self._getFailDataRefs())} failing cases found")
 
-    def countPasses(self):
+    def countPasses(self) -> None:
         """Print a count of all the passing dataIds."""
         print(f"{len(self.getPassingDataIds())} passing cases found")
 
-    def _getFailDataRefs(self):
+    def _getFailDataRefs(self) -> list[dafButler.DatasetRef]:
         """Get a list of all the failing dataRefs.
 
         Note that these are dataset references to the logs, and as such are
@@ -185,7 +194,7 @@ class LogBrowser:
 
         Returns
         -------
-        logs : `list` [`lsst.daf.butler.core.datasets.ref.DatasetRef`]
+        logs : `list` [`lsst.daf.butler.DatasetRef`]
             A list of all the failing dataRefs.
         """
         fails = []
@@ -199,7 +208,7 @@ class LogBrowser:
                 fails.append(dataRef)
         return fails
 
-    def _printLineIf(self, logLine):
+    def _printLineIf(self, logLine: dafButler.ButlerLogRecord) -> None:
         """Print the line if the name of the logger isn't in IGNORE_LOGS_FROM.
 
         Parameters
@@ -216,7 +225,7 @@ class LogBrowser:
             self._printFormattedLine(logLine)
 
     @staticmethod
-    def _printFormattedLine(logLine):
+    def _printFormattedLine(logLine: dafButler.ButlerLogRecord) -> None:
         """Print the line, formatted as it would be for a normal task.
 
         Parameters
@@ -226,7 +235,7 @@ class LogBrowser:
         """
         print(f"{logLine.levelname} {logLine.name}: {logLine.message}")
 
-    def printFailLogs(self, full=False):
+    def printFailLogs(self, full: bool = False) -> None:
         """Print the logs of all failing task instances.
 
         Parameters
@@ -254,7 +263,7 @@ class LogBrowser:
                 else:
                     print(msg)
 
-    def doFailZoology(self, giveExampleId=False):
+    def doFailZoology(self, giveExampleId: bool = False) -> None:
         """Print all the different types of error, with a count for how many of
         each type occurred.
 
@@ -299,7 +308,7 @@ class LogBrowser:
             if giveExampleId:
                 print(f"example dataId: {examples[error]}\n")
 
-    def printSingleLog(self, dataId, full=True):
+    def printSingleLog(self, dataId: dict | dafButler.DataCoordinate, full: bool = True) -> None:
         """Convenience function for printing a single log by its dataId.
 
         Useful because you are given example dataIds by `doFailZoology()` but
