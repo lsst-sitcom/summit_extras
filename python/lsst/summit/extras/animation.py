@@ -59,7 +59,7 @@ class Animator:
     def __init__(
         self,
         butler: dafButler.Butler,
-        dataIdList: list[int],
+        dataIdList: list[dict],
         outputPath: str,
         outputFilename: str,
         *,
@@ -151,7 +151,7 @@ class Animator:
             filename = self.basicTemplate % (dIdStr, self.dataProductToPlot)
             return os.path.join(self.pngPath, filename)
 
-    def exists(self, obj: str) -> bool:
+    def exists(self, obj: Any) -> bool:
         if isinstance(obj, str):
             return os.path.exists(obj)
         raise RuntimeError("Other type checks not yet implemented")

@@ -45,9 +45,9 @@ from lsst.summit.utils.utils import bboxToMatplotlibRectanle, detectObjectsInExp
 from lsst.utils.iteration import ensure_iterable
 
 __all__ = (
+    "getStreamingSequences",
     "getFlux",
     "getBackgroundLevel",
-    "getStreamingSequences",
     "countOverThresholdPixels",
     "sortSourcesByFlux",
     "findFastStarTrackerImageSources",
@@ -634,7 +634,7 @@ def plotSource(source: Source) -> None:
 
     Parameters
     ----------
-    source : `lsst.extras.fastStarTrackerAnalysis.Source`
+    source : `lsst.summit.extras.fastStarTrackerAnalysis.Source`
         The source to plot.
     """
     if source.cutout is None:
