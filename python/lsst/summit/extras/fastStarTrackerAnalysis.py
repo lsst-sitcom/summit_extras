@@ -514,6 +514,7 @@ def plotSourceMovement(
     results: dict[int, list[Source]],
     sourceIndex: int = 0,
     allowInconsistent: bool = False,
+    isStreaming: bool = True,
 ) -> list[matplotlib.figure.Figure]:
     """Plot the centroid movements and fluxes etc for a set of results.
 
@@ -534,6 +535,9 @@ def plotSourceMovement(
         source by default.
     allowInconsistent : `bool`, optional
         Make the plots even if the input results appear to be inconsistent?
+    isStreaming : `bool`, optional
+        Is this streaming mode data? If not then multiple seqNums are expected
+        and allowed, otherwise that is an error.
 
     Returns
     -------
@@ -559,17 +563,25 @@ def plotSourceMovement(
 
     allDayObs = set(s.dayObs for s in sources)
     allSeqNums = set(s.seqNum for s in sources)
-    if len(allDayObs) > 1:  # or len(allSeqNums) > 1:
-        raise ValueError(
-            "The sources are from multiple days or sequences, found"
-            f" {allDayObs} dayObs and {allSeqNums} seqNum values."
-        )
-    dayObs = allDayObs.pop()
-    seqNum = allSeqNums.pop()
-    startFrame = min(frameNums)
-    endFrame = max(frameNums)
-
-    title = f"dayObs {dayObs}, seqNum {seqNum}, frames {startFrame}-{endFrame}"
+    title = ""
+    if isStreaming:
+        if len(allDayObs) > 1 or len(allSeqNums) > 1:
+            raise ValueError(
+                "The sources are from multiple days or sequences, found"
+                f" {allDayObs} dayObs and {allSeqNums} seqNum values."
+            )
+        dayObs = allDayObs.pop()
+        seqNum = allSeqNums.pop()
+        startFrame = min(frameNums)
+        endFrame = max(frameNums)
+        title = f"dayObs {dayObs}, seqNum {seqNum}, frames {startFrame}-{endFrame}"
+    else:
+        if len(allDayObs) > 1:
+            raise ValueError("The sources are from multiple days, found" f" {allDayObs} dayObs values.")
+        dayObs = allDayObs.pop()
+        seqNumMin = f"{min(allSeqNums)}"
+        seqNumMax = f"{max(allSeqNums)}"
+        title = f"dayObs {dayObs}, seqNums {seqNumMin}-{seqNumMax}"
 
     axisLabelSize = 18
 
