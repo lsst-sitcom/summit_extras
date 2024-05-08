@@ -324,65 +324,11 @@ def sortSourcesByFlux(sources: list[Source], reverse: bool = False) -> list[Sour
     return sorted(sources, key=lambda s: s.rawFlux, reverse=not reverse)
 
 
-@dataclass(slots=True)
-class Source:
-    """A dataclass for FastStarTracker analysis results."""
-
-    dayObs: int  # mandatory attribute - the dayObs
-    seqNum: int  # mandatory attribute - the seqNum
-    frameNum: int  # mandatory attribute - the sub-sequence number, the position in the sequence
-
-    # raw numbers
-    centroidX: float = np.nan  # in image coordinates
-    centroidY: float = np.nan  # in image coordinates
-    rawFlux: float = np.nan
-    nPix: int | float = np.nan
-    bbox: geom.Box2I | None = None
-    cutout: np.ndarray | None = None
-    localCentroidX: float = np.nan  # in cutout coordinates
-    localCentroidY: float = np.nan  # in cutout coordinates
-
-    # numbers from the hsm moments fit
-    hsmFittedFlux: float = np.nan
-    hsmCentroidX: float = np.nan
-    hsmCentroidY: float = np.nan
-    moments: galsim.hsm.ShapeData | None = None  # keep the full fit even though we pull some things out too
-
-    imageBackground: float = np.nan
-    imageStddev: float = np.nan
-    nSourcesInImage: int | float = np.nan
-    parentImageWidth: int | float = np.nan
-    parentImageHeight: int | float = np.nan
-    expTime: float = np.nan
-
-    def __repr__(self):
-        """Print everything except the full details of the moments."""
-        retStr = ""
-        for itemName in self.__slots__:
-            v = getattr(self, itemName)
-            if isinstance(v, int):  # print ints as ints
-                retStr += f"{itemName} = {v}\n"
-            elif isinstance(v, float):  # but round floats at 3dp
-                retStr += f"{itemName} = {v:.3f}\n"
-            elif itemName == "moments":  # and don't spam the full moments
-                retStr += f"moments = {type(v)}\n"
-            elif itemName == "bbox":  # and don't spam the full moments
-                retStr += f"bbox = lsst.geom.{repr(v)}\n"
-            elif itemName == "cutout":  # and don't spam the full moments
-                if v is None:
-                    retStr += "cutout = None\n"
-                else:
-                    retStr += f"cutout = {type(v)}\n"
-        return retStr
-
-
-class NanSource:
-    def __getattribute__(self):
-        return np.nan
-
-
 def findFastStarTrackerImageSources(
-    filename: str, boxSize: int, attachCutouts: bool = True, streaming: bool = True,
+    filename: str,
+    boxSize: int,
+    attachCutouts: bool = True,
+    streaming: bool = True,
 ) -> list[Source | NanSource]:
     """Analyze a single FastStarTracker image.
 
