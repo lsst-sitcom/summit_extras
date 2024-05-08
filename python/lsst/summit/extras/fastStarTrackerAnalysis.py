@@ -176,6 +176,7 @@ def getStreamingSequences(dayObs: int) -> dict[int, list[str]]:
 
     return data
 
+
 def getRegularSequences(dayObs):
     """Get the regular sequences for a dayObs.
 
@@ -208,7 +209,7 @@ def getRegularSequences(dayObs):
 
     data = {}
     for file in regularFiles:
-        seqNum = int(file.split('/')[-1].split("_")[3].split('.')[0])
+        seqNum = int(file.split("/")[-1].split("_")[3].split(".")[0])
         data[seqNum] = file
     data = sorted(data.items())
 
@@ -612,7 +613,7 @@ def plotSourceMovement(
 
     allDayObs = set(s.dayObs for s in sources)
     allSeqNums = set(s.seqNum for s in sources)
-    if len(allDayObs) > 1:# or len(allSeqNums) > 1:
+    if len(allDayObs) > 1:  # or len(allSeqNums) > 1:
         raise ValueError(
             "The sources are from multiple days or sequences, found"
             f" {allDayObs} dayObs and {allSeqNums} seqNum values."
