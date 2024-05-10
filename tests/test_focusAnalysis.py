@@ -21,8 +21,9 @@
 
 import unittest
 from typing import Iterable
-import matplotlib.pyplot as plt
+
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 import lsst.utils.tests
 
