@@ -176,9 +176,7 @@ class Animator:
 
         # check the datasets exist for the pngs which need remaking
         missingData = [
-            d
-            for d in dIdsWithoutPngs
-            if not self.butler.exists(self.dataProductToPlot, d, detector=0)
+            d for d in dIdsWithoutPngs if not self.butler.exists(self.dataProductToPlot, d, detector=0)
         ]
 
         logger.info(f"Of the provided {len(self.dataIdList)} dataIds:")
