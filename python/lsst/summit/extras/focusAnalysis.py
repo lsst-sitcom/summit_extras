@@ -376,7 +376,6 @@ class SpectralFocusAnalyzer:
         axes[0].legend(pointsForLegend, legendText, fontsize=legendFontSize)
         axes[1].legend(pointsForLegend, legendText, fontsize=legendFontSize)
         f.tight_layout(rect=(0, 0.03, 1, 0.95))
-        plt.show()
 
         for i, bestFit in enumerate(bestFits):
             print(f"Best fit for spectrum slice {i} = {bestFit:.4f}mm")
@@ -633,7 +632,6 @@ class NonSpectralFocusAnalyzer:
         ax1.legend()
 
         plt.subplots_adjust(hspace=0.0)
-        plt.show()
 
         results = {
             "fwhmFitMin": fwhmFitMin,
