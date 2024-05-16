@@ -253,7 +253,7 @@ class SpectralFocusAnalyzer:
                 arrowy, arrowx = centroid[0] - 400, centroid[1]  # numpy is backwards
                 dx, dy = 0, 300
                 arrow = Arrow(arrowy, arrowx, dy, dx, width=200.0, color="red")
-                circle = Circle(centroid, radius=25, facecolor="none", color="red")
+                circle = Circle(centroid, radius=25, facecolor="none", edgecolor="red")
                 axes[0].add_patch(arrow)
                 axes[0].add_patch(circle)
                 for i, bbox in enumerate(spectrumSliceBboxes):
@@ -376,7 +376,6 @@ class SpectralFocusAnalyzer:
         axes[0].legend(pointsForLegend, legendText, fontsize=legendFontSize)
         axes[1].legend(pointsForLegend, legendText, fontsize=legendFontSize)
         f.tight_layout(rect=(0, 0.03, 1, 0.95))
-        plt.show()
 
         for i, bestFit in enumerate(bestFits):
             print(f"Best fit for spectrum slice {i} = {bestFit:.4f}mm")
@@ -633,7 +632,6 @@ class NonSpectralFocusAnalyzer:
         ax1.legend()
 
         plt.subplots_adjust(hspace=0.0)
-        plt.show()
 
         results = {
             "fwhmFitMin": fwhmFitMin,
