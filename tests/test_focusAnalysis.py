@@ -56,7 +56,7 @@ class FocusAnalysisTestCase(lsst.utils.tests.TestCase):
         # we don't check the plots, but set doDisplay to True to check the
         # plots are generated without error
 
-        self.focusAnalyzer.getFocusData(self.dayObs, self.seqNums, doDisplay=False)
+        self.focusAnalyzer.getFocusData(self.dayObs, self.seqNums, doDisplay=True)
         result = self.focusAnalyzer.fitDataAndPlot()
         self.assertIsInstance(result, Iterable)
         self.assertEqual(len(result), len(self.focusAnalyzer.getSpectrumBoxOffsets()))
