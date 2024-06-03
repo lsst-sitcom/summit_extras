@@ -22,6 +22,7 @@
 import glob
 import os
 import pandas as pd
+import numpy as np
 import logging
 
 from lsst.summit.utils.utils import getSite
@@ -188,11 +189,17 @@ def getRubinTvDatabase(instrument):
     for filename in files:
         df = pd.read_json(filename).T
         df = df.sort_index()
-        dfs.append(df)
+        if 'Exposure id' in list(df.columns):
+            numNans = [np.isnan(x) for x in df['Exposure id'].values if np.isnan(x)]
+            if len(numNans) == 0:
+                dfs.append(df)
+            else:
+                print(f"Exposure id NaNs in {filename}")
+        else:
+            print(f"No Exposure id for {filename}")
 
     # TODO: need to create an 'Exposure Id' column for LSSTCam and ts8, derived
     # from the obsid, I think.
-
     dfsIndexed = [df.set_index('Exposure id') for df in dfs]
     combinedDf = pd.concat(dfsIndexed, verify_integrity=True)
     return combinedDf
