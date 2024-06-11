@@ -82,7 +82,11 @@ class Monitor:
 
         return elements
 
-    def _makeImageInfoText(self, dataId: dict, exp: afwImage.Exposure, asList: bool = False) -> list | str:
+    def _makeImageInfoText(self,
+                           dataId: dict,
+                           exp: afwImage.Exposure,
+                           asList: bool = False
+                           ) -> list[str] | str:
         # TODO: add the following to the display:
         # az, el, zenith angle
         # main source centroid
@@ -180,8 +184,8 @@ class Monitor:
 
                 if self.overlayAmps:
                     cgUtils.overlayCcdBoxes(exp.getDetector(), display=self.display, isTrimmed=True)
-
-                self._printImageInfo(imageInfoText)
+                if isinstance(imageInfoText, list):
+                    self._printImageInfo(imageInfoText)
                 lastDisplayed = expId
 
             except NotFoundError as e:  # NotFoundError when filters aren't defined

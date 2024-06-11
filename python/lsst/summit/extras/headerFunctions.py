@@ -83,7 +83,7 @@ def _saveToLibrary(libraryFilename: str, headersDict: dict, dataDict: dict) -> N
             pickle.dump((headersDict, dataDict), dumpFile, pickle.HIGHEST_PROTOCOL)
     except Exception:
         print("Failed to write pickle file! Here's a debugger so you don't lose all your work:")
-        import ipdb as pdb
+        import ipdb as pdb  # type: ignore
 
         pdb.set_trace()
 
@@ -107,12 +107,12 @@ def _hashFile(fileToHash, dataHdu, sliceToUse) -> str:
     return h
 
 
-def _hashData(data: np.array) -> str:
+def _hashData(data: bytes) -> str:
     h = hashlib.sha256(data).hexdigest()  # hex because we want it readable in the dict
     return h
 
 
-ZERO_HASH = _hashData(np.zeros((100, 100), dtype=np.int32))
+ZERO_HASH = _hashData(np.zeros((100, 100), dtype=np.int32).tobytes())
 
 
 def buildHashAndHeaderDicts(
@@ -142,8 +142,8 @@ def buildHashAndHeaderDicts(
     data section, as defined by the dataSize and dataHdu.
 
     """
-    headersDict = {}
-    dataDict = {}
+    headersDict: dict = {}
+    dataDict: dict = {}
 
     if libraryLocation:
         headersDict, dataDict = loadHeaderDictsFromLibrary(libraryLocation)
@@ -209,7 +209,7 @@ def keyValuesSetFromFiles(
     printResults: bool = True,
     libraryLocation: str | None = None,
     printPerFile: bool = False,
-) -> list[str]:
+) -> tuple[dict[str, Any] | None, set[str] | None]:
     """For a list of FITS files, get the set of values for the given keys.
 
     Parameters
@@ -236,11 +236,11 @@ def keyValuesSetFromFiles(
 
     headerDict, hashDict = buildHashAndHeaderDicts(fileList, libraryLocation=libraryLocation)
 
+    kValues: dict | None = None
     if keys:  # necessary so that -j works on its own
         kValues = {k: set() for k in keys}
     else:
         keys = []
-        kValues = None
 
     if joinKeys:
         joinedValues = set()
@@ -248,7 +248,7 @@ def keyValuesSetFromFiles(
     for filename in headerDict.keys():
         header = headerDict[filename]
         for key in keys:
-            if key in header:
+            if key in header and kValues is not None:
                 kValues[key].add(header[key])
                 if printPerFile:
                     print(f"{filename}\t{key}\t{header[key]}")
@@ -293,12 +293,12 @@ def keyValuesSetFromFiles(
 
         if joinKeys:
             print(f"\nValues found when joining {joinKeys}:")
-            print(f"{sorted(joinedValues)}")
+            print(f"{sorted(list(joinedValues))}")
 
     if joinKeys:
         return kValues, joinedValues
 
-    return kValues
+    return kValues, None
 
 
 def compareHeaders(filename1: str, filename2: str) -> None:
@@ -354,7 +354,7 @@ def compareHeaders(filename1: str, filename2: str) -> None:
 
     print(f"Keys in {filename1} not in {filename2}:\n{keysInh1NotInh2}\n")
     print(f"Keys in {filename2} not in {filename1}:\n{keysInh2NotInh1}\n")
-    print(f"Keys in common:\n{sorted(commonKeys)}\n")
+    print(f"Keys in common:\n{sorted(list(commonKeys))}\n")
 
     # put in lists so we can output neatly rather than interleaving
     identical = []

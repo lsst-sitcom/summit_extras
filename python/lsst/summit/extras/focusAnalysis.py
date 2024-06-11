@@ -25,11 +25,13 @@ import matplotlib
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 from matplotlib import gridspec
 from matplotlib.colors import LogNorm
 from matplotlib.patches import Arrow, Circle, Rectangle
 from scipy.linalg import norm
 from scipy.optimize import curve_fit
+from typing import Any
 
 import lsst.afw.image as afwImage
 import lsst.geom as geom
@@ -127,7 +129,7 @@ class SpectralFocusAnalyzer:
         return self._spectrumBoxOffsets
 
     def _setColors(self, nPoints: int) -> None:
-        self.COLORS = cm.rainbow(np.linspace(0, 1, nPoints))
+        self.COLORS = cm.rainbow(np.linspace(0, 1, nPoints))  # type: ignore
 
     def _getBboxes(self, centroid: list[float]) -> geom.Box2I:
         x, y = centroid
@@ -152,7 +154,7 @@ class SpectralFocusAnalyzer:
         return rectangle
 
     @staticmethod
-    def gauss(x: float, *pars: float) -> float:
+    def gauss(x: float | npt.NDArray[np.float_], *pars: float) -> float | npt.NDArray[np.float_]:
         amp, mean, sigma = pars
         return amp * np.exp(-((x - mean) ** 2) / (2.0 * sigma**2))
 
@@ -222,7 +224,7 @@ class SpectralFocusAnalyzer:
         Call fitDataAndPlot() after running this to perform the parabolic fit
         to the focus data itself.
         """
-        fitData = {}
+        fitData: dict[int, Any] = {}
         filters = set()
         objects = set()
 
@@ -381,7 +383,7 @@ class SpectralFocusAnalyzer:
             print(f"Best fit for spectrum slice {i} = {bestFit:.4f}mm")
         return bestFits
 
-    def _generateLegendText(self, nSpectrumSlices: int) -> str:
+    def _generateLegendText(self, nSpectrumSlices: int) -> list[str]:
         if nSpectrumSlices == 1:
             return ["m=+1 spectrum slice"]
         if nSpectrumSlices == 2:
@@ -513,7 +515,7 @@ class NonSpectralFocusAnalyzer:
         Call fitDataAndPlot() after running this to perform the parabolic fit
         to the focus data itself.
         """
-        fitData = {}
+        fitData: dict[int, Any] = {}
         filters = set()
         objects = set()
 

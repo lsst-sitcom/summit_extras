@@ -252,7 +252,7 @@ class LogBrowser:
             log = self.logs[dataRef]
             if full:  # print the whole thing
                 for line in log:
-                    self._printLineIf.print(line)
+                    self._printLineIf(line)
             else:
                 # print the last line from the Exception onwards if found,
                 # failing over to printing the whole thing just in case.
