@@ -82,11 +82,9 @@ class Monitor:
 
         return elements
 
-    def _makeImageInfoText(self,
-                           dataId: dict,
-                           exp: afwImage.Exposure,
-                           asList: bool = False
-                           ) -> list[str] | str:
+    def _makeImageInfoText(
+        self, dataId: dict, exp: afwImage.Exposure, asList: bool = False
+    ) -> list[str] | str:
         # TODO: add the following to the display:
         # az, el, zenith angle
         # main source centroid

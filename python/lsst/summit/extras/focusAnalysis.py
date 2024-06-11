@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
+from typing import Any
 
 import matplotlib
 import matplotlib.cm as cm
@@ -31,7 +32,6 @@ from matplotlib.colors import LogNorm
 from matplotlib.patches import Arrow, Circle, Rectangle
 from scipy.linalg import norm
 from scipy.optimize import curve_fit
-from typing import Any
 
 import lsst.afw.image as afwImage
 import lsst.geom as geom
