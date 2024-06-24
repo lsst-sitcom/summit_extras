@@ -20,7 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 __all__ = [
-    "colorbar",
+    "addColorbarToAxes",
     "extendTable",
     "makeFocalPlanePlot",
     "makeAzElPlot",
@@ -31,23 +31,19 @@ __all__ = [
 
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from lsst.afw.cameraGeom import FOCAL_PLANE
 from lsst.afw.geom.ellipses import Quadrupole
 from lsst.geom import LinearTransform
 
 
-def colorbar(mappable):
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-    last_axes = plt.gca()
+def addColorbarToAxes(mappable):
     ax = mappable.axes
     fig = ax.figure
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cbar = fig.colorbar(mappable, cax=cax)
-    plt.sca(last_axes)
     return cbar
 
 
@@ -74,16 +70,16 @@ def makeFigureAndAxes():
 
 
 def makeFocalPlanePlot(fig, axes, table, camera, saveAs=""):
-    cbar = colorbar(axes[0, 0].scatter(table["x"], table["y"], c=table["T"], s=5))
+    cbar = addColorbarToAxes(axes[0, 0].scatter(table["x"], table["y"], c=table["T"], s=5))
     cbar.set_label("T [arcsec$^2$]")
 
     emax = np.quantile(np.abs(np.concatenate([table["e1"], table["e2"]])), 0.98)
-    cbar = colorbar(
+    cbar = addColorbarToAxes(
         axes[1, 0].scatter(table["x"], table["y"], c=table["e1"], vmin=-emax, vmax=emax, cmap="bwr", s=5)
     )
     cbar.set_label("e1")
 
-    cbar = colorbar(
+    cbar = addColorbarToAxes(
         axes[1, 1].scatter(table["x"], table["y"], c=table["e2"], vmin=-emax, vmax=emax, cmap="bwr", s=5)
     )
     cbar.set_label("e2")
@@ -119,24 +115,24 @@ def makeFocalPlanePlot(fig, axes, table, camera, saveAs=""):
         for ax in axes.ravel():
             ax.plot(xs, ys, c="k", lw=1, alpha=0.3)
 
-    plt.tight_layout()
+    fig.tight_layout()
     if saveAs:
         fig.savefig(saveAs)
 
 
 def makeEquatorialPlot(fig, axes, table, camera, saveAs=""):
-    cbar = colorbar(axes[0, 0].scatter(table["nw_x"], table["nw_y"], c=table["T"], s=5))
+    cbar = addColorbarToAxes(axes[0, 0].scatter(table["nw_x"], table["nw_y"], c=table["T"], s=5))
     cbar.set_label("T [arcsec$^2$]")
 
     emax = np.quantile(np.abs(np.concatenate([table["e1"], table["e2"]])), 0.98)
-    cbar = colorbar(
+    cbar = addColorbarToAxes(
         axes[1, 0].scatter(
             table["nw_x"], table["nw_y"], c=table["nw_e1"], vmin=-emax, vmax=emax, cmap="bwr", s=5
         )
     )
     cbar.set_label("e1")
 
-    cbar = colorbar(
+    cbar = addColorbarToAxes(
         axes[1, 1].scatter(
             table["nw_x"], table["nw_y"], c=table["nw_e2"], vmin=-emax, vmax=emax, cmap="bwr", s=5
         )
@@ -179,24 +175,24 @@ def makeEquatorialPlot(fig, axes, table, camera, saveAs=""):
         for ax in axes.ravel():
             ax.plot(rxs, rys, c="k", lw=1, alpha=0.3)
 
-    plt.tight_layout()
+    fig.tight_layout()
     if saveAs:
         fig.savefig(saveAs)
 
 
 def makeAzElPlot(fig, axes, table, camera, saveAs=""):
-    cbar = colorbar(axes[0, 0].scatter(table["aa_x"], table["aa_y"], c=table["T"], s=5))
+    cbar = addColorbarToAxes(axes[0, 0].scatter(table["aa_x"], table["aa_y"], c=table["T"], s=5))
     cbar.set_label("T [arcsec$^2$]")
 
     emax = np.quantile(np.abs(np.concatenate([table["e1"], table["e2"]])), 0.98)
-    cbar = colorbar(
+    cbar = addColorbarToAxes(
         axes[1, 0].scatter(
             table["aa_x"], table["aa_y"], c=table["aa_e1"], vmin=-emax, vmax=emax, cmap="bwr", s=5
         )
     )
     cbar.set_label("e1")
 
-    cbar = colorbar(
+    cbar = addColorbarToAxes(
         axes[1, 1].scatter(
             table["aa_x"], table["aa_y"], c=table["aa_e2"], vmin=-emax, vmax=emax, cmap="bwr", s=5
         )
@@ -256,6 +252,6 @@ def makeAzElPlot(fig, axes, table, camera, saveAs=""):
                 zorder=20,
             )
 
-    plt.tight_layout()
+    fig.tight_layout()
     if saveAs:
         fig.savefig(saveAs)
