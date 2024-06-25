@@ -21,7 +21,6 @@
 
 __all__ = [
     "collectSweepData",
-    "inferHexapodSweepAxis",
     "fitSweepParabola",
     "plotSweepParabola",
 ]
@@ -30,7 +29,6 @@ __all__ = [
 import numpy as np
 from matplotlib.figure import Figure
 
-from lsst.daf.butler import DimensionRecord
 from lsst.summit.utils.efdUtils import efdTimestampToAstropy, getMostRecentRowWithDataBefore
 
 PLATESCALE = 0.2  # arcsec / pixel
@@ -102,8 +100,8 @@ def collectSweepData(records, consDbClient, efdClient):
 
 
 def inferSweepVariable(data):
-    """
-    Heuristically determine which variable is being swept during a focus sweep.
+    """Heuristically determine which variable is being swept during a focus
+    sweep.
 
     Parameters
     ----------
@@ -113,11 +111,12 @@ def inferSweepVariable(data):
     Returns
     -------
     varName : str | None
-        Name of the inferred active hexapod variable or None if inference failed.
+        Name of the inferred active hexapod variable or None if inference
+        failed.
     """
-    # Examine the ratio of RMS hexapod values to RMS hexapod residuals from a linear fit
-    # against seqNum.  If removing the linear term significantly reduces the RMS, that's
-    # a good sign this is the active variable.
+    # Examine the ratio of RMS hexapod values to RMS hexapod residuals from a
+    # linear fit against seqNum.  If removing the linear term significantly
+    # reduces the RMS, that's a good sign this is the active variable.
     stats = {}
     for prefix in ["cam_", "m2_"]:
         for k in ["x", "y", "z", "u", "v"]:
@@ -273,8 +272,8 @@ def plotSweepParabola(data, varName, fitDict, filename=None, figAxes=None):
     )
     fig.text(0.7, 0.86, f"RMS resid: {fitDict['rms']:.3f} arcsec", **kwargs)
 
-    fig.text(0.7, 0.80, f"Ellipticity spread", **kwargs)
-    fig.text(0.7, 0.78, f"------------------", **kwargs)
+    fig.text(0.7, 0.80, "Ellipticity spread", **kwargs)
+    fig.text(0.7, 0.78, "------------------", **kwargs)
     fig.text(0.7, 0.76, f"e1 RMS: {fitDict['e1Rms']:.3f}", **kwargs)
     fig.text(0.7, 0.74, f"e2 RMS: {fitDict['e2Rms']:.3f}", **kwargs)
 
