@@ -177,7 +177,7 @@ def fitSweepParabola(data, varName):
     )
 
 
-def plotSweepParabola(data, varName, fitDict, filename=None, figAxes=None):
+def plotSweepParabola(data, varName, fitDict, saveAs=None, figAxes=None):
     xs = data[varName]
 
     if figAxes is None:
@@ -278,5 +278,5 @@ def plotSweepParabola(data, varName, fitDict, filename=None, figAxes=None):
     fig.text(0.7, 0.74, f"e2 RMS: {fitDict['e2Rms']:.3f}", **kwargs)
 
     fig.tight_layout()
-    if filename is not None:
-        fig.savefig(filename)
+    if saveAs is not None:
+        fig.savefig(saveAs)
