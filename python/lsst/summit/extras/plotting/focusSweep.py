@@ -158,7 +158,9 @@ def fitSweepParabola(data, varName):
     covAB = cov[0, 1]
 
     # Uncertainty propagation to the vertex x-coordinate
-    vertexUncertainty = np.sqrt((db / (2 * a)) ** 2 + (b * da / (2 * a**2)) ** 2 - (b / (2 * a**2)) * (covAB / a))
+    vertexUncertainty = np.sqrt(
+        (db / (2 * a)) ** 2 + (b * da / (2 * a**2)) ** 2 - (b / (2 * a**2)) * (covAB / a)
+    )
     extremumUncertainty = np.sqrt((2 * vertex * da) ** 2 + db**2 + 4 * vertex * covAB)
 
     e1Rms = np.sqrt(np.mean(np.square(e1s)))
@@ -180,53 +182,101 @@ def plotSweepParabola(data, varName, fitDict, filename=None, figAxes=None):
     xs = data[varName]
 
     if figAxes is None:
-        fig = Figure(figsize=(8, 6))
-        axes = fig.subplots(nrows=2, ncols=2)
+        fig = Figure(figsize=(12, 9))
+        axes = fig.subplots(nrows=3, ncols=4)
     else:
         fig, axes = figAxes
-    fwhmAx, _, e1Ax, e2Ax = axes.ravel()
-    fig.delaxes(axes[0, 1])
 
-    e1Ax.scatter(xs, data["e1"], c="r")
-    e1Ax.axhline(0, c="k")
-    e1Ax.set_ylim(-0.11, 0.11)
-    e1Ax.set_ylabel("e1")
+    camZAx, m2ZAx, *_ = axes[0]
+    camXyAx, m2XyAx, fwhmSeqAx, fwhmVarAx = axes[1]
+    camRAx, m2RAx, ellipSeqAx, ellipVarAx = axes[2]
 
-    e2Ax.scatter(xs, data["e2"], c="r")
-    e2Ax.axhline(0, c="k")
-    e2Ax.set_ylim(-0.11, 0.11)
-    e2Ax.set_ylabel("e2")
+    fig.delaxes(axes[0, 2])
+    fig.delaxes(axes[0, 3])
 
-    fwhmAx.scatter(xs, data["fwhm"], c="r")
-    xlim = fwhmAx.get_xlim()
+    seqNum = data["seqNum"]
+    camZAx.scatter(seqNum, data["cam_z"], c="r")
+    camXyAx.scatter(seqNum, data["cam_x"], c="c", label="x")
+    camXyAx.scatter(seqNum, data["cam_y"], c="m", label="y")
+    camXyAx.legend()
+    camRAx.scatter(seqNum, data["cam_u"], c="c", label="Rx")
+    camRAx.scatter(seqNum, data["cam_v"], c="m", label="Ry")
+    camRAx.legend()
+
+    m2ZAx.scatter(seqNum, data["m2_z"], c="r")
+    m2XyAx.scatter(seqNum, data["m2_x"], c="c", label="x")
+    m2XyAx.scatter(seqNum, data["m2_y"], c="m", label="y")
+    m2XyAx.legend()
+    m2RAx.scatter(seqNum, data["m2_u"], c="c", label="Rx")
+    m2RAx.scatter(seqNum, data["m2_v"], c="m", label="Ry")
+    m2RAx.legend()
+
+    fwhmSeqAx.scatter(seqNum, data["fwhm"], c="r")
+    ellipSeqAx.scatter(seqNum, data["e1"], c="c", label="e1")
+    ellipSeqAx.scatter(seqNum, data["e2"], c="m", label="e2")
+    ellipSeqAx.legend()
+
+    var = data[varName]
+    fwhmVarAx.scatter(var, data["fwhm"], c="r")
+    xlim = fwhmVarAx.get_xlim()
     xs = np.linspace(xlim[0], xlim[1], 100)
     ys = np.polyval(fitDict["coefs"], xs)
-    fwhmAx.plot(xs, ys, c="k")
-    fwhmAx.set_ylabel("fwhm [arcsec]")
+    fwhmVarAx.plot(xs, ys, c="k")
+
+    ellipVarAx.scatter(var, data["e1"], c="c", label="e1")
+    ellipVarAx.scatter(var, data["e2"], c="m", label="e2")
+    ellipVarAx.legend()
 
     label = varName.replace("_", " ")
     label = label.replace("u", "Rx")
     label = label.replace("v", "Ry")
     unit = "deg" if "r" in label else "mm"
 
-    for ax in axes.ravel():
-        labeltext = label
-        if unit is not None:
-            labeltext = labeltext + " [" + unit + "]"
-        ax.set_xlabel(labeltext)
+    for ax in [fwhmVarAx, fwhmSeqAx]:
+        ax.set_ylabel("fwhm [arcsec]")
+
+    for ax in [camZAx, m2ZAx]:
+        ax.set_ylabel("z [mm]")
+    camZAx.set_title("Camera")
+    m2ZAx.set_title("M2")
+
+    for ax in [camXyAx, m2XyAx]:
+        ax.set_ylabel("x or y [mm]")
+
+    for ax in [camRAx, m2RAx]:
+        ax.set_ylabel("Rx or Ry [deg]")
+
+    for ax in [camZAx, camXyAx, camRAx, m2ZAx, m2XyAx, m2RAx, fwhmSeqAx, ellipSeqAx]:
+        ax.set_xlabel("seqnum")
+        ax.set_xlim(min(seqNum) - 0.5, max(seqNum) + 0.5)
+
+    for ax in [fwhmVarAx, ellipVarAx]:
+        ax.set_xlabel(label + "[" + unit + "]")
+
+    for ax in [ellipSeqAx, ellipVarAx]:
+        ax.set_ylim(-0.11, 0.11)
+        ax.axhline(0, c="k")
+        ax.set_ylabel("e1 or e2")
 
     # Print useful info in the top right
     kwargs = dict(fontsize=10, ha="left", fontfamily="monospace")
-    fig.text(0.6, 0.94, "FWHM fit", **kwargs)
-    fig.text(0.6, 0.91, "--------", **kwargs)
-    fig.text(0.6, 0.88, f"vertex: {fitDict['vertex']:.3f} ± {fitDict['vertexUncertainty']:.3f} {unit}", **kwargs)
-    fig.text(0.6, 0.85, f"extremum: {fitDict['extremum']:.3f} ± {fitDict['extremumUncertainty']:.3f} arcsec", **kwargs)
-    fig.text(0.6, 0.82, f"RMS resid: {fitDict['rms']:.3f} arcsec", **kwargs)
+    fig.text(0.7, 0.94, "FWHM fit", **kwargs)
+    fig.text(0.7, 0.92, "--------", **kwargs)
+    fig.text(
+        0.7, 0.90, f"vertex: {fitDict['vertex']:.3f} ± {fitDict['vertexUncertainty']:.3f} {unit}", **kwargs
+    )
+    fig.text(
+        0.7,
+        0.88,
+        f"extremum: {fitDict['extremum']:.3f} ± {fitDict['extremumUncertainty']:.3f} arcsec",
+        **kwargs,
+    )
+    fig.text(0.7, 0.86, f"RMS resid: {fitDict['rms']:.3f} arcsec", **kwargs)
 
-    fig.text(0.6, 0.70, f"Ellipticity spread", **kwargs)
-    fig.text(0.6, 0.67, f"------------------", **kwargs)
-    fig.text(0.6, 0.64, f"e1 RMS: {fitDict['e1Rms']:.3f}", **kwargs)
-    fig.text(0.6, 0.61, f"e2 RMS: {fitDict['e2Rms']:.3f}", **kwargs)
+    fig.text(0.7, 0.80, f"Ellipticity spread", **kwargs)
+    fig.text(0.7, 0.78, f"------------------", **kwargs)
+    fig.text(0.7, 0.76, f"e1 RMS: {fitDict['e1Rms']:.3f}", **kwargs)
+    fig.text(0.7, 0.74, f"e2 RMS: {fitDict['e2Rms']:.3f}", **kwargs)
 
     fig.tight_layout()
     if filename is not None:
