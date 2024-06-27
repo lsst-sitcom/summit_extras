@@ -180,7 +180,13 @@ def makeEquatorialPlot(fig, axes, table, camera, saveAs=""):
         fig.savefig(saveAs)
 
 
-def makeAzElPlot(fig, axes, table, camera, saveAs=""):
+def makeAzElPlot(fig, axes, table, camera, maxPoints=1000, saveAs=""):
+    n = len(table)
+    if n > maxPoints:
+        rng = np.random.default_rng()
+        indices = rng.choice(n, maxPoints, replace=False)
+        table = table[indices]
+
     cbar = addColorbarToAxes(axes[0, 0].scatter(table["aa_x"], table["aa_y"], c=table["T"], s=5))
     cbar.set_label("T [arcsec$^2$]")
 
