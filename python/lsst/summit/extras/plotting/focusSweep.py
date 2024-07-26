@@ -35,8 +35,7 @@ PLATESCALE = 0.2  # arcsec / pixel
 
 
 def collectSweepData(records, consDbClient, efdClient):
-    """
-    Populate focus sweep table.
+    """Populate focus sweep table.
 
     Parameters
     ----------
@@ -49,7 +48,7 @@ def collectSweepData(records, consDbClient, efdClient):
 
     Returns
     -------
-    table : astropy.table.Table
+    table : `astropy.table.Table`
         Table containing hexapod sweep motions and quick look PSF measurements.
     """
     visitString = ",".join(str(r.id) for r in records)
@@ -64,11 +63,13 @@ def collectSweepData(records, consDbClient, efdClient):
         f"from cdb_lsstcomcamsim.visit1_quicklook WHERE visit_id in ({visitString}) "
         "ORDER BY visit_id"
     )
-    data["seqNum"] = data["visit_id"] % 10000
     data["T"] = data["ixx"] + data["iyy"]
     data["e1"] = (data["ixx"] - data["iyy"]) / data["T"]
     data["e2"] = 2 * data["ixy"] / data["T"]
     data["fwhm"] = np.sqrt(np.log(256)) * PLATESCALE * data["sigma"]
+
+    # Add placeholder seqNum column
+    data["seqNum"] = np.nan
 
     # Placeholder columns for EFD data
     for prefix in ["cam_", "m2_"]:
@@ -78,6 +79,7 @@ def collectSweepData(records, consDbClient, efdClient):
     for row in data:
         rIdx = [r.id for r in records].index(row["visit_id"])
         record = records[rIdx]
+        row["seqNum"] = record.seq_num
         for pid, prefix in zip(["MTHexapod:1", "MTHexapod:2"], ["cam_", "m2_"]):
             try:
                 efdData = getMostRecentRowWithDataBefore(
@@ -105,12 +107,12 @@ def inferSweepVariable(data):
 
     Parameters
     ----------
-    data : astropy.table.Table
+    data : `astropy.table.Table`
         Table holding sweep hexapod motions and PSF measurements.
 
     Returns
     -------
-    varName : str | None
+    varName : `str` | `None`
         Name of the inferred active hexapod variable or None if inference
         failed.
     """
@@ -150,7 +152,7 @@ def fitSweepParabola(data, varName):
     rms = np.sqrt(np.mean(np.square(resids)))
     extremum = np.polyval(coefs, vertex)
 
-    # WARNING!  Trusting ChatGPT with vertex uncertainty
+    # TODO: DM-45435 WARNING! Trusting ChatGPT with vertex uncertainty
     # propagation for the moment.  Treat with extreme caution!
     da = np.sqrt(cov[0, 0])
     db = np.sqrt(cov[1, 1])

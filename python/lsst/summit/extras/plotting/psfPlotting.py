@@ -45,33 +45,33 @@ from lsst.geom import LinearTransform, radians
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-    from astropy.table import Table  # noqa: F401
-    from matplotlib.colorbar import Colorbar  # noqa: F401
+    from astropy.table import Table
+    from matplotlib.colorbar import Colorbar
 
-    from lsst.afw.cameraGeom import Camera  # noqa: F401
-    from lsst.afw.image import VisitInfo  # noqa: F401
-    from lsst.afw.table import SourceCatalog  # noqa: F401
+    from lsst.afw.cameraGeom import Camera
+    from lsst.afw.image import VisitInfo
+    from lsst.afw.table import SourceCatalog
 
 
-def selectPoints(table: Table, maxPoints: int) -> Table:
-    """Select a random subset of points from the given table.
+def randomRows(table: Table, maxRows: int) -> Table:
+    """Select a random subset of rows from the given table.
 
     Parameters
     ----------
     table : `astropy.table.Table`
         The table containing the data to be plotted.
-    maxPoints : `int`
-        The maximum number of points to plot.
+    maxRows : `int`
+        The maximum number of rows to select.
 
     Returns
     -------
     table : `astropy.table.Table`
-        The table containing the randomly selected subset of points.
+        The table containing the randomly selected subset of rows.
     """
     n = len(table)
-    if n > maxPoints:
+    if n > maxRows:
         rng = np.random.default_rng()
-        indices = rng.choice(n, maxPoints, replace=False)
+        indices = rng.choice(n, maxRows, replace=False)
         table = table[indices]
     return table
 
@@ -163,7 +163,7 @@ def extendTable(table: Table, rot: npt.NDArray[np.float_], prefix: str) -> Table
     ----------
     table : `astropy.table.Table`
         The input table containing the original shapes.
-    rot : `np.ndarray`
+    rot : `numpy.ndarray`
         The rotation matrix used to rotate the shapes.
     prefix : `str`
         The prefix to be added to the column names of the rotated shapes.
@@ -223,11 +223,11 @@ def makeFocalPlanePlot(
     Bottom right:
         A scatter plot of e2
 
-    This function plots the data from the `table` on the provided `fig` and
-    `axes` objects. It also plots the camera detector outlines on the focal
+    This function plots the data from the ``table`` on the provided ``fig`` and
+    ``axes`` objects. It also plots the camera detector outlines on the focal
     plane plot, respecting the camera rotation for the exposure.
 
-    If `saveAs` is provided, the figure will be saved at the specified file
+    If ``saveAs`` is provided, the figure will be saved at the specified file
     path.
 
     Parameters
@@ -247,7 +247,7 @@ def makeFocalPlanePlot(
     saveAs : `str`, optional
         The file path to save the figure.
     """
-    table = selectPoints(table, maxPoints)
+    table = randomRows(table, maxPoints)
 
     cbar = addColorbarToAxes(axes[0, 0].scatter(table["x"], table["y"], c=table["T"], s=5))
     cbar.set_label("T [arcsec$^2$]")
@@ -318,11 +318,11 @@ def makeEquatorialPlot(
     Bottom right:
         A scatter plot of e2
 
-    This function plots the data from the `table` on the provided `fig` and
-    `axes` objects. It also plots the camera detector outlines on the focal
+    This function plots the data from the ``table`` on the provided ``fig`` and
+    ``axes`` objects. It also plots the camera detector outlines on the focal
     plane plot, respecting the camera rotation for the exposure.
 
-    If `saveAs` is provided, the figure will be saved at the specified file
+    If ``saveAs`` is provided, the figure will be saved at the specified file
     path.
 
     Parameters
@@ -342,7 +342,7 @@ def makeEquatorialPlot(
     saveAs : `str`, optional
         The file path to save the figure.
     """
-    table = selectPoints(table, maxPoints)
+    table = randomRows(table, maxPoints)
 
     cbar = addColorbarToAxes(axes[0, 0].scatter(table["nw_x"], table["nw_y"], c=table["T"], s=5))
     cbar.set_label("T [arcsec$^2$]")
@@ -422,11 +422,11 @@ def makeAzElPlot(
     Bottom right:
         A scatter plot of e2
 
-    This function plots the data from the `table` on the provided `fig` and
-    `axes` objects. It also plots the camera detector outlines on the focal
+    This function plots the data from the ``table`` on the provided ``fig`` and
+    ``axes`` objects. It also plots the camera detector outlines on the focal
     plane plot, respecting the camera rotation for the exposure.
 
-    If `saveAs` is provided, the figure will be saved at the specified file
+    If ``saveAs`` is provided, the figure will be saved at the specified file
     path.
 
     Parameters
@@ -446,7 +446,7 @@ def makeAzElPlot(
     saveAs : `str`, optional
         The file path to save the figure.
     """
-    table = selectPoints(table, maxPoints)
+    table = randomRows(table, maxPoints)
 
     cbar = addColorbarToAxes(axes[0, 0].scatter(table["aa_x"], table["aa_y"], c=table["T"], s=5))
     cbar.set_label("T [arcsec$^2$]")
