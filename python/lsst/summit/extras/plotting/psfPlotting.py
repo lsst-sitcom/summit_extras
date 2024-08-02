@@ -44,6 +44,8 @@ from lsst.afw.geom.ellipses import Quadrupole
 from lsst.geom import LinearTransform, radians
 
 if TYPE_CHECKING:
+    from typing import Any
+
     import numpy.typing as npt
     from astropy.table import Table
     from matplotlib.colorbar import Colorbar
@@ -190,7 +192,7 @@ def extendTable(table: Table, rot: npt.NDArray[np.float_], prefix: str) -> Table
     return table
 
 
-def makeFigureAndAxes() -> tuple[plt.Figure, np.ndarray[plt.Axes]]:
+def makeFigureAndAxes() -> tuple[plt.Figure, Any]:
     """Create a figure and axes for plotting.
 
     Returns
