@@ -28,7 +28,7 @@ import inspect
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils.iteration import ensure_iterable
-from IPython.display import display, Markdown
+from IPython.display import display, Markdown, Image
 
 INSTALL_NEEDED = False
 LOG = logging.getLogger(__name__)
@@ -36,10 +36,9 @@ LOG = logging.getLogger(__name__)
 # TODO: work out a way to protect all of these imports
 import langchain  # noqa: E402
 import langchain_community
-# from langchain.agents import create_pandas_dataframe_agent  # noqa: E402 ==MOVED TO langchain_experimental==
-# from langchain.chat_models import ChatOpenAI  # noqa: E402 ==DEPRECATED==
+import langchain_experimental
 from langchain_openai import ChatOpenAI
-from langchain.callbacks import get_openai_callback  # noqa: E402
+from langchain_community.callbacks import get_openai_callback  # noqa: E402
 from langchain_experimental.agents import create_pandas_dataframe_agent
 
 
@@ -224,24 +223,81 @@ class ResponseFormatter:
         return allCode
 
 
-# ===========================================================
-from langchain.tools import BaseTool, StructuredTool, tool, YouTubeSearchTool
-from langchain.agents import AgentExecutor, create_openai_tools_agent, Tool
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.pydantic_v1 import BaseModel, Field, validator
-from langchain.tools import YouTubeSearchTool
+# =========================================================== CUSTOM TOOL
+from langchain.tools import BaseTool, StructuredTool, tool
+from langchain.agents import Tool
+from datetime import datetime
+import requests
+# import yaml
 
 
-youtube_ = YouTubeSearchTool()
+# def load_yaml(file_path):
+#     with open(file_path, 'r') as file:
+#         data = yaml.safe_load(file)
+#     return data
 
 
-toolkit = [
-    Tool(
-        name = "YouTube",
-        func = youtube_.run,
-        description = "useful for when you need to answer questions about videos"
-        )
-]
+class Tools():
+    def __init__(self) -> None:
+        self.tools = [
+            Tool(
+                name = "Secret Word",
+                func = self.secret_word,
+                description = "Useful for when you need to answer what is the secret word"
+            ),
+            Tool(
+                name = "NASA Image",
+                func = self.nasa_image,
+                description = "Useful for when you need to answer what is the NASA image of the day for a given date (self.date)"
+            ),
+            Tool(
+                name = "Random MTG",
+                func = self.random_mtg_card,
+                description = "Useful for when you need to show a random Magic The Gathering card"
+            )
+        ]
+
+    
+    @staticmethod
+    def secret_word(self):
+        return "The secret word is 'Rubin'"
+
+    
+    def nasa_image(self, date):     
+        # NASA API URL
+        url = f"https://api.nasa.gov/planetary/apod?date={date}&api_key=GXacxntSzk6wpkUmDVw4L1Gfgt4kF6PzZrmSNWBb"
+        
+        # Make the API request
+        response = requests.get(url)
+        data = response.json()
+        
+        # Check if the response contains an image URL
+        if 'url' in data:
+            image_url = data['url']
+            
+            # Display the image directly in the notebook
+            display(Image(url=image_url))
+            return image_url
+            
+        else:
+            print("No image available for this date.")
+            return None
+
+    
+    @staticmethod
+    def random_mtg_card(self):
+        url = 'https://api.scryfall.com/cards/random'
+        response = requests.get(url)
+        data = response.json()
+
+        image_url = data['image_uris']['normal']
+
+        display(Image(url=image_url))
+
+        return image_url
+
+
+toolkit = Tools().tools
 # ===========================================================
 
 
@@ -258,11 +314,13 @@ class AstroChat:
         'azVsTime': 'Can you show me a plot of azimuth vs. time (TAI) for all lines with Observation reason = intra',
         'imageDegradation': 'Large values of mount image motion degradation is considered a bad thing. Is there a correlation with azimuth? Can you show a correlation plot?',
         'analysis': 'Act as an expert astronomer. It seems azimuth of around 180 has large values. I wonder is this is due to low tracking rate. Can you assess that by making a plot vs. tracking rate, which you will have to compute?',
-        'astronomyVideo': 'Can you provide the url for the two most liked astronomy videos on YouTube?',
         'correlation': 'Try looking for a correlation between mount motion degradation and declination. Show a plot with grid lines',
         'pieChartObsReasons': 'Please produce a pie chart of total exposure time for different categories of Observation reason',
         'airmassVsTime': 'I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass',
-        'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.'
+        'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.',
+        'secretWord': 'Tell me what is the secret word.',
+        'nasaImage': 'Show me the NASA image of the day for the current observation day.',
+        'randomMTG': 'Show me a random Magic The Gathering card'
     }
 
     def __init__(self,
@@ -312,8 +370,11 @@ class AstroChat:
         self._chat = ChatOpenAI(model_name="gpt-4o", temperature=temperature)
 
         self.data = getObservingData(dayObs)
+        self.date = f"{str(dayObs)[:4]}-{str(dayObs)[4:6]}-{str(dayObs)[6:]}" # Convert 'AAAAMMDD' to 'AAAA-MM-DD'
 
-        self.PREFIX =  " if question is not related with pandas, you can use extra tools. the extra tools are: 1. YouTube"
+        # self.yaml_data = load_yaml('sal_interface.yaml')
+
+        self.PREFIX =  "If question is not related with pandas, you can use extra tools. The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random MTG''. When using the 'Nasa Image' tool, use 'self.date' as a date, do not use 'dayObs', and do not attempt any pandas analysis at all, so not use 'self.data'"
         
         self._agent = create_pandas_dataframe_agent(
             self._chat,
@@ -348,7 +409,7 @@ class AstroChat:
         """
         replTools = []
         for item in self._agent.tools:
-            if isinstance(item, langchain.tools.python.tool.PythonAstREPLTool):
+            if isinstance(item, langchain_experimental.tools.python.tool.PythonAstREPLTool):
                 replTools.append(item)
         if not replTools:
             raise RuntimeError("Agent appears to have no REPL tools")
@@ -395,6 +456,7 @@ class AstroChat:
     def run(self, inputStr):
         with get_openai_callback() as cb:
             responses = self._agent.invoke({'input': inputStr})
+            # print(cb)
 
         code = self.formatter(responses)
         self._addUsageAndDisplay(cb)
