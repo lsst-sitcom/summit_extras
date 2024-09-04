@@ -228,7 +228,7 @@ from langchain.tools import BaseTool, StructuredTool, tool
 from langchain.agents import Tool
 from datetime import datetime
 import requests
-# import yaml
+import yaml
 
 
 # def load_yaml(file_path):
@@ -254,6 +254,11 @@ class Tools():
                 name = "Random MTG",
                 func = self.random_mtg_card,
                 description = "Useful for when you need to show a random Magic The Gathering card"
+            ),
+            Tool(
+                name="YAML Topic Finder",
+                func=self.find_topic,
+                description="Finds the topic in the YAML file based on the description provided."
             )
         ]
 
@@ -295,6 +300,28 @@ class Tools():
         display(Image(url=image_url))
 
         return image_url
+        
+    def load_yaml(self, file_path):
+        with open(file_path, 'r') as file:
+            return yaml.safe_load(file)
+
+    def find_topic(self, description):
+        # Load the YAML data
+        with open('lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml', 'r') as file:
+            yaml_data = yaml.safe_load(file)
+
+        # Navigate through the YAML structure to find the description
+        ess_telemetry = yaml_data.get('ESS_Telemetry', {})
+        sal_telemetry_set = ess_telemetry.get('SALTelemetrySet', {})
+        sal_telemetry_list = sal_telemetry_set.get('SALTelemetry', [])
+
+        # Iterate through each telemetry entry
+        for telemetry in sal_telemetry_list:
+            if description.lower() in telemetry.get('Description', '').lower():
+                return telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
+        
+        return "No matching topic found."
+
 
 
 toolkit = Tools().tools
@@ -320,7 +347,8 @@ class AstroChat:
         'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.',
         'secretWord': 'Tell me what is the secret word.',
         'nasaImage': 'Show me the NASA image of the day for the current observation day.',
-        'randomMTG': 'Show me a random Magic The Gathering card'
+        'randomMTG': 'Show me a random Magic The Gathering card',
+        'find_topic': 'What is the topic to find query?'
     }
 
     def __init__(self,
@@ -374,7 +402,7 @@ class AstroChat:
 
         # self.yaml_data = load_yaml('sal_interface.yaml')
 
-        self.PREFIX =  "If question is not related with pandas, you can use extra tools. The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random MTG''. When using the 'Nasa Image' tool, use 'self.date' as a date, do not use 'dayObs', and do not attempt any pandas analysis at all, so not use 'self.data'"
+        self.PREFIX =  "If question is not related with pandas, you can use extra tools. The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random MTG', 4. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use 'self.date' as a date, do not use 'dayObs', and do not attempt any pandas analysis at all, so not use 'self.data'"
         
         self._agent = create_pandas_dataframe_agent(
             self._chat,
@@ -384,6 +412,7 @@ class AstroChat:
             prefix=self.PREFIX,
             extra_tools = toolkit,
             number_of_head_rows=1,
+            allow_dangerous_code=True,
         )
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter()
