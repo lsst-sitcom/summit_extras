@@ -285,12 +285,10 @@ class AstroChat:
         _checkInstallation()
         self.setVerbosityLevel(verbosity)
 
-        # self._chat = ChatOpenAI(model_name="gpt-4-1106-preview", temperature=temperature)
-        self._chat = ChatOpenAI(model_name="gpt-4o", temperature=temperature)
+        self._chat = ChatOpenAI(model_name="gpt-4-1106-preview", temperature=temperature)
+        #self._chat = ChatOpenAI(model_name="gpt-4o", temperature=temperature)
 
         self.data = getObservingData(dayObs)
-        self.date = f"{str(dayObs)[:4]}-{str(dayObs)[4:6]}-{str(dayObs)[6:]}" # Convert 'AAAAMMDD' to 'AAAA-MM-DD'
-
         
         self._agent = create_pandas_dataframe_agent(
             self._chat,
@@ -298,6 +296,8 @@ class AstroChat:
             return_intermediate_steps=True,
             include_df_in_prompt=True,
             number_of_head_rows=1,
+            agent_executor_kwargs={"handle_parsing_errors":True},
+            allow_dangerous_code=True
         )
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter()
@@ -329,7 +329,7 @@ class AstroChat:
             raise RuntimeError("Agent appears to have no REPL tools")
         if len(replTools) > 1:
             raise RuntimeError("Agent appears to have more than one REPL tool")
-        
+
         return replTools[0]
 
     def exportLocalVariables(self):
