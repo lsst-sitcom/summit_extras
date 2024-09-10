@@ -310,16 +310,19 @@ class Tools():
         with open('lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml', 'r') as file:
             yaml_data = yaml.safe_load(file)
 
-        # Navigate through the YAML structure to find the description
-        ess_telemetry = yaml_data.get('ESS_Telemetry', {})
-        sal_telemetry_set = ess_telemetry.get('SALTelemetrySet', {})
-        sal_telemetry_list = sal_telemetry_set.get('SALTelemetry', [])
+        # Iterate over all top-level keys in the YAML data
+        for category, category_data in yaml_data.items():
+            # We're only interested in categories that end with "_Telemetry"
+            if category.endswith('_Telemetry') and isinstance(category_data, dict):
+                # Check if the category has SALTelemetrySet
+                sal_telemetry_set = category_data.get('SALTelemetrySet', {})
+                sal_telemetry_list = sal_telemetry_set.get('SALTelemetry', [])
 
-        # Iterate through each telemetry entry
-        for telemetry in sal_telemetry_list:
-            if description.lower() in telemetry.get('Description', '').lower():
-                return telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
-        
+                # Iterate through each SALTelemetry entry
+                for telemetry in sal_telemetry_list:
+                    if isinstance(telemetry, dict) and description.lower() in telemetry.get('Description', '').lower():
+                        return telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
+
         return "No matching topic found."
 
 
