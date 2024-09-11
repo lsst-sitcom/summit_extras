@@ -250,6 +250,8 @@ from langchain.agents import Tool
 from datetime import datetime
 import requests
 import yaml
+from langchain.schema import HumanMessage
+from langchain.chat_models import ChatOpenAI
 
 
 # def load_yaml(file_path):
@@ -259,7 +261,10 @@ import yaml
 
 
 class Tools():
-    def __init__(self) -> None:
+    def __init__(self, chat_model, data) -> None:
+        self.data = data
+        self._chat = chat_model
+
         self.tools = [
             Tool(
                 name = "Secret Word",
@@ -285,7 +290,14 @@ class Tools():
                 name="YAML Topic Finder",
                 func=self.find_topic,
                 description="Finds the topic in the YAML file based on the description provided."
+                func=lambda prompt: self.find_topic_with_ai(prompt, self.data),
+                description="Finds the topic in the YAML file based on the description provided using AI."
             )
+            # Tool(
+            #     name="YAML Topic Finder",
+            #     func=self.find_topic,
+            #     description="Finds the topic in the YAML file based on the description provided."
+            # )
         ]
 
 
@@ -331,32 +343,140 @@ class Tools():
         with open(file_path, 'r') as file:
             return yaml.safe_load(file)
 
-    def find_topic(self, description):
-        # Load the YAML data
-        with open('lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml', 'r') as file:
-            yaml_data = yaml.safe_load(file)
+    ##string based search
+    # def find_topic(self, description):
+    #     # Load the YAML data
+    #     with open('lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml', 'r') as file:
+    #         yaml_data = yaml.safe_load(file)
+
+    #     # Iterate over all top-level keys in the YAML data
+    #     for category, category_data in yaml_data.items():
+    #         # We're only interested in categories that end with "_Telemetry"
+    #         if category.endswith('_Telemetry') and isinstance(category_data, dict):
+    #             # Check if the category has SALTelemetrySet
+    #             sal_telemetry_set = category_data.get('SALTelemetrySet', {})
+    #             sal_telemetry_list = sal_telemetry_set.get('SALTelemetry', [])
+
+    #             # Iterate through each SALTelemetry entry
+    #             for telemetry in sal_telemetry_list:
+    #                 if isinstance(telemetry, dict) and description.lower() in telemetry.get('Description', '').lower():
+    #                     return telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
+
+    #     return "No matching topic found."
+
+    def find_related_descriptions(self, prompt, data):
+        related_descriptions = []
+        print('Prompt before find a related descriptions:\n' + prompt + '\n')
 
         # Iterate over all top-level keys in the YAML data
-        for category, category_data in yaml_data.items():
-            # We're only interested in categories that end with "_Telemetry"
-            if category.endswith('_Telemetry') and isinstance(category_data, dict):
-                # Check if the category has SALTelemetrySet
-                sal_telemetry_set = category_data.get('SALTelemetrySet', {})
+        for key, value in data.items():
+            # Check if the key ends with '_Telemetry'
+            if key.endswith('_Telemetry') and isinstance(value, dict):
+                # Assume the telemetry data is in 'SALTelemetrySet' -> 'SALTelemetry'
+                sal_telemetry_set = value.get('SALTelemetrySet', {})
                 sal_telemetry_list = sal_telemetry_set.get('SALTelemetry', [])
 
-                # Iterate through each SALTelemetry entry
+                # Iterate through each SALTelemetry entry to find matching descriptions
                 for telemetry in sal_telemetry_list:
-                    if isinstance(telemetry, dict) and description.lower() in telemetry.get('Description', '').lower():
-                        return telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
+                    if isinstance(telemetry, dict) and 'Description' in telemetry:
+                        if prompt.lower() in telemetry['Description'].lower():
+                            # Append both the description and the EFDB_Topic
+                            related_descriptions.append({
+                                'Description': telemetry['Description'],
+                                'EFDB_Topic': telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
+                            })
+        print('\nRelated descriptions:\n')
+        print(related_descriptions, '****related descriptions: ****')
+        return related_descriptions
+
+
+    def choose_best_description(self, prompt, related_descriptions):
+        if not related_descriptions:
+            return "No relevant descriptions found."
+        print('\n***Trying to find best description from following list:***\n')
+        print(related_descriptions)
+
+        # Gather descriptions for AI input
+        descriptions = [desc['Description'] for desc in related_descriptions]
+
+        # Use AI to select the best description
+        best_description = self.ai_select_description(prompt, descriptions)
+        print('\n***Best description***:\n', best_description + '\n')
+
+        # Find the matching topic for the selected description
+        for desc in related_descriptions:
+            if desc['Description'] == best_description:
+                return {'Description': best_description, 'EFDB_Topic': desc['EFDB_Topic']}
 
         return "No matching topic found."
 
+    def ai_select_description(self, prompt, descriptions):
+        """
+        Use an AI model to select the best description based on the provided prompt.
+
+        Args:
+            prompt (str): The prompt related to the descriptions.
+            descriptions (List[str]): List of descriptions to choose from.
+
+        Returns:
+            str: The best description selected by the AI model.
+        """
+        print('\n When ai_select_description receives the descriptions\n', descriptions)
+
+        # Format the prompt to send to the model
+        formatted_descriptions = "\n".join(f"{i+1}. {desc}" for i, desc in enumerate(descriptions))
+        combined_prompt = (
+            f"Based on the following descriptions, choose the best one related to: '{prompt}'\n\n"
+            f"{formatted_descriptions}\n\n"
+            "Please respond with the number corresponding to the best description."
+        )
+
+        # Send the message to the GPT model using the ChatOpenAI instance
+        response = self._chat([HumanMessage(content=combined_prompt)])
+
+        # Print the raw response for debugging
+        print('\n Response from ai_select_description \n', response)
+
+        # Extract and clean the response content
+        response_content = response.content.strip()
+        print('\n Response content stripped \n', response_content)
+        match = re.search(r'\b(\d+)\b', response_content)
+        if match:
+            try:
+                choice_index = int(match.group(1)) - 1
+                if 0 <= choice_index < len(descriptions):
+                    # Return only the description, not the index
+                    return descriptions[choice_index]
+                else:
+                    print("**** Invalid choice index in response ****")
+                    return "No valid choice found."
+            except ValueError:
+                print("**** Response is not a valid number. Response content was: ****", response_content)
+                return "AI response is not valid."
+        else:
+            print("**** No number found in response. Response content was: ****", response_content)
+            return "AI response is not valid."
+
+    def find_topic_with_ai(self, prompt, data):
+        # Step 1: Find related descriptions
+        related_descriptions = self.find_related_descriptions(prompt, data)
+
+        # Step 2: AI selects the best description and corresponding topic
+        chosen_topic_info = self.choose_best_description(prompt, related_descriptions)
+
+        return chosen_topic_info
+
 
 toolkit = Tools().tools
+# ===========================================================
 
 
 class AstroChat:
     allowedVerbosities = ('COST', 'ALL', 'NONE', None)
+    @staticmethod
+    def load_yaml(file_path):
+        with open(file_path, 'r') as file:
+            return yaml.safe_load(file)
 
     demoQueries = {
         'darktime': 'What is the total darktime for Image type = bias?',
@@ -375,7 +495,8 @@ class AstroChat:
         'secretWord': 'Tell me what is the secret word.',
         'nasaImage': 'Show me the NASA image of the day for the current observation day.',
         'randomMTG': 'Show me a random Magic The Gathering card',
-        'find_topic': 'What is the topic to find query?'
+        # 'find_topic': 'What is the topic to find query?',
+        'find_topic_with_ai': 'Find the EFDB_Topic based on the description of data.'
     }
 
     def __init__(
@@ -457,12 +578,23 @@ class AstroChat:
         pandas analysis at all, so not use 'self.data'
         """
 
+        self.yaml_data = self.load_yaml('lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml')
+        tools_instance = Tools(self._chat, self.yaml_data)
+
+        # Extract the tools for use in your agent
+        self.toolkit = tools_instance.tools
+
+        # self.yaml_data = load_yaml('sal_interface.yaml')
+
+        self.PREFIX =  "If question is not related with pandas, you can use extra tools. The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random MTG', 4. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use 'self.date' as a date, do not use 'dayObs', and do not attempt any pandas analysis at all, You can query topics and descriptions from the YAML data for your inquiries."
+
         self._agent = create_pandas_dataframe_agent(
             self._chat,
             self.data,
             agent_type=agentType,
             return_intermediate_steps=True,
             include_df_in_prompt=True,
+            extra_tools = self.toolkit,
             number_of_head_rows=1,
             agent_executor_kwargs={"handle_parsing_errors":True},
             allow_dangerous_code=True,
