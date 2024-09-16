@@ -290,6 +290,11 @@ class AstroChat:
 
         self.data = getObservingData(dayObs)
 
+        prefix = (
+            "You are running in an interactive environment, so if users ask for plots, making them will show"
+            " them correctly."
+        )
+
         self._agent = create_pandas_dataframe_agent(
             self._chat,
             self.data,
@@ -297,7 +302,8 @@ class AstroChat:
             include_df_in_prompt=True,
             number_of_head_rows=1,
             agent_executor_kwargs={"handle_parsing_errors":True},
-            allow_dangerous_code=True
+            allow_dangerous_code=True,
+            prefix=prefix
         )
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter()
