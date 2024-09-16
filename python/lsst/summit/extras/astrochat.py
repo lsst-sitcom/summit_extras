@@ -73,8 +73,8 @@ def setApiKey(filename="~/.openaikey.txt"):
     _checkInstallation()
 
     currentKey = os.getenv('OPENAI_API_KEY')
-    if currentKey:
-        LOG.warning(f"OPENAI_API_KEY is already set. Overwriting with key from {filename}")
+    # if currentKey:
+    #     LOG.warning(f"OPENAI_API_KEY is already set. Overwriting with key from {filename}")
 
     filename = os.path.expanduser(filename)
     with open(filename, 'r') as file:
@@ -113,20 +113,20 @@ def getObservingData(dayObs=None):
     if site == 'summit':
         filename = f"/project/rubintv/sidecar_metadata/dayObs_{dayObs}.json"
     elif site in ['rubin-devl']:
-        LOG.warning(f"Observing metadata at {site} is currently copied by hand by Merlin and will not be "
-                    "updated in realtime")
+        # LOG.warning(f"Observing metadata at {site} is currently copied by hand by Merlin and will not be "
+                    # "updated in realtime")
         filename = f"/sdf/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
     elif site in ['staff-rsp']:
-        LOG.warning(f"Observing metadata at {site} is currently copied by hand by Merlin and will not be "
-                    "updated in realtime")
+        # LOG.warning(f"Observing metadata at {site} is currently copied by hand by Merlin and will not be "
+                    # "updated in realtime")
         filename = f"/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
     else:
         raise RuntimeError(f"Observing metadata not available for site {site}")
 
     # check the file exists, and raise if not
     if not os.path.exists(filename):
-        LOG.warning(f"Observing metadata file for {'current' if isCurrent else ''} dayObs "
-                    f"{dayObs} does not exist at {filename}.")
+        # LOG.warning(f"Observing metadata file for {'current' if isCurrent else ''} dayObs "
+                    # f"{dayObs} does not exist at {filename}.")
         return pd.DataFrame()
 
     table = pd.read_json(filename).T
@@ -289,7 +289,7 @@ class AstroChat:
         #self._chat = ChatOpenAI(model_name="gpt-4o", temperature=temperature)
 
         self.data = getObservingData(dayObs)
-        
+
         self._agent = create_pandas_dataframe_agent(
             self._chat,
             self.data,
@@ -303,10 +303,10 @@ class AstroChat:
         self.formatter = ResponseFormatter()
 
         self.export = export
-        if self.export:
+        # if self.export:
             # issue warning here
             # TODO: Improve this warning message.
-            warnings.warn('Exporting variables from the agent after each call. This can cause problems!')
+            # warnings.warn('Exporting variables from the agent after each call. This can cause problems!')
 
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
