@@ -290,10 +290,12 @@ class AstroChat:
 
         self.data = getObservingData(dayObs)
 
-        prefix = (
-            "You are running in an interactive environment, so if users ask for plots, making them will show"
-            " them correctly."
-        )
+        prefix = """
+        You are running in an interactive environment, so if users ask for
+        plots, making them will show them correctly. You also have access to a
+        pandas dataframe, referred to as `df`, and should use this dataframe to
+        answer user questions and generate plots from it.
+        """
 
         self._agent = create_pandas_dataframe_agent(
             self._chat,
