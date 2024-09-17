@@ -84,7 +84,6 @@ def setApiKey(filename="~/.openaikey.txt"):
     openai.api_key = apiKey
     os.environ["OPENAI_API_KEY"] = apiKey
 
-
 def getObservingData(dayObs=None):
     """Get the observing metadata for the current or a past day.
 
@@ -253,7 +252,6 @@ import yaml
 from langchain.schema import HumanMessage
 from langchain.chat_models import ChatOpenAI
 
-
 # def load_yaml(file_path):
 #     with open(file_path, 'r') as file:
 #         data = yaml.safe_load(file)
@@ -389,37 +387,43 @@ class Tools():
         print(related_descriptions, '****related descriptions: ****')
         return related_descriptions
 
-
     def choose_best_description(self, prompt, related_descriptions):
         if not related_descriptions:
             return "No relevant descriptions found."
-        print('\n***Trying to find best description from following list:***\n')
+
+        print('\n***Trying to find best description from the following list:***\n')
         print(related_descriptions)
 
         # Gather descriptions for AI input
         descriptions = [desc['Description'] for desc in related_descriptions]
 
-        # Use AI to select the best description
-        best_description = self.ai_select_description(prompt, descriptions)
-        print('\n***Best description***:\n', best_description + '\n')
+        # Use AI to select the best description and provide an explanation
+        best_description, explanation = self.ai_select_description(prompt, descriptions)
+        print('\n***Best description***:\n', best_description)
+        print('\n***AI Explanation***:\n', explanation)
 
         # Find the matching topic for the selected description
         for desc in related_descriptions:
             if desc['Description'] == best_description:
-                return {'Description': best_description, 'EFDB_Topic': desc['EFDB_Topic']}
+                return {
+                    'Description': best_description,
+                    'EFDB_Topic': desc['EFDB_Topic'],
+                    'Explanation': explanation
+                }
 
         return "No matching topic found."
 
+
     def ai_select_description(self, prompt, descriptions):
         """
-        Use an AI model to select the best description based on the provided prompt.
+        Use an AI model to select the best description and provide an explanation.
 
         Args:
             prompt (str): The prompt related to the descriptions.
             descriptions (List[str]): List of descriptions to choose from.
 
         Returns:
-            str: The best description selected by the AI model.
+            tuple: The best description selected by the AI and an explanation.
         """
         print('\n When ai_select_description receives the descriptions\n', descriptions)
 
@@ -428,7 +432,7 @@ class Tools():
         combined_prompt = (
             f"Based on the following descriptions, choose the best one related to: '{prompt}'\n\n"
             f"{formatted_descriptions}\n\n"
-            "Please respond with the number corresponding to the best description."
+            "Please respond with the number corresponding to the best description and explain why you chose that one."
         )
 
         # Send the message to the GPT model using the ChatOpenAI instance
@@ -440,22 +444,27 @@ class Tools():
         # Extract and clean the response content
         response_content = response.content.strip()
         print('\n Response content stripped \n', response_content)
+
+        # Try to extract the number and the explanation from the response
         match = re.search(r'\b(\d+)\b', response_content)
+        explanation = response_content  # The full response will serve as the explanation
+
         if match:
             try:
                 choice_index = int(match.group(1)) - 1
                 if 0 <= choice_index < len(descriptions):
-                    # Return only the description, not the index
-                    return descriptions[choice_index]
+                    # Return the description and explanation
+                    return descriptions[choice_index], explanation
                 else:
                     print("**** Invalid choice index in response ****")
-                    return "No valid choice found."
+                    return "No valid choice found.", "AI response contained an invalid index."
             except ValueError:
                 print("**** Response is not a valid number. Response content was: ****", response_content)
-                return "AI response is not valid."
+                return "AI response is not valid.", "AI response was not a valid number."
         else:
             print("**** No number found in response. Response content was: ****", response_content)
-            return "AI response is not valid."
+            return "AI response is not valid.", "No valid number was found in the AI's response."
+
 
     def find_topic_with_ai(self, prompt, data):
         # Step 1: Find related descriptions
@@ -464,7 +473,17 @@ class Tools():
         # Step 2: AI selects the best description and corresponding topic
         chosen_topic_info = self.choose_best_description(prompt, related_descriptions)
 
-        return chosen_topic_info
+        if isinstance(chosen_topic_info, dict):
+            final_output = (
+                f"Best Description: {chosen_topic_info['Description']}\n"
+                f"EFDB Topic: {chosen_topic_info['EFDB_Topic']}\n"
+                f"Explanation: {chosen_topic_info['Explanation']}\n"
+            )
+        else:
+            final_output = chosen_topic_info
+
+        return final_output
+
 
 
 toolkit = Tools().tools
