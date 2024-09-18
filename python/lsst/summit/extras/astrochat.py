@@ -399,7 +399,7 @@ class AstroChat:
 
         if self.export:
             self.exportLocalVariables()
-        return responses
+        return
 
     def _addUsageAndDisplay(self, cb):
         self._totalCallbacks.total_cost += cb.total_cost
