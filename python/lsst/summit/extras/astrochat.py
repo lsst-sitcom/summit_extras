@@ -204,6 +204,19 @@ class ResponseFormatter:
         output = response["output"]
         print(f'\nFinal answer: {output}')
 
+    @staticmethod
+    def pprint(responses):
+        print(f"Length of responses: {len(responses)}")
+        steps = responses['intermediate_steps']
+        print(f"with {len(steps)} steps\n")
+        for stepNum, step in enumerate(steps):
+            action, logs = step
+            if action.tool == 'python_repl_ast':
+                code = action.tool_input['query']
+                print(f"Step {stepNum + 1}")
+                display(Markdown(f"```python\n{code}\n```"))
+                print(f"logs: {logs}")
+
     def __call__(self, response):
         """Format the response for notebook display.
 
@@ -217,11 +230,11 @@ class ResponseFormatter:
         formattedResponse : `str`
             The formatted response.
         """
-        self.printResponse(response)
+        self.pprint(response)
+        return
         allCode = self.allCode
         self.allCode = []
         return allCode
-
 
 class AstroChat:
     allowedVerbosities = ('COST', 'ALL', 'NONE', None)
@@ -300,6 +313,7 @@ class AstroChat:
         self._agent = create_pandas_dataframe_agent(
             self._chat,
             self.data,
+            agent_type="tool-calling",
             return_intermediate_steps=True,
             include_df_in_prompt=True,
             number_of_head_rows=1,
@@ -385,7 +399,7 @@ class AstroChat:
 
         if self.export:
             self.exportLocalVariables()
-        return code
+        return responses
 
     def _addUsageAndDisplay(self, cb):
         self._totalCallbacks.total_cost += cb.total_cost
