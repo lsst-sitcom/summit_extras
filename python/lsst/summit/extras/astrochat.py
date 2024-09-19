@@ -40,6 +40,7 @@ import langchain_experimental
 from langchain_openai import ChatOpenAI
 from langchain_community.callbacks import get_openai_callback  # noqa: E402
 from langchain_experimental.agents import create_pandas_dataframe_agent
+from langchain.agents import AgentType
 
 
 try:
@@ -148,7 +149,8 @@ class ResponseFormatter:
     chatbot. The __call__ method formats the response as a markdown table.
     """
 
-    def __init__(self):
+    def __init__(self, agentType):
+        self.agentType = agentType
         self.allCode = []
 
     @staticmethod
@@ -230,11 +232,16 @@ class ResponseFormatter:
         formattedResponse : `str`
             The formatted response.
         """
-        self.pprint(response)
-        return
-        allCode = self.allCode
-        self.allCode = []
-        return allCode
+        if self.agentType == 'tool-calling':
+            self.pprint(response)
+            return
+        elif self.agentType == 'ZERO_SHOT_REACT_DESCRIPTION':
+            self.printResponse(response)
+            allCode = self.allCode
+            self.allCode = []
+            return allCode
+        else:
+            raise ValueError(f"Unknown agent type: {self.agentType}")
 
 class AstroChat:
     allowedVerbosities = ('COST', 'ALL', 'NONE', None)
@@ -255,11 +262,14 @@ class AstroChat:
         'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.'
     }
 
-    def __init__(self,
-                 dayObs=None,
-                 export=False,
-                 temperature=0.0,
-                 verbosity='COST'):
+    def __init__(
+            self,
+            dayObs=None,
+            export=False,
+            temperature=0.0,
+            verbosity='COST',
+            agentType='tool-calling',
+        ):
         """Create an ASTROCHAT bot.
 
         ASTROCHAT: "Advanced Systems for Telemetry-Linked Realtime Observing
@@ -294,6 +304,11 @@ class AstroChat:
         verbosity : `str`, optional
             The verbosity level of the interface. Allowed values are 'COST',
             'ALL', and 'NONE'. The default is 'COST'.
+        agentType : `str`, optional
+            One of ["tool-calling", "ZERO_SHOT_REACT_DESCRIPTION"]. Specifies the
+            agent type, either the new "tool-calling" type, or the old
+            AgentType.ZERO_SHOT_REACT_DESCRIPTION type. For convenience, both are
+            specified as strings.
         """
         _checkInstallation()
         self.setVerbosityLevel(verbosity)
@@ -302,6 +317,10 @@ class AstroChat:
         #self._chat = ChatOpenAI(model_name="gpt-4o", temperature=temperature)
 
         self.data = getObservingData(dayObs)
+        assert agentType in ("tool-calling", "ZERO_SHOT_REACT_DESCRIPTION")
+        self.agentType = agentType
+        if agentType == "ZERO_SHOT_REACT_DESCRIPTION":
+            agentType = AgentType.ZERO_SHOT_REACT_DESCRIPTION
 
         prefix = """
         You are running in an interactive environment, so if users ask for
@@ -313,7 +332,7 @@ class AstroChat:
         self._agent = create_pandas_dataframe_agent(
             self._chat,
             self.data,
-            agent_type="tool-calling",
+            agent_type=agentType,
             return_intermediate_steps=True,
             include_df_in_prompt=True,
             number_of_head_rows=1,
@@ -322,7 +341,7 @@ class AstroChat:
             prefix=prefix
         )
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
-        self.formatter = ResponseFormatter()
+        self.formatter = ResponseFormatter(agentType=self.agentType)
 
         self.export = export
         # if self.export:
