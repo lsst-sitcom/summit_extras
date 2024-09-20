@@ -269,6 +269,7 @@ class AstroChat:
             temperature=0.0,
             verbosity='COST',
             agentType='tool-calling',
+            modelName='gpt-4-1106-preview',
         ):
         """Create an ASTROCHAT bot.
 
@@ -305,15 +306,19 @@ class AstroChat:
             The verbosity level of the interface. Allowed values are 'COST',
             'ALL', and 'NONE'. The default is 'COST'.
         agentType : `str`, optional
-            One of ["tool-calling", "ZERO_SHOT_REACT_DESCRIPTION"]. Specifies the
-            agent type, either the new "tool-calling" type, or the old
-            AgentType.ZERO_SHOT_REACT_DESCRIPTION type. For convenience, both are
-            specified as strings.
+            One of ["tool-calling", "ZERO_SHOT_REACT_DESCRIPTION"]. Specifies
+            the agent type, either the new "tool-calling" type, or the old
+            AgentType.ZERO_SHOT_REACT_DESCRIPTION type. For convenience, both
+            are specified as strings.
+        modelName : `str`, optional
+            The name of the model to use. The default is (currently)
+            "gpt-4-1106-preview" though this may be updated in future. Must be
+            a valid OpenAI model name.
         """
         _checkInstallation()
         self.setVerbosityLevel(verbosity)
 
-        self._chat = ChatOpenAI(model_name="gpt-4-1106-preview", temperature=temperature)
+        self._chat = ChatOpenAI(model_name=modelName, temperature=temperature)
         #self._chat = ChatOpenAI(model_name="gpt-4o", temperature=temperature)
 
         self.data = getObservingData(dayObs)
