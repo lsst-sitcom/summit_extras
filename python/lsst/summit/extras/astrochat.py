@@ -84,6 +84,7 @@ def setApiKey(filename="~/.openaikey.txt"):
     openai.api_key = apiKey
     os.environ["OPENAI_API_KEY"] = apiKey
 
+
 def getObservingData(dayObs=None):
     """Get the observing metadata for the current or a past day.
 
@@ -251,6 +252,10 @@ import requests
 import yaml
 from langchain.schema import HumanMessage
 from langchain.chat_models import ChatOpenAI
+import annoy
+from annoy import AnnoyIndex
+import numpy as np
+
 
 # def load_yaml(file_path):
 #     with open(file_path, 'r') as file:
@@ -262,6 +267,9 @@ class Tools():
     def __init__(self, chat_model, data) -> None:
         self.data = data
         self._chat = chat_model
+        yaml_file_path = 'lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml'
+        self.data = self.load_yaml(yaml_file_path)
+        self.index = self.build_annoy_index()
 
         self.tools = [
             Tool(
@@ -286,9 +294,7 @@ class Tools():
             ),
             Tool(
                 name="YAML Topic Finder",
-                func=self.find_topic,
-                description="Finds the topic in the YAML file based on the description provided."
-                func=lambda prompt: self.find_topic_with_ai(prompt, self.data),
+                func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI."
             )
             # Tool(
@@ -341,149 +347,86 @@ class Tools():
         with open(file_path, 'r') as file:
             return yaml.safe_load(file)
 
-    ##string based search
-    # def find_topic(self, description):
-    #     # Load the YAML data
-    #     with open('lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml', 'r') as file:
-    #         yaml_data = yaml.safe_load(file)
+    def build_annoy_index(self):
+        index = AnnoyIndex(512, 'angular')  # Adjust the vector length based on your embeddings
+        self.descriptions = []  # Store descriptions and topics for later use
 
-    #     # Iterate over all top-level keys in the YAML data
-    #     for category, category_data in yaml_data.items():
-    #         # We're only interested in categories that end with "_Telemetry"
-    #         if category.endswith('_Telemetry') and isinstance(category_data, dict):
-    #             # Check if the category has SALTelemetrySet
-    #             sal_telemetry_set = category_data.get('SALTelemetrySet', {})
-    #             sal_telemetry_list = sal_telemetry_set.get('SALTelemetry', [])
+        # Iterate over all entries in the loaded YAML data
+        for telemetry_name, telemetry_data in self.data.items():
+            # Check if the telemetry name ends with '_Telemetry'
+            if telemetry_name.endswith('_Telemetry') and isinstance(telemetry_data, dict):
+                if 'SALTelemetrySet' in telemetry_data:
+                    sal_telemetry_set = telemetry_data['SALTelemetrySet']
+                    if 'SALTelemetry' in sal_telemetry_set:
+                        for telemetry in sal_telemetry_set['SALTelemetry']:
+                            if isinstance(telemetry, dict):
+                                description = telemetry.get('Description')
+                                efdb_topic = telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
+                                if description:
+                                    vector = self.embed_description(description)  # Convert description to vector
+                                    index.add_item(len(self.descriptions), vector)
+                                    # Keep track of the description and its corresponding EFDB topic
+                                    self.descriptions.append((description, efdb_topic))
 
-    #             # Iterate through each SALTelemetry entry
-    #             for telemetry in sal_telemetry_list:
-    #                 if isinstance(telemetry, dict) and description.lower() in telemetry.get('Description', '').lower():
-    #                     return telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
+        index.build(10)  # Build the Annoy index with 10 trees
+        # print(self.descriptions, "************Description after annoy build**********")
+        return index
 
-    #     return "No matching topic found."
+    def embed_description(self, description: str):
+        # Placeholder for an actual embedding function
+        # You should replace this with an actual embedding logic
+        return np.random.rand(512).astype('float32').tolist()  # Example: random vector
 
-    def find_related_descriptions(self, prompt, data):
-        related_descriptions = []
-        print('Prompt before find a related descriptions:\n' + prompt + '\n')
+    def find_topic_with_ai(self, prompt: str):
+        query_vector = self.embed_description(prompt)  # Convert prompt to vector
+        nearest_indices = self.index.get_nns_by_vector(query_vector, 5)  # Get 5 nearest neighbors
 
-        # Iterate over all top-level keys in the YAML data
-        for key, value in data.items():
-            # Check if the key ends with '_Telemetry'
-            if key.endswith('_Telemetry') and isinstance(value, dict):
-                # Assume the telemetry data is in 'SALTelemetrySet' -> 'SALTelemetry'
-                sal_telemetry_set = value.get('SALTelemetrySet', {})
-                sal_telemetry_list = sal_telemetry_set.get('SALTelemetry', [])
+        # Filter descriptions based on keywords from the prompt
+        filtered_indices = self.filter_descriptions_based_on_keywords(prompt, nearest_indices)
 
-                # Iterate through each SALTelemetry entry to find matching descriptions
-                for telemetry in sal_telemetry_list:
-                    if isinstance(telemetry, dict) and 'Description' in telemetry:
-                        if prompt.lower() in telemetry['Description'].lower():
-                            # Append both the description and the EFDB_Topic
-                            related_descriptions.append({
-                                'Description': telemetry['Description'],
-                                'EFDB_Topic': telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
-                            })
-        print('\nRelated descriptions:\n')
-        print(related_descriptions, '****related descriptions: ****')
-        return related_descriptions
+        # Use AI to select the best description and topic from filtered indices
+        chosen_topic_info = self.choose_best_description(filtered_indices)
+        return chosen_topic_info
 
-    def choose_best_description(self, prompt, related_descriptions):
-        if not related_descriptions:
+    def filter_descriptions_based_on_keywords(self, prompt: str, indices):
+        keywords = prompt.lower().split()  # Simple keyword extraction
+        filtered_indices = []
+
+        for i in indices:
+            description, _ = self.descriptions[i]
+            if any(keyword in description.lower() for keyword in keywords):
+                filtered_indices.append(i)
+
+        return filtered_indices if filtered_indices else indices  # Fallback to original indices if none match
+
+    def choose_best_description(self, indices):
+        if not indices:
             return "No relevant descriptions found."
 
-        print('\n***Trying to find best description from the following list:***\n')
-        print(related_descriptions)
+        best_descriptions = [self.descriptions[i] for i in indices]
+        descriptions_text = "\n".join(f"{i + 1}. {desc[0]}" for i, desc in enumerate(best_descriptions))
 
-        # Gather descriptions for AI input
-        descriptions = [desc['Description'] for desc in related_descriptions]
-
-        # Use AI to select the best description and provide an explanation
-        best_description, explanation = self.ai_select_description(prompt, descriptions)
-        print('\n***Best description***:\n', best_description)
-        print('\n***AI Explanation***:\n', explanation)
-
-        # Find the matching topic for the selected description
-        for desc in related_descriptions:
-            if desc['Description'] == best_description:
-                return {
-                    'Description': best_description,
-                    'EFDB_Topic': desc['EFDB_Topic'],
-                    'Explanation': explanation
-                }
-
-        return "No matching topic found."
-
-
-    def ai_select_description(self, prompt, descriptions):
-        """
-        Use an AI model to select the best description and provide an explanation.
-
-        Args:
-            prompt (str): The prompt related to the descriptions.
-            descriptions (List[str]): List of descriptions to choose from.
-
-        Returns:
-            tuple: The best description selected by the AI and an explanation.
-        """
-        print('\n When ai_select_description receives the descriptions\n', descriptions)
-
-        # Format the prompt to send to the model
-        formatted_descriptions = "\n".join(f"{i+1}. {desc}" for i, desc in enumerate(descriptions))
         combined_prompt = (
-            f"Based on the following descriptions, choose the best one related to: '{prompt}'\n\n"
-            f"{formatted_descriptions}\n\n"
-            "Please respond with the number corresponding to the best description and explain why you chose that one."
+            f"Based on the following descriptions, choose the best one related to your prompt:\n\n"
+            f"{descriptions_text}\n\n"
+            f"Choose the best description and explain why you selected that one."
         )
 
-        # Send the message to the GPT model using the ChatOpenAI instance
-        response = self._chat([HumanMessage(content=combined_prompt)])
-
-        # Print the raw response for debugging
-        print('\n Response from ai_select_description \n', response)
-
-        # Extract and clean the response content
+        response = self._chat([HumanMessage(content=combined_prompt)])  # AI chat function placeholder
         response_content = response.content.strip()
-        print('\n Response content stripped \n', response_content)
 
-        # Try to extract the number and the explanation from the response
-        match = re.search(r'\b(\d+)\b', response_content)
-        explanation = response_content  # The full response will serve as the explanation
+        # Attempt to extract explanation and chosen topic
+        explanation_match = re.search(r'^(.*?)(?=\n\d+\.|$)', response_content)
+        topic_match = re.search(r'\b(\d+)\b', response_content)
 
-        if match:
-            try:
-                choice_index = int(match.group(1)) - 1
-                if 0 <= choice_index < len(descriptions):
-                    # Return the description and explanation
-                    return descriptions[choice_index], explanation
-                else:
-                    print("**** Invalid choice index in response ****")
-                    return "No valid choice found.", "AI response contained an invalid index."
-            except ValueError:
-                print("**** Response is not a valid number. Response content was: ****", response_content)
-                return "AI response is not valid.", "AI response was not a valid number."
-        else:
-            print("**** No number found in response. Response content was: ****", response_content)
-            return "AI response is not valid.", "No valid number was found in the AI's response."
+        if topic_match:
+            choice_index = int(topic_match.group(1)) - 1
+            if 0 <= choice_index < len(best_descriptions):
+                best_description, topic = best_descriptions[choice_index]
+                explanation = explanation_match.group(1) if explanation_match else "No explanation provided."
+                return f"Best Description: {best_description}\nEFDB Topic: {topic}\nExplanation: {explanation}"
 
-
-    def find_topic_with_ai(self, prompt, data):
-        # Step 1: Find related descriptions
-        related_descriptions = self.find_related_descriptions(prompt, data)
-
-        # Step 2: AI selects the best description and corresponding topic
-        chosen_topic_info = self.choose_best_description(prompt, related_descriptions)
-
-        if isinstance(chosen_topic_info, dict):
-            final_output = (
-                f"Best Description: {chosen_topic_info['Description']}\n"
-                f"EFDB Topic: {chosen_topic_info['EFDB_Topic']}\n"
-                f"Explanation: {chosen_topic_info['Explanation']}\n"
-            )
-        else:
-            final_output = chosen_topic_info
-
-        return final_output
-
+        return f"AI response could not be parsed. Raw response: {response_content}"
 
 
 toolkit = Tools().tools
