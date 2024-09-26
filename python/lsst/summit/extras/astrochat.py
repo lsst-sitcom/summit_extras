@@ -25,6 +25,8 @@ import pandas as pd
 import re
 import warnings
 import inspect
+import yaml
+import numpy as np
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils.iteration import ensure_iterable
@@ -33,13 +35,22 @@ from IPython.display import display, Markdown, Image
 INSTALL_NEEDED = False
 LOG = logging.getLogger(__name__)
 
-# TODO: work out a way to protect all of these imports
 import langchain  # noqa: E402
 import langchain_community
 import langchain_experimental
 from langchain_openai import ChatOpenAI
 from langchain_community.callbacks import get_openai_callback  # noqa: E402
 from langchain_experimental.agents import create_pandas_dataframe_agent
+from langchain.tools import BaseTool, StructuredTool, tool
+from langchain.agents import Tool
+from datetime import datetime
+
+from sentence_transformers import SentenceTransformer 
+
+from langchain.schema import HumanMessage
+from langchain.chat_models import ChatOpenAI
+from annoy import AnnoyIndex
+
 
 
 try:
@@ -222,112 +233,34 @@ class ResponseFormatter:
         self.allCode = []
         return allCode
 
-
 # =========================================================== CUSTOM TOOL
-from langchain.tools import BaseTool, StructuredTool, tool
-from langchain.agents import Tool
-from datetime import datetime
-import requests
-import yaml
-from langchain.schema import HumanMessage
-from langchain.chat_models import ChatOpenAI
-import annoy
-from annoy import AnnoyIndex
-import numpy as np
 
-
-# def load_yaml(file_path):
-#     with open(file_path, 'r') as file:
-#         data = yaml.safe_load(file)
-#     return data
-
-
-class Tools():
-    def __init__(self, chat_model, data) -> None:
-        self.data = data
+class Tools:
+    def __init__(self, chat_model, yaml_file_path) -> None:
         self._chat = chat_model
-        yaml_file_path = 'lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml'
+        base_dir = os.path.dirname(os.path.abspath(__file__))  # Get the directory of the current script
+        yaml_file_path = os.path.join(base_dir, 'sal_interface.yaml')
         self.data = self.load_yaml(yaml_file_path)
+        self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
         self.index = self.build_annoy_index()
-    
+
         self.tools = [
-            Tool(
-                name = "Secret Word",
-                func = self.secret_word,
-                description = "Useful for when you need to answer what is the secret word"
-            ),
-            Tool(
-                name = "NASA Image",
-                func = self.nasa_image,
-                description = "Useful for when you need to answer what is the NASA image of the day for a given date (self.date)"
-            ),
-            Tool(
-                name = "Random MTG",
-                func = self.random_mtg_card,
-                description = "Useful for when you need to show a random Magic The Gathering card"
-            ),
             Tool(
                 name="YAML Topic Finder",
                 func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI."
             )
-            # Tool(
-            #     name="YAML Topic Finder",
-            #     func=self.find_topic,
-            #     description="Finds the topic in the YAML file based on the description provided."
-            # )
         ]
 
-    
-    @staticmethod
-    def secret_word(self):
-        return "The secret word is 'Rubin'"
-
-    
-    def nasa_image(self, date):     
-        # NASA API URL
-        url = f"https://api.nasa.gov/planetary/apod?date={date}&api_key=GXacxntSzk6wpkUmDVw4L1Gfgt4kF6PzZrmSNWBb"
-        
-        # Make the API request
-        response = requests.get(url)
-        data = response.json()
-        
-        # Check if the response contains an image URL
-        if 'url' in data:
-            image_url = data['url']
-            
-            # Display the image directly in the notebook
-            display(Image(url=image_url))
-            return image_url
-            
-        else:
-            print("No image available for this date.")
-            return None
-
-    
-    @staticmethod
-    def random_mtg_card(self):
-        url = 'https://api.scryfall.com/cards/random'
-        response = requests.get(url)
-        data = response.json()
-
-        image_url = data['image_uris']['normal']
-
-        display(Image(url=image_url))
-
-        return image_url
-    
     def load_yaml(self, file_path):
         with open(file_path, 'r') as file:
             return yaml.safe_load(file)
 
     def build_annoy_index(self):
-        index = AnnoyIndex(512, 'angular')  # Adjust the vector length based on your embeddings
+        index = AnnoyIndex(384, 'angular')  # Adjust the vector length based on your embeddings
         self.descriptions = []  # Store descriptions and topics for later use
 
-        # Iterate over all entries in the loaded YAML data
         for telemetry_name, telemetry_data in self.data.items():
-            # Check if the telemetry name ends with '_Telemetry'
             if telemetry_name.endswith('_Telemetry') and isinstance(telemetry_data, dict):
                 if 'SALTelemetrySet' in telemetry_data:
                     sal_telemetry_set = telemetry_data['SALTelemetrySet']
@@ -339,39 +272,81 @@ class Tools():
                                 if description:
                                     vector = self.embed_description(description)  # Convert description to vector
                                     index.add_item(len(self.descriptions), vector)
-                                    # Keep track of the description and its corresponding EFDB topic
                                     self.descriptions.append((description, efdb_topic))
 
         index.build(10)  # Build the Annoy index with 10 trees
-        # print(self.descriptions, "************Description after annoy build**********")
         return index
 
+    # def build_annoy_index(self):
+    #     index = AnnoyIndex(384, 'angular')  # 'all-MiniLM-L6-v2' model produces 384-dimensional embeddings
+    #     self.descriptions = []  # Store descriptions and topics for later use
+
+    #     for key, value in self.data.items():
+    #         if isinstance(value, dict):
+    #             if key.endswith('_Telemetry'):
+    #                 sets = value.get('SALTelemetrySet', {}).get('SALTelemetry', [])
+    #             elif key.endswith('_Commands'):
+    #                 sets = value.get('SALCommandSet', {}).get('SALCommand', [])
+    #             elif key.endswith('_Events'):
+    #                 sets = value.get('SALEventSet', {}).get('SALEvent', [])
+    #             else:
+    #                 continue
+
+    #             for item in sets:
+    #                 if isinstance(item, dict):
+    #                     description = item.get('Description')
+    #                     efdb_topic = item.get('EFDB_Topic', 'No EFDB_Topic found')
+    #                     if description:
+    #                         vector = self.embed_description(description)  # Convert description to vector
+    #                         index.add_item(len(self.descriptions), vector)
+    #                         self.descriptions.append((description, efdb_topic))
+
+    #     index.build(10)  # Build the Annoy index with 10 trees
+    #     return index
+    
     def embed_description(self, description: str):
-        # Placeholder for an actual embedding function
-        # You should replace this with an actual embedding logic
-        return np.random.rand(512).astype('float32').tolist()  # Example: random vector
+        return self.sentence_model.encode(description).tolist() 
 
     def find_topic_with_ai(self, prompt: str):
         query_vector = self.embed_description(prompt)  # Convert prompt to vector
         nearest_indices = self.index.get_nns_by_vector(query_vector, 5)  # Get 5 nearest neighbors
 
-        # Filter descriptions based on keywords from the prompt
         filtered_indices = self.filter_descriptions_based_on_keywords(prompt, nearest_indices)
-
-        # Use AI to select the best description and topic from filtered indices
         chosen_topic_info = self.choose_best_description(filtered_indices)
         return chosen_topic_info
 
     def filter_descriptions_based_on_keywords(self, prompt: str, indices):
         keywords = prompt.lower().split()  # Simple keyword extraction
-        filtered_indices = []
+        filtered_indices = [i for i in indices if any(keyword in self.descriptions[i][0].lower() for keyword in keywords)]
+        return filtered_indices if filtered_indices else indices
 
-        for i in indices:
-            description, _ = self.descriptions[i]
-            if any(keyword in description.lower() for keyword in keywords):
-                filtered_indices.append(i)
+    # def choose_best_description(self, indices):
+    #     if not indices:
+    #         return "No relevant descriptions found."
 
-        return filtered_indices if filtered_indices else indices  # Fallback to original indices if none match
+    #     best_descriptions = [self.descriptions[i] for i in indices]
+    #     descriptions_text = "\n".join(f"{i + 1}. {desc[0]}" for i, desc in enumerate(best_descriptions))
+
+    #     combined_prompt = (
+    #         f"Based on the following descriptions, choose the best one related to your prompt:\n\n"
+    #         f"{descriptions_text}\n\n"
+    #         f"Choose the best description and explain why you selected that one."
+    #     )
+
+    #     response = self._chat([HumanMessage(content=combined_prompt)])  # AI chat function placeholder
+    #     response_content = response.content.strip()
+
+    #     explanation_match = re.search(r'^(.*?)(?=\n\d+\.|$)', response_content)
+    #     topic_match = re.search(r'\b(\d+)\b', response_content)
+
+    #     if topic_match:
+    #         choice_index = int(topic_match.group(1)) - 1
+    #         if 0 <= choice_index < len(best_descriptions):
+    #             best_description, topic = best_descriptions[choice_index]
+    #             explanation = explanation_match.group(1) if explanation_match else "No explanation provided."
+    #             return f"Best Description: {best_description}\nEFDB Topic: {topic}\nExplanation: {explanation}"
+
+    #     return f"AI response could not be parsed. Raw response: {response_content}"
 
     def choose_best_description(self, indices):
         if not indices:
@@ -386,21 +361,19 @@ class Tools():
             f"Choose the best description and explain why you selected that one."
         )
 
-        response = self._chat([HumanMessage(content=combined_prompt)])  # AI chat function placeholder
+        # Use the AI to determine the best description
+        response = self._chat([HumanMessage(content=combined_prompt)])
         response_content = response.content.strip()
 
-        # Attempt to extract explanation and chosen topic
-        explanation_match = re.search(r'^(.*?)(?=\n\d+\.|$)', response_content)
-        topic_match = re.search(r'\b(\d+)\b', response_content)
-
-        if topic_match:
-            choice_index = int(topic_match.group(1)) - 1
+        # Extract the sentence or description that was determined to be the best
+        best_match = re.search(r'(\d+)\.\s(.+)', response_content)
+        if best_match:
+            choice_index = int(best_match.group(1)) - 1
             if 0 <= choice_index < len(best_descriptions):
                 best_description, topic = best_descriptions[choice_index]
-                explanation = explanation_match.group(1) if explanation_match else "No explanation provided."
-                return f"Best Description: {best_description}\nEFDB Topic: {topic}\nExplanation: {explanation}"
+                return f"Best EFDB Topic: {topic}"
 
-        return f"AI response could not be parsed. Raw response: {response_content}"
+        return "AI response could not identify the best description."
 
 
 # toolkit = Tools().tools
@@ -409,10 +382,10 @@ class Tools():
 
 class AstroChat:
     allowedVerbosities = ('COST', 'ALL', 'NONE', None)
-    @staticmethod
-    def load_yaml(file_path):
-        with open(file_path, 'r') as file:
-            return yaml.safe_load(file)
+    # @staticmethod
+    # def load_yaml(file_path):
+    #     with open(file_path, 'r') as file:
+    #         return yaml.safe_load(file)
 
     demoQueries = {
         'darktime': 'What is the total darktime for Image type = bias?',
@@ -484,15 +457,14 @@ class AstroChat:
         self.data = getObservingData(dayObs)
         self.date = f"{str(dayObs)[:4]}-{str(dayObs)[4:6]}-{str(dayObs)[6:]}" # Convert 'AAAAMMDD' to 'AAAA-MM-DD'
 
-        self.yaml_data = self.load_yaml('lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml')
-        tools_instance = Tools(self._chat, self.yaml_data)
+        yaml_file_path = 'lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml'
+        tools_instance = Tools(self._chat, yaml_file_path)
 
-        # Extract the tools for use in your agent
         self.toolkit = tools_instance.tools
 
         # self.yaml_data = load_yaml('sal_interface.yaml')
 
-        self.PREFIX =  "If question is not related with pandas, you can use extra tools. The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random MTG', 4. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use 'self.date' as a date, do not use 'dayObs', and do not attempt any pandas analysis at all, You can query topics and descriptions from the YAML data for your inquiries."
+        self.PREFIX =  "If question is not related with pandas, you can use extra tools. The extra tools are: 1. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use 'self.date' as a date, do not use 'dayObs', and do not attempt any pandas analysis at all, You can query topics and descriptions from the YAML data for your inquiries."
         
         self._agent = create_pandas_dataframe_agent(
             self._chat,
@@ -503,6 +475,7 @@ class AstroChat:
             extra_tools = self.toolkit,
             number_of_head_rows=1,
             allow_dangerous_code=True,
+            handle_parsing_errors=True
         )
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter()
@@ -517,6 +490,12 @@ class AstroChat:
         if level not in self.allowedVerbosities:
             raise ValueError(f'Allowed values are {self.allowedVerbosities}, got {level}')
         self._verbosity = level
+
+    def refine_query(self, query):
+        messages = [{"role": "user", "content": f"Refine the following query for better search in a database: {query}"}]
+        response = self._chat.chat(messages=messages)
+        refined_query = response['choices'][0]['message']['content'].strip()
+        return refined_query
 
     def getReplTool(self):
         """Get the REPL tool from the agent.
@@ -574,8 +553,14 @@ class AstroChat:
 
     def run(self, inputStr):
         with get_openai_callback() as cb:
-            responses = self._agent.invoke({'input': inputStr})
-            # print(cb)
+            try:
+                responses = self._agent.invoke(
+                    {'input': inputStr},
+                    handle_parsing_errors=True  # Ensure robust error handling
+                )
+            except ValueError as e:
+                LOG.error(f"Agent faced a parsing error: {str(e)}")
+                return f"An error occurred while processing your request: {str(e)}"
 
         code = self.formatter(responses)
         self._addUsageAndDisplay(cb)
