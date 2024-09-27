@@ -41,6 +41,7 @@ from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
+from lsst.utils import getPackageDir
 from lsst.utils.iteration import ensure_iterable
 
 INSTALL_NEEDED = False
@@ -254,11 +255,9 @@ class ResponseFormatter:
 
 
 class Tools:
-    def __init__(self, chat_model, yaml_file_path) -> None:
+    def __init__(self, chat_model, yamlFilePath) -> None:
         self._chat = chat_model
-        base_dir = os.path.dirname(os.path.abspath(__file__))  # Get the directory of the current script
-        yaml_file_path = os.path.join(base_dir, "sal_interface.yaml")
-        self.data = self.load_yaml(yaml_file_path)
+        self.data = self.load_yaml(yamlFilePath)
         self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
         self.index = self.build_annoy_index()
 
@@ -280,11 +279,6 @@ class Tools:
                 name="Random MTG",
                 func=self.random_mtg_card,
                 description="Useful for when you need to show a random Magic The Gathering card",
-            ),
-            Tool(
-                name="YAML Topic Finder",
-                func=self.find_topic,
-                description="Finds the topic in the YAML file based on the description provided.",
             ),
             Tool(
                 name="YAML Topic Finder",
@@ -412,10 +406,6 @@ class Tools:
         return "AI response could not identify the best description."
 
 
-toolkit = Tools().tools
-# ===========================================================
-
-
 class AstroChat:
     allowedVerbosities = ("COST", "ALL", "NONE", None)
 
@@ -524,11 +514,12 @@ class AstroChat:
         pandas analysis at all, so not use 'self.data'
         """
 
-        yaml_file_path = "lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml"
-        tools_instance = Tools(self._chat, yaml_file_path)
+        packageDir = getPackageDir("summit_extras")
+        yamlFilePath = os.path.join(packageDir, "data", "sal_interface.yaml")
+        toolkit = Tools(self._chat, yamlFilePath)
 
         # Extract the tools for use in your agent
-        self.toolkit = tools_instance.tools
+        self.toolkit = toolkit.tools
 
         self._agent = create_pandas_dataframe_agent(
             self._chat,
@@ -536,7 +527,7 @@ class AstroChat:
             agent_type=agentType,
             return_intermediate_steps=True,
             include_df_in_prompt=True,
-            extra_tools=self.toolkit,
+            # extra_tools=self.toolkit,
             number_of_head_rows=1,
             agent_executor_kwargs={"handle_parsing_errors": True},
             allow_dangerous_code=True,
