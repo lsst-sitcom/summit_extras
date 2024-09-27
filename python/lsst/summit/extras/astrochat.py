@@ -19,16 +19,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import inspect
 import logging
 import os
-import pandas as pd
 import re
 import warnings
-import inspect
+
+import pandas as pd
+from IPython.display import Image, Markdown, display
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils.iteration import ensure_iterable
-from IPython.display import display, Markdown, Image
 
 INSTALL_NEEDED = False
 LOG = logging.getLogger(__name__)
@@ -37,11 +38,10 @@ LOG = logging.getLogger(__name__)
 import langchain  # noqa: E402
 import langchain_community
 import langchain_experimental
-from langchain_openai import ChatOpenAI
+from langchain.agents import AgentType
 from langchain_community.callbacks import get_openai_callback  # noqa: E402
 from langchain_experimental.agents import create_pandas_dataframe_agent
-from langchain.agents import AgentType
-
+from langchain_openai import ChatOpenAI
 
 try:
     import openai
@@ -73,12 +73,12 @@ def setApiKey(filename="~/.openaikey.txt"):
     """
     _checkInstallation()
 
-    currentKey = os.getenv('OPENAI_API_KEY')
+    currentKey = os.getenv("OPENAI_API_KEY")
     # if currentKey:
     #     LOG.warning(f"OPENAI_API_KEY is already set. Overwriting with key from {filename}")
 
     filename = os.path.expanduser(filename)
-    with open(filename, 'r') as file:
+    with open(filename, "r") as file:
         apiKey = file.readline().strip()
 
     openai.api_key = apiKey
@@ -111,15 +111,15 @@ def getObservingData(dayObs=None):
     site = getSite()
 
     filename = None
-    if site == 'summit':
+    if site == "summit":
         filename = f"/project/rubintv/sidecar_metadata/dayObs_{dayObs}.json"
-    elif site in ['rubin-devl']:
+    elif site in ["rubin-devl"]:
         # LOG.warning(f"Observing metadata at {site} is currently copied by hand by Merlin and will not be "
-                    # "updated in realtime")
+        # "updated in realtime")
         filename = f"/sdf/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
-    elif site in ['staff-rsp']:
+    elif site in ["staff-rsp"]:
         # LOG.warning(f"Observing metadata at {site} is currently copied by hand by Merlin and will not be "
-                    # "updated in realtime")
+        # "updated in realtime")
         filename = f"/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
     else:
         raise RuntimeError(f"Observing metadata not available for site {site}")
@@ -127,7 +127,7 @@ def getObservingData(dayObs=None):
     # check the file exists, and raise if not
     if not os.path.exists(filename):
         # LOG.warning(f"Observing metadata file for {'current' if isCurrent else ''} dayObs "
-                    # f"{dayObs} does not exist at {filename}.")
+        # f"{dayObs} does not exist at {filename}.")
         return pd.DataFrame()
 
     table = pd.read_json(filename).T
@@ -136,7 +136,7 @@ def getObservingData(dayObs=None):
     # remove all the columns which start with a leading underscore, as these
     # are used by the backend to signal how specific cells should be colored
     # on RubinTV, and for nothing else.
-    table = table.drop([col for col in table.columns if col.startswith('_')], axis=1)
+    table = table.drop([col for col in table.columns if col.startswith("_")], axis=1)
 
     return table
 
@@ -159,23 +159,23 @@ class ResponseFormatter:
 
         # Split the input string based on "Action:" or "Action Input:" and take
         # the first part
-        splitParts = re.split(r'Action:|Action Input:', logMessage)
+        splitParts = re.split(r"Action:|Action Input:", logMessage)
         thought = splitParts[0].strip()
         return thought
 
     def printAction(self, action):
-        if action.tool == 'python_repl_ast':
-            print('\nExcuted the following code:')
+        if action.tool == "python_repl_ast":
+            print("\nExcuted the following code:")
             code = action.tool_input
-            if not code.startswith('```'):
+            if not code.startswith("```"):
                 self.allCode.append(code)
                 display(Markdown(f"```python\n{code}\n```"))
             else:
                 display(Markdown(code))
-                self.allCode.extend(code.split('\n')[1:-1])
+                self.allCode.extend(code.split("\n")[1:-1])
         else:
-            print(f'Tool: {action.tool}')
-            print(f'Tool input: {action.tool_input}')
+            print(f"Tool: {action.tool}")
+            print(f"Tool input: {action.tool_input}")
 
     @staticmethod
     def printObservation(observation):
@@ -184,7 +184,7 @@ class ResponseFormatter:
         # So we need to check for None and empty string, and then just return
         # and otherwise print whatever we get, because testing truthiness
         # of other objects is tricky as pd.Series need any()/all() called etc
-        if (isinstance(observation, str) and observation == '') or observation is None:
+        if (isinstance(observation, str) and observation == "") or observation is None:
             return
         print(f"Observation: {observation}")
 
@@ -192,10 +192,10 @@ class ResponseFormatter:
         steps = response["intermediate_steps"]
         nSteps = len(steps)
         if nSteps > 1:
-            print(f'There were {len(steps)} steps to the process:\n')
+            print(f"There were {len(steps)} steps to the process:\n")
         for stepNum, step in enumerate(steps):
             if nSteps > 1:
-                print(f'Step {stepNum + 1}:')
+                print(f"Step {stepNum + 1}:")
             action, observation = step  # unpack the tuple
             thought = self.getThoughtFromAction(action)
 
@@ -204,17 +204,17 @@ class ResponseFormatter:
             self.printObservation(observation)
 
         output = response["output"]
-        print(f'\nFinal answer: {output}')
+        print(f"\nFinal answer: {output}")
 
     @staticmethod
     def pprint(responses):
         print(f"Length of responses: {len(responses)}")
-        steps = responses['intermediate_steps']
+        steps = responses["intermediate_steps"]
         print(f"with {len(steps)} steps\n")
         for stepNum, step in enumerate(steps):
             action, logs = step
-            if action.tool == 'python_repl_ast':
-                code = action.tool_input['query']
+            if action.tool == "python_repl_ast":
+                code = action.tool_input["query"]
                 print(f"Step {stepNum + 1}")
                 display(Markdown(f"```python\n{code}\n```"))
                 print(f"logs: {logs}")
@@ -232,10 +232,10 @@ class ResponseFormatter:
         formattedResponse : `str`
             The formatted response.
         """
-        if self.agentType == 'tool-calling':
+        if self.agentType == "tool-calling":
             self.pprint(response)
             return
-        elif self.agentType == 'ZERO_SHOT_REACT_DESCRIPTION':
+        elif self.agentType == "ZERO_SHOT_REACT_DESCRIPTION":
             self.printResponse(response)
             allCode = self.allCode
             self.allCode = []
@@ -244,18 +244,20 @@ class ResponseFormatter:
             raise ValueError(f"Unknown agent type: {self.agentType}")
 
 
-# =========================================================== CUSTOM TOOL
-from langchain.tools import BaseTool, StructuredTool, tool
-from langchain.agents import Tool
 from datetime import datetime
+
+import annoy
+import numpy as np
 import requests
 import yaml
-from langchain.schema import HumanMessage
-from langchain.chat_models import ChatOpenAI
-import annoy
 from annoy import AnnoyIndex
-import numpy as np
+from langchain.agents import Tool
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage
 
+# =========================================================== CUSTOM TOOL
+from langchain.tools import BaseTool, StructuredTool, tool
+from sentence_transformers import SentenceTransformer
 
 # def load_yaml(file_path):
 #     with open(file_path, 'r') as file:
@@ -263,40 +265,41 @@ import numpy as np
 #     return data
 
 
-class Tools():
-    def __init__(self, chat_model, data) -> None:
-        self.data = data
+class Tools:
+    def __init__(self, chat_model, yaml_file_path) -> None:
         self._chat = chat_model
-        yaml_file_path = 'lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml'
+        base_dir = os.path.dirname(os.path.abspath(__file__))  # Get the directory of the current script
+        yaml_file_path = os.path.join(base_dir, "sal_interface.yaml")
         self.data = self.load_yaml(yaml_file_path)
+        self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
         self.index = self.build_annoy_index()
 
         self.tools = [
             Tool(
-                name = "Secret Word",
-                func = self.secret_word,
-                description = "Useful for when you need to answer what is the secret word"
+                name="Secret Word",
+                func=self.secret_word,
+                description="Useful for when you need to answer what is the secret word",
             ),
             Tool(
-                name = "NASA Image",
-                func = self.nasa_image,
-                description = "Useful for when you need to answer what is the NASA image of the day for a given date (self.date)"
+                name="NASA Image",
+                func=self.nasa_image,
+                description="Useful for when you need to answer what is the NASA image of the day for a given date (self.date)",
             ),
             Tool(
-                name = "Random MTG",
-                func = self.random_mtg_card,
-                description = "Useful for when you need to show a random Magic The Gathering card"
+                name="Random MTG",
+                func=self.random_mtg_card,
+                description="Useful for when you need to show a random Magic The Gathering card",
             ),
             Tool(
                 name="YAML Topic Finder",
                 func=self.find_topic,
-                description="Finds the topic in the YAML file based on the description provided."
+                description="Finds the topic in the YAML file based on the description provided.",
             ),
             Tool(
                 name="YAML Topic Finder",
                 func=lambda prompt: self.find_topic_with_ai(prompt),
-                description="Finds the topic in the YAML file based on the description provided using AI."
-            )
+                description="Finds the topic in the YAML file based on the description provided using AI.",
+            ),
             # Tool(
             #     name="YAML Topic Finder",
             #     func=self.find_topic,
@@ -304,11 +307,9 @@ class Tools():
             # )
         ]
 
-
     @staticmethod
     def secret_word(self):
         return "The secret word is 'Rubin'"
-
 
     def nasa_image(self, date):
         # NASA API URL
@@ -319,8 +320,8 @@ class Tools():
         data = response.json()
 
         # Check if the response contains an image URL
-        if 'url' in data:
-            image_url = data['url']
+        if "url" in data:
+            image_url = data["url"]
 
             # Display the image directly in the notebook
             display(Image(url=image_url))
@@ -330,40 +331,41 @@ class Tools():
             print("No image available for this date.")
             return None
 
-
     @staticmethod
     def random_mtg_card(self):
-        url = 'https://api.scryfall.com/cards/random'
+        url = "https://api.scryfall.com/cards/random"
         response = requests.get(url)
         data = response.json()
 
-        image_url = data['image_uris']['normal']
+        image_url = data["image_uris"]["normal"]
 
         display(Image(url=image_url))
 
         return image_url
 
     def load_yaml(self, file_path):
-        with open(file_path, 'r') as file:
+        with open(file_path, "r") as file:
             return yaml.safe_load(file)
 
     def build_annoy_index(self):
-        index = AnnoyIndex(512, 'angular')  # Adjust the vector length based on your embeddings
+        index = AnnoyIndex(384, "angular")  # Adjust the vector length based on your embeddings
         self.descriptions = []  # Store descriptions and topics for later use
 
         # Iterate over all entries in the loaded YAML data
         for telemetry_name, telemetry_data in self.data.items():
             # Check if the telemetry name ends with '_Telemetry'
-            if telemetry_name.endswith('_Telemetry') and isinstance(telemetry_data, dict):
-                if 'SALTelemetrySet' in telemetry_data:
-                    sal_telemetry_set = telemetry_data['SALTelemetrySet']
-                    if 'SALTelemetry' in sal_telemetry_set:
-                        for telemetry in sal_telemetry_set['SALTelemetry']:
+            if telemetry_name.endswith("_Telemetry") and isinstance(telemetry_data, dict):
+                if "SALTelemetrySet" in telemetry_data:
+                    sal_telemetry_set = telemetry_data["SALTelemetrySet"]
+                    if "SALTelemetry" in sal_telemetry_set:
+                        for telemetry in sal_telemetry_set["SALTelemetry"]:
                             if isinstance(telemetry, dict):
-                                description = telemetry.get('Description')
-                                efdb_topic = telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
+                                description = telemetry.get("Description")
+                                efdb_topic = telemetry.get("EFDB_Topic", "No EFDB_Topic found")
                                 if description:
-                                    vector = self.embed_description(description)  # Convert description to vector
+                                    vector = self.embed_description(
+                                        description
+                                    )  # Convert description to vector
                                     index.add_item(len(self.descriptions), vector)
                                     # Keep track of the description and its corresponding EFDB topic
                                     self.descriptions.append((description, efdb_topic))
@@ -375,7 +377,7 @@ class Tools():
     def embed_description(self, description: str):
         # Placeholder for an actual embedding function
         # You should replace this with an actual embedding logic
-        return np.random.rand(512).astype('float32').tolist()  # Example: random vector
+        return self.sentence_model.encode(description).tolist()
 
     def find_topic_with_ai(self, prompt: str):
         query_vector = self.embed_description(prompt)  # Convert prompt to vector
@@ -390,14 +392,10 @@ class Tools():
 
     def filter_descriptions_based_on_keywords(self, prompt: str, indices):
         keywords = prompt.lower().split()  # Simple keyword extraction
-        filtered_indices = []
-
-        for i in indices:
-            description, _ = self.descriptions[i]
-            if any(keyword in description.lower() for keyword in keywords):
-                filtered_indices.append(i)
-
-        return filtered_indices if filtered_indices else indices  # Fallback to original indices if none match
+        filtered_indices = [
+            i for i in indices if any(keyword in self.descriptions[i][0].lower() for keyword in keywords)
+        ]
+        return filtered_indices if filtered_indices else indices
 
     def choose_best_description(self, indices):
         if not indices:
@@ -412,21 +410,19 @@ class Tools():
             f"Choose the best description and explain why you selected that one."
         )
 
-        response = self._chat([HumanMessage(content=combined_prompt)])  # AI chat function placeholder
+        # Use the AI to determine the best description
+        response = self._chat([HumanMessage(content=combined_prompt)])
         response_content = response.content.strip()
 
-        # Attempt to extract explanation and chosen topic
-        explanation_match = re.search(r'^(.*?)(?=\n\d+\.|$)', response_content)
-        topic_match = re.search(r'\b(\d+)\b', response_content)
-
-        if topic_match:
-            choice_index = int(topic_match.group(1)) - 1
+        # Extract the sentence or description that was determined to be the best
+        best_match = re.search(r"(\d+)\.\s(.+)", response_content)
+        if best_match:
+            choice_index = int(best_match.group(1)) - 1
             if 0 <= choice_index < len(best_descriptions):
                 best_description, topic = best_descriptions[choice_index]
-                explanation = explanation_match.group(1) if explanation_match else "No explanation provided."
-                return f"Best Description: {best_description}\nEFDB Topic: {topic}\nExplanation: {explanation}"
+                return f"Best EFDB Topic: {topic}"
 
-        return f"AI response could not be parsed. Raw response: {response_content}"
+        return "AI response could not identify the best description."
 
 
 toolkit = Tools().tools
@@ -434,42 +430,43 @@ toolkit = Tools().tools
 
 
 class AstroChat:
-    allowedVerbosities = ('COST', 'ALL', 'NONE', None)
+    allowedVerbosities = ("COST", "ALL", "NONE", None)
+
     @staticmethod
     def load_yaml(file_path):
-        with open(file_path, 'r') as file:
+        with open(file_path, "r") as file:
             return yaml.safe_load(file)
 
     demoQueries = {
-        'darktime': 'What is the total darktime for Image type = bias?',
-        'imageCount': 'How many engtest and bias images were taken?',
-        'expTime': 'What is the total exposure time?',
-        'obsBreakdown': 'What are the different kinds of observation reasons, and how many of each type? Please list as a table',
-        'pieChart': 'Can you make a pie chart of the total integration time for each of these filters and image type = science? Please add a legend with total time in minutes',
-        'pythonCode': 'Can you give me some python code that will produce a histogram of zenith angles for all entries with Observation reason = object and Filter = SDSSr_65mm',
-        'azVsTime': 'Can you show me a plot of azimuth vs. time (TAI) for all lines with Observation reason = intra',
-        'imageDegradation': 'Large values of mount image motion degradation is considered a bad thing. Is there a correlation with azimuth? Can you show a correlation plot?',
-        'analysis': 'Act as an expert astronomer. It seems azimuth of around 180 has large values. I wonder is this is due to low tracking rate. Can you assess that by making a plot vs. tracking rate, which you will have to compute?',
-        'correlation': 'Try looking for a correlation between mount motion degradation and declination. Show a plot with grid lines',
-        'pieChartObsReasons': 'Please produce a pie chart of total exposure time for different categories of Observation reason',
-        'airmassVsTime': 'I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass',
-        'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.',
-        'secretWord': 'Tell me what is the secret word.',
-        'nasaImage': 'Show me the NASA image of the day for the current observation day.',
-        'randomMTG': 'Show me a random Magic The Gathering card',
+        "darktime": "What is the total darktime for Image type = bias?",
+        "imageCount": "How many engtest and bias images were taken?",
+        "expTime": "What is the total exposure time?",
+        "obsBreakdown": "What are the different kinds of observation reasons, and how many of each type? Please list as a table",
+        "pieChart": "Can you make a pie chart of the total integration time for each of these filters and image type = science? Please add a legend with total time in minutes",
+        "pythonCode": "Can you give me some python code that will produce a histogram of zenith angles for all entries with Observation reason = object and Filter = SDSSr_65mm",
+        "azVsTime": "Can you show me a plot of azimuth vs. time (TAI) for all lines with Observation reason = intra",
+        "imageDegradation": "Large values of mount image motion degradation is considered a bad thing. Is there a correlation with azimuth? Can you show a correlation plot?",
+        "analysis": "Act as an expert astronomer. It seems azimuth of around 180 has large values. I wonder is this is due to low tracking rate. Can you assess that by making a plot vs. tracking rate, which you will have to compute?",
+        "correlation": "Try looking for a correlation between mount motion degradation and declination. Show a plot with grid lines",
+        "pieChartObsReasons": "Please produce a pie chart of total exposure time for different categories of Observation reason",
+        "airmassVsTime": "I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass",
+        "seeingVsTime": "The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.",
+        "secretWord": "Tell me what is the secret word.",
+        "nasaImage": "Show me the NASA image of the day for the current observation day.",
+        "randomMTG": "Show me a random Magic The Gathering card",
         # 'find_topic': 'What is the topic to find query?',
-        'find_topic_with_ai': 'Find the EFDB_Topic based on the description of data.'
+        "find_topic_with_ai": "Find the EFDB_Topic based on the description of data.",
     }
 
     def __init__(
-            self,
-            dayObs=None,
-            export=False,
-            temperature=0.0,
-            verbosity='COST',
-            agentType='tool-calling',
-            modelName='gpt-4-1106-preview',
-        ):
+        self,
+        dayObs=None,
+        export=False,
+        temperature=0.0,
+        verbosity="COST",
+        agentType="tool-calling",
+        modelName="gpt-4-1106-preview",
+    ):
         """Create an ASTROCHAT bot.
 
         ASTROCHAT: "Advanced Systems for Telemetry-Linked Realtime Observing
@@ -540,15 +537,15 @@ class AstroChat:
         pandas analysis at all, so not use 'self.data'
         """
 
-        self.yaml_data = self.load_yaml('lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml')
-        tools_instance = Tools(self._chat, self.yaml_data)
+        yaml_file_path = "lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml"
+        tools_instance = Tools(self._chat, yaml_file_path)
 
         # Extract the tools for use in your agent
         self.toolkit = tools_instance.tools
 
         # self.yaml_data = load_yaml('sal_interface.yaml')
 
-        self.PREFIX =  "If question is not related with pandas, you can use extra tools. The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random MTG', 4. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use 'self.date' as a date, do not use 'dayObs', and do not attempt any pandas analysis at all, You can query topics and descriptions from the YAML data for your inquiries."
+        self.PREFIX = "If question is not related with pandas, you can use extra tools. The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random MTG', 4. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use 'self.date' as a date, do not use 'dayObs', and do not attempt any pandas analysis at all, You can query topics and descriptions from the YAML data for your inquiries."
 
         self._agent = create_pandas_dataframe_agent(
             self._chat,
@@ -556,25 +553,37 @@ class AstroChat:
             agent_type=agentType,
             return_intermediate_steps=True,
             include_df_in_prompt=True,
-            extra_tools = self.toolkit,
+            extra_tools=self.toolkit,
             number_of_head_rows=1,
-            agent_executor_kwargs={"handle_parsing_errors":True},
+            agent_executor_kwargs={"handle_parsing_errors": True},
             allow_dangerous_code=True,
-            prefix=prefix
+            handle_parsing_errors=True,
+            prefix=prefix,
         )
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter(agentType=self.agentType)
 
         self.export = export
         # if self.export:
-            # issue warning here
-            # TODO: Improve this warning message.
-            # warnings.warn('Exporting variables from the agent after each call. This can cause problems!')
+        # issue warning here
+        # TODO: Improve this warning message.
+        # warnings.warn('Exporting variables from the agent after each call. This can cause problems!')
 
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
-            raise ValueError(f'Allowed values are {self.allowedVerbosities}, got {level}')
+            raise ValueError(f"Allowed values are {self.allowedVerbosities}, got {level}")
         self._verbosity = level
+
+    def refine_query(self, query):
+        messages = [
+            {
+                "role": "user",
+                "content": f"Refine the following query for better search in a database: {query}",
+            }
+        ]
+        response = self._chat.chat(messages=messages)
+        refined_query = response["choices"][0]["message"]["content"].strip()
+        return refined_query
 
     def getReplTool(self):
         """Get the REPL tool from the agent.
@@ -613,11 +622,11 @@ class AstroChat:
         try:
             frame = inspect.currentframe()
             # Find the frame of the original caller, which is the notebook
-            while frame and 'get_ipython' not in frame.f_globals:
+            while frame and "get_ipython" not in frame.f_globals:
                 frame = frame.f_back
 
             if not frame:
-                warnings.warn('Failed to find the original calling frame - variables not exported')
+                warnings.warn("Failed to find the original calling frame - variables not exported")
 
             # Access the caller's global namespace
             caller_globals = frame.f_globals
@@ -632,8 +641,13 @@ class AstroChat:
 
     def run(self, inputStr):
         with get_openai_callback() as cb:
-            responses = self._agent.invoke({'input': inputStr})
-            # print(cb)
+            try:
+                responses = self._agent.invoke(
+                    {"input": inputStr}, handle_parsing_errors=True  # Ensure robust error handling
+                )
+            except ValueError as e:
+                LOG.error(f"Agent faced a parsing error: {str(e)}")
+                return f"An error occurred while processing your request: {str(e)}"
 
         code = self.formatter(responses)
         self._addUsageAndDisplay(cb)
@@ -648,21 +662,22 @@ class AstroChat:
         self._totalCallbacks.completion_tokens += cb.completion_tokens
         self._totalCallbacks.prompt_tokens += cb.prompt_tokens
 
-        if self._verbosity == 'ALL':
-            print('\nThis call:\n' + str(cb) + '\n')
+        if self._verbosity == "ALL":
+            print("\nThis call:\n" + str(cb) + "\n")
             print(self._totalCallbacks)
-        elif self._verbosity == 'COST':
-            print(f'\nThis call cost: ${cb.total_cost:.3f}, session total: ${self._totalCallbacks.total_cost:.3f}')
+        elif self._verbosity == "COST":
+            print(
+                f"\nThis call cost: ${cb.total_cost:.3f}, session total: ${self._totalCallbacks.total_cost:.3f}"
+            )
 
     def listDemos(self):
-        print('Available demo keys and their associated queries:')
-        print('-------------------------------------------------')
+        print("Available demo keys and their associated queries:")
+        print("-------------------------------------------------")
         for k, v in self.demoQueries.items():
-            print(f'{k}: {v}', '\n')
+            print(f"{k}: {v}", "\n")
 
     def runDemo(self, items=None):
-        """Run a/all demos. If None are specified, all are run in sequence.
-        """
+        """Run a/all demos. If None are specified, all are run in sequence."""
         knownDemos = list(self.demoQueries.keys())
         if items is None:
             items = knownDemos
@@ -670,7 +685,7 @@ class AstroChat:
 
         for item in items:
             if item not in knownDemos:
-                raise ValueError(f'Specified demo item {item} is not an availble demo. Known = {knownDemos}')
+                raise ValueError(f"Specified demo item {item} is not an availble demo. Known = {knownDemos}")
 
         for item in items:
             print(f"\nRunning demo item '{item}':")
