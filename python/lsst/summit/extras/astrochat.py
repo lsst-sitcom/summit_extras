@@ -331,7 +331,7 @@ class Tools:
     def load_yaml(self, file_path):
         with open(file_path, "r") as file:
             return yaml.safe_load(file)
-        
+
     def load_or_build_annoy_index(self):
         if os.path.exists(self.index_path):
             return self.load_annoy_index()
@@ -376,7 +376,7 @@ class Tools:
         LOG.info(f"Annoy index saved to {self.index_path}")
 
         descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
-        with open(descriptions_path, 'w') as file:
+        with open(descriptions_path, "w") as file:
             yaml.dump(self.descriptions, file)
         LOG.info(f"Descriptions saved to {descriptions_path}")
 
@@ -386,7 +386,7 @@ class Tools:
         LOG.info(f"Annoy index loaded from {self.index_path}")
 
         descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
-        with open(descriptions_path, 'r') as file:
+        with open(descriptions_path, "r") as file:
             descriptions = yaml.safe_load(file)
         LOG.info(f"Descriptions loaded from {descriptions_path}")
 
