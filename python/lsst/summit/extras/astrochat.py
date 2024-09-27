@@ -31,7 +31,6 @@ import langchain_experimental
 import pandas as pd
 import requests
 import yaml
-
 from annoy import AnnoyIndex
 from IPython.display import Image, Markdown, display
 from langchain.agents import AgentType, Tool
