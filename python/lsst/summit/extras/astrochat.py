@@ -31,6 +31,7 @@ import langchain_experimental
 import pandas as pd
 import requests
 import yaml
+
 from annoy import AnnoyIndex
 from IPython.display import Image, Markdown, display
 from langchain.agents import AgentType, Tool
@@ -254,6 +255,17 @@ class ResponseFormatter:
             raise ValueError(f"Unknown agent type: {self.agentType}")
 
 
+def convert_tuples_to_lists(data):
+    if isinstance(data, tuple):
+        return list(data)
+    elif isinstance(data, list):
+        return [convert_tuples_to_lists(item) for item in data]
+    elif isinstance(data, dict):
+        return {key: convert_tuples_to_lists(value) for key, value in data.items()}
+    else:
+        return data
+
+
 class Tools:
     def __init__(self, chat_model, yamlFilePath) -> None:
         self.data_dir = os.path.dirname(yamlFilePath)
@@ -329,8 +341,9 @@ class Tools:
         return image_url
 
     def load_yaml(self, file_path):
+        # Load the YAML file with the custom constructor
         with open(file_path, "r") as file:
-            return yaml.safe_load(file)
+            return yaml.load(file, Loader=yaml.SafeLoader)
 
     def load_or_build_annoy_index(self):
         if os.path.exists(self.index_path):
@@ -375,9 +388,12 @@ class Tools:
         index.save(self.index_path)
         LOG.info(f"Annoy index saved to {self.index_path}")
 
+        normalized_descriptions = convert_tuples_to_lists(self.descriptions)
+
         descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
         with open(descriptions_path, "w") as file:
-            yaml.dump(self.descriptions, file)
+            yaml.dump(normalized_descriptions, file)
+        print(f"Descriptions saved to {descriptions_path}, without tuples")
         LOG.info(f"Descriptions saved to {descriptions_path}")
 
     def load_annoy_index(self):
