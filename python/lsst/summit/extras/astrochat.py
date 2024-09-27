@@ -256,10 +256,12 @@ class ResponseFormatter:
 
 class Tools:
     def __init__(self, chat_model, yamlFilePath) -> None:
+        self.data_dir = os.path.dirname(yamlFilePath)
+        self.index_path = os.path.join(self.data_dir, "annoy_index.ann")
         self._chat = chat_model
         self.data = self.load_yaml(yamlFilePath)
         self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
-        self.index = self.build_annoy_index()
+        self.index, self.descriptions = self.load_or_build_annoy_index()
 
         self.tools = [
             Tool(
@@ -329,10 +331,19 @@ class Tools:
     def load_yaml(self, file_path):
         with open(file_path, "r") as file:
             return yaml.safe_load(file)
+        
+    def load_or_build_annoy_index(self):
+        if os.path.exists(self.index_path):
+            return self.load_annoy_index()
+        else:
+            index, descriptions = self.build_annoy_index()
+            self.descriptions = descriptions
+            self.save_annoy_index(index)
+            return index, descriptions
 
     def build_annoy_index(self):
         index = AnnoyIndex(384, "angular")  # Adjust the vector length based on your embeddings
-        self.descriptions = []  # Store descriptions and topics for later use
+        descriptions = []  # Store descriptions and topics for later use
 
         # Iterate over all entries in the loaded YAML data
         for telemetry_name, telemetry_data in self.data.items():
@@ -349,13 +360,53 @@ class Tools:
                                     vector = self.embed_description(
                                         description
                                     )  # Convert description to vector
-                                    index.add_item(len(self.descriptions), vector)
+                                    index.add_item(len(descriptions), vector)
                                     # Keep track of the description and its
                                     # corresponding EFDB topic
-                                    self.descriptions.append((description, efdb_topic))
+                                    descriptions.append((description, efdb_topic))
 
         index.build(10)  # Build the Annoy index with 10 trees
-        return index
+        return index, descriptions
+
+    def save_annoy_index(self, index):
+        directory = os.path.dirname(self.index_path)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        index.save(self.index_path)
+        LOG.info(f"Annoy index saved to {self.index_path}")
+
+        descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
+        with open(descriptions_path, 'w') as file:
+            yaml.dump(self.descriptions, file)
+        LOG.info(f"Descriptions saved to {descriptions_path}")
+
+    def load_annoy_index(self):
+        index = AnnoyIndex(384, "angular")
+        index.load(self.index_path)
+        LOG.info(f"Annoy index loaded from {self.index_path}")
+
+        descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
+        with open(descriptions_path, 'r') as file:
+            descriptions = yaml.safe_load(file)
+        LOG.info(f"Descriptions loaded from {descriptions_path}")
+
+        return index, descriptions
+
+    def load_or_build_annoy_index(self):
+        if os.path.exists(self.index_path):
+            return self.load_annoy_index()
+        else:
+            index, descriptions = self.build_annoy_index()
+            self.descriptions = descriptions
+            self.save_annoy_index(index)
+            return index, descriptions
+
+    def rebuild_annoy_index(self):
+        index, descriptions = self.build_annoy_index()
+        self.descriptions = descriptions
+        self.save_annoy_index(index)
+        self.index = index
+        LOG.info("Annoy index rebuilt")
 
     def embed_description(self, description: str):
         return self.sentence_model.encode(description).tolist()
