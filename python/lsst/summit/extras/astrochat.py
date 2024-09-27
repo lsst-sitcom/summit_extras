@@ -527,7 +527,7 @@ class AstroChat:
             agent_type=agentType,
             return_intermediate_steps=True,
             include_df_in_prompt=True,
-            # extra_tools=self.toolkit,
+            extra_tools=self.toolkit,
             number_of_head_rows=1,
             agent_executor_kwargs={"handle_parsing_errors": True},
             allow_dangerous_code=True,
