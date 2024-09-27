@@ -392,15 +392,6 @@ class Tools:
 
         return index, descriptions
 
-    def load_or_build_annoy_index(self):
-        if os.path.exists(self.index_path):
-            return self.load_annoy_index()
-        else:
-            index, descriptions = self.build_annoy_index()
-            self.descriptions = descriptions
-            self.save_annoy_index(index)
-            return index, descriptions
-
     def rebuild_annoy_index(self):
         index, descriptions = self.build_annoy_index()
         self.descriptions = descriptions
