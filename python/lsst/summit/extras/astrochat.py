@@ -29,6 +29,9 @@ import warnings
 import langchain_community
 import langchain_experimental
 import pandas as pd
+import requests
+import yaml
+from annoy import AnnoyIndex
 from IPython.display import Image, Markdown, display
 from langchain.agents import AgentType, Tool
 from langchain.schema import HumanMessage
@@ -268,7 +271,10 @@ class Tools:
             Tool(
                 name="NASA Image",
                 func=self.nasa_image,
-                description="Useful for when you need to answer what is the NASA image of the day for a given date (self.date)",
+                description=(
+                    "Useful for when you need to answer what is the NASA image of the day"
+                    "for a given date (self.date)"
+                ),
             ),
             Tool(
                 name="Random MTG",
@@ -285,11 +291,6 @@ class Tools:
                 func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI.",
             ),
-            # Tool(
-            #     name="YAML Topic Finder",
-            #     func=self.find_topic,
-            #     description="Finds the topic in the YAML file based on the description provided."
-            # )
         ]
 
     @staticmethod
@@ -298,7 +299,10 @@ class Tools:
 
     def nasa_image(self, date):
         # NASA API URL
-        url = f"https://api.nasa.gov/planetary/apod?date={date}&api_key=GXacxntSzk6wpkUmDVw4L1Gfgt4kF6PzZrmSNWBb"
+        url = (
+            f"https://api.nasa.gov/planetary/apod?date={date}&api_key="
+            "GXacxntSzk6wpkUmDVw4L1Gfgt4kF6PzZrmSNWBb"
+        )
 
         # Make the API request
         response = requests.get(url)
@@ -352,16 +356,14 @@ class Tools:
                                         description
                                     )  # Convert description to vector
                                     index.add_item(len(self.descriptions), vector)
-                                    # Keep track of the description and its corresponding EFDB topic
+                                    # Keep track of the description and its
+                                    # corresponding EFDB topic
                                     self.descriptions.append((description, efdb_topic))
 
         index.build(10)  # Build the Annoy index with 10 trees
-        # print(self.descriptions, "************Description after annoy build**********")
         return index
 
     def embed_description(self, description: str):
-        # Placeholder for an actual embedding function
-        # You should replace this with an actual embedding logic
         return self.sentence_model.encode(description).tolist()
 
     def find_topic_with_ai(self, prompt: str):
@@ -399,7 +401,7 @@ class Tools:
         response = self._chat([HumanMessage(content=combined_prompt)])
         response_content = response.content.strip()
 
-        # Extract the sentence or description that was determined to be the best
+        # Extract the sentence or description that was determined to be best
         best_match = re.search(r"(\d+)\.\s(.+)", response_content)
         if best_match:
             choice_index = int(best_match.group(1)) - 1
@@ -426,16 +428,16 @@ class AstroChat:
         "darktime": "What is the total darktime for Image type = bias?",
         "imageCount": "How many engtest and bias images were taken?",
         "expTime": "What is the total exposure time?",
-        "obsBreakdown": "What are the different kinds of observation reasons, and how many of each type? Please list as a table",
-        "pieChart": "Can you make a pie chart of the total integration time for each of these filters and image type = science? Please add a legend with total time in minutes",
-        "pythonCode": "Can you give me some python code that will produce a histogram of zenith angles for all entries with Observation reason = object and Filter = SDSSr_65mm",
-        "azVsTime": "Can you show me a plot of azimuth vs. time (TAI) for all lines with Observation reason = intra",
-        "imageDegradation": "Large values of mount image motion degradation is considered a bad thing. Is there a correlation with azimuth? Can you show a correlation plot?",
-        "analysis": "Act as an expert astronomer. It seems azimuth of around 180 has large values. I wonder is this is due to low tracking rate. Can you assess that by making a plot vs. tracking rate, which you will have to compute?",
-        "correlation": "Try looking for a correlation between mount motion degradation and declination. Show a plot with grid lines",
-        "pieChartObsReasons": "Please produce a pie chart of total exposure time for different categories of Observation reason",
-        "airmassVsTime": "I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass",
-        "seeingVsTime": "The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.",
+        "obsBreakdown": "What are the different kinds of observation reasons, and how many of each type? Please list as a table",  # noqa: E501
+        "pieChart": "Can you make a pie chart of the total integration time for each of these filters and image type = science? Please add a legend with total time in minutes",  # noqa: E501
+        "pythonCode": "Can you give me some python code that will produce a histogram of zenith angles for all entries with Observation reason = object and Filter = SDSSr_65mm",  # noqa: E501
+        "azVsTime": "Can you show me a plot of azimuth vs. time (TAI) for all lines with Observation reason = intra",  # noqa: E501
+        "imageDegradation": "Large values of mount image motion degradation is considered a bad thing. Is there a correlation with azimuth? Can you show a correlation plot?",  # noqa: E501
+        "analysis": "Act as an expert astronomer. It seems azimuth of around 180 has large values. I wonder is this is due to low tracking rate. Can you assess that by making a plot vs. tracking rate, which you will have to compute?",  # noqa: E501
+        "correlation": "Try looking for a correlation between mount motion degradation and declination. Show a plot with grid lines",  # noqa: E501
+        "pieChartObsReasons": "Please produce a pie chart of total exposure time for different categories of Observation reason",  # noqa: E501
+        "airmassVsTime": "I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass",  # noqa: E501
+        "seeingVsTime": "The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.",  # noqa: E501
         "secretWord": "Tell me what is the secret word.",
         "nasaImage": "Show me the NASA image of the day for the current observation day.",
         "randomMTG": "Show me a random Magic The Gathering card",
@@ -528,10 +530,6 @@ class AstroChat:
         # Extract the tools for use in your agent
         self.toolkit = tools_instance.tools
 
-        # self.yaml_data = load_yaml('sal_interface.yaml')
-
-        self.PREFIX = "If question is not related with pandas, you can use extra tools. The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random MTG', 4. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use 'self.date' as a date, do not use 'dayObs', and do not attempt any pandas analysis at all, You can query topics and descriptions from the YAML data for your inquiries."
-
         self._agent = create_pandas_dataframe_agent(
             self._chat,
             self.data,
@@ -549,10 +547,9 @@ class AstroChat:
         self.formatter = ResponseFormatter(agentType=self.agentType)
 
         self.export = export
-        # if self.export:
-        # issue warning here
-        # TODO: Improve this warning message.
-        # warnings.warn('Exporting variables from the agent after each call. This can cause problems!')
+        if self.export:
+            # TODO: Improve this warning message.
+            warnings.warn("Exporting variables from the agent after each call. This can cause problems!")
 
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
@@ -634,7 +631,7 @@ class AstroChat:
                 LOG.error(f"Agent faced a parsing error: {str(e)}")
                 return f"An error occurred while processing your request: {str(e)}"
 
-        code = self.formatter(responses)
+        _ = self.formatter(responses)
         self._addUsageAndDisplay(cb)
 
         if self.export:
@@ -652,7 +649,8 @@ class AstroChat:
             print(self._totalCallbacks)
         elif self._verbosity == "COST":
             print(
-                f"\nThis call cost: ${cb.total_cost:.3f}, session total: ${self._totalCallbacks.total_cost:.3f}"
+                f"\nThis call cost: ${cb.total_cost:.3f}, "
+                f"session total: ${self._totalCallbacks.total_cost:.3f}"
             )
 
     def listDemos(self):
