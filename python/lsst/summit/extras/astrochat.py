@@ -25,23 +25,23 @@ import os
 import re
 import warnings
 
+# TODO: work out a way to protect all of these imports
+import langchain_community
+import langchain_experimental
 import pandas as pd
 from IPython.display import Image, Markdown, display
+from langchain.agents import AgentType, Tool
+from langchain.schema import HumanMessage
+from langchain_community.callbacks import get_openai_callback  # noqa: E402
+from langchain_experimental.agents import create_pandas_dataframe_agent
+from langchain_openai import ChatOpenAI
+from sentence_transformers import SentenceTransformer
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils.iteration import ensure_iterable
 
 INSTALL_NEEDED = False
 LOG = logging.getLogger(__name__)
-
-# TODO: work out a way to protect all of these imports
-import langchain  # noqa: E402
-import langchain_community
-import langchain_experimental
-from langchain.agents import AgentType
-from langchain_community.callbacks import get_openai_callback  # noqa: E402
-from langchain_experimental.agents import create_pandas_dataframe_agent
-from langchain_openai import ChatOpenAI
 
 try:
     import openai
@@ -74,8 +74,8 @@ def setApiKey(filename="~/.openaikey.txt"):
     _checkInstallation()
 
     currentKey = os.getenv("OPENAI_API_KEY")
-    # if currentKey:
-    #     LOG.warning(f"OPENAI_API_KEY is already set. Overwriting with key from {filename}")
+    if currentKey:
+        LOG.warning(f"OPENAI_API_KEY is already set. Overwriting with key from {filename}")
 
     filename = os.path.expanduser(filename)
     with open(filename, "r") as file:
@@ -114,20 +114,26 @@ def getObservingData(dayObs=None):
     if site == "summit":
         filename = f"/project/rubintv/sidecar_metadata/dayObs_{dayObs}.json"
     elif site in ["rubin-devl"]:
-        # LOG.warning(f"Observing metadata at {site} is currently copied by hand by Merlin and will not be "
-        # "updated in realtime")
+        LOG.warning(
+            f"Observing metadata at {site} is currently copied by hand by Merlin and will"
+            " not be updated in realtime"
+        )
         filename = f"/sdf/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
     elif site in ["staff-rsp"]:
-        # LOG.warning(f"Observing metadata at {site} is currently copied by hand by Merlin and will not be "
-        # "updated in realtime")
+        LOG.warning(
+            f"Observing metadata at {site} is currently copied by hand by Merlin and will"
+            " not be updated in realtime"
+        )
         filename = f"/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
     else:
         raise RuntimeError(f"Observing metadata not available for site {site}")
 
     # check the file exists, and raise if not
     if not os.path.exists(filename):
-        # LOG.warning(f"Observing metadata file for {'current' if isCurrent else ''} dayObs "
-        # f"{dayObs} does not exist at {filename}.")
+        LOG.warning(
+            f"Observing metadata file for {'current' if isCurrent else ''} dayObs "
+            f"{dayObs} does not exist at {filename}."
+        )
         return pd.DataFrame()
 
     table = pd.read_json(filename).T
@@ -242,27 +248,6 @@ class ResponseFormatter:
             return allCode
         else:
             raise ValueError(f"Unknown agent type: {self.agentType}")
-
-
-from datetime import datetime
-
-import annoy
-import numpy as np
-import requests
-import yaml
-from annoy import AnnoyIndex
-from langchain.agents import Tool
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage
-
-# =========================================================== CUSTOM TOOL
-from langchain.tools import BaseTool, StructuredTool, tool
-from sentence_transformers import SentenceTransformer
-
-# def load_yaml(file_path):
-#     with open(file_path, 'r') as file:
-#         data = yaml.safe_load(file)
-#     return data
 
 
 class Tools:
