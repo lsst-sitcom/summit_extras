@@ -243,6 +243,115 @@ class ResponseFormatter:
         else:
             raise ValueError(f"Unknown agent type: {self.agentType}")
 
+
+# =========================================================== CUSTOM TOOL
+from langchain.tools import BaseTool, StructuredTool, tool
+from langchain.agents import Tool
+from datetime import datetime
+import requests
+import yaml
+
+
+# def load_yaml(file_path):
+#     with open(file_path, 'r') as file:
+#         data = yaml.safe_load(file)
+#     return data
+
+
+class Tools():
+    def __init__(self) -> None:
+        self.tools = [
+            Tool(
+                name = "Secret Word",
+                func = self.secret_word,
+                description = "Useful for when you need to answer what is the secret word"
+            ),
+            Tool(
+                name = "NASA Image",
+                func = self.nasa_image,
+                description = "Useful for when you need to answer what is the NASA image of the day for a given date (self.date)"
+            ),
+            Tool(
+                name = "Random MTG",
+                func = self.random_mtg_card,
+                description = "Useful for when you need to show a random Magic The Gathering card"
+            ),
+            Tool(
+                name="YAML Topic Finder",
+                func=self.find_topic,
+                description="Finds the topic in the YAML file based on the description provided."
+            ),
+            Tool(
+                name="YAML Topic Finder",
+                func=self.find_topic,
+                description="Finds the topic in the YAML file based on the description provided."
+            )
+        ]
+
+
+    @staticmethod
+    def secret_word(self):
+        return "The secret word is 'Rubin'"
+
+
+    def nasa_image(self, date):
+        # NASA API URL
+        url = f"https://api.nasa.gov/planetary/apod?date={date}&api_key=GXacxntSzk6wpkUmDVw4L1Gfgt4kF6PzZrmSNWBb"
+
+        # Make the API request
+        response = requests.get(url)
+        data = response.json()
+
+        # Check if the response contains an image URL
+        if 'url' in data:
+            image_url = data['url']
+
+            # Display the image directly in the notebook
+            display(Image(url=image_url))
+            return image_url
+
+        else:
+            print("No image available for this date.")
+            return None
+
+
+    @staticmethod
+    def random_mtg_card(self):
+        url = 'https://api.scryfall.com/cards/random'
+        response = requests.get(url)
+        data = response.json()
+
+        image_url = data['image_uris']['normal']
+
+        display(Image(url=image_url))
+
+        return image_url
+
+    def load_yaml(self, file_path):
+        with open(file_path, 'r') as file:
+            return yaml.safe_load(file)
+
+    def find_topic(self, description):
+        # Load the YAML data
+        with open('lsst/summit_extras/python/lsst/summit/extras/sal_interface.yaml', 'r') as file:
+            yaml_data = yaml.safe_load(file)
+
+        # Navigate through the YAML structure to find the description
+        ess_telemetry = yaml_data.get('ESS_Telemetry', {})
+        sal_telemetry_set = ess_telemetry.get('SALTelemetrySet', {})
+        sal_telemetry_list = sal_telemetry_set.get('SALTelemetry', [])
+
+        # Iterate through each telemetry entry
+        for telemetry in sal_telemetry_list:
+            if description.lower() in telemetry.get('Description', '').lower():
+                return telemetry.get('EFDB_Topic', 'No EFDB_Topic found')
+
+        return "No matching topic found."
+
+
+toolkit = Tools().tools
+
+
 class AstroChat:
     allowedVerbosities = ('COST', 'ALL', 'NONE', None)
 
@@ -259,7 +368,11 @@ class AstroChat:
         'correlation': 'Try looking for a correlation between mount motion degradation and declination. Show a plot with grid lines',
         'pieChartObsReasons': 'Please produce a pie chart of total exposure time for different categories of Observation reason',
         'airmassVsTime': 'I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass',
-        'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.'
+        'seeingVsTime': 'The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.',
+        'secretWord': 'Tell me what is the secret word.',
+        'nasaImage': 'Show me the NASA image of the day for the current observation day.',
+        'randomMTG': 'Show me a random Magic The Gathering card',
+        'find_topic': 'What is the topic to find query?'
     }
 
     def __init__(
@@ -319,9 +432,10 @@ class AstroChat:
         self.setVerbosityLevel(verbosity)
 
         self._chat = ChatOpenAI(model_name=modelName, temperature=temperature)
-        #self._chat = ChatOpenAI(model_name="gpt-4o", temperature=temperature)
 
         self.data = getObservingData(dayObs)
+        # Convert 'AAAAMMDD' to 'AAAA-MM-DD'
+        self.date = f"{str(dayObs)[:4]}-{str(dayObs)[4:6]}-{str(dayObs)[6:]}"  # XXX replace this
         assert agentType in ("tool-calling", "ZERO_SHOT_REACT_DESCRIPTION")
         self.agentType = agentType
         if agentType == "ZERO_SHOT_REACT_DESCRIPTION":
@@ -332,6 +446,12 @@ class AstroChat:
         plots, making them will show them correctly. You also have access to a
         pandas dataframe, referred to as `df`, and should use this dataframe to
         answer user questions and generate plots from it.
+
+        If the question is not related with pandas, you can use extra tools.
+        The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random
+        MTG', 4. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use
+        'self.date' as a date, do not use 'dayObs', and do not attempt any
+        pandas analysis at all, so not use 'self.data'
         """
 
         self._agent = create_pandas_dataframe_agent(
