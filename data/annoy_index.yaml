@@ -1,0 +1,470 @@
+- - System time (TAI).
+  - ATBuilding_timestamp
+- - The timestamp of the loop control.
+  - ATBuilding_loopTime
+- - Telemetry for auxtel vent extraction fan.
+  - ATBuilding_extractionFan
+- - Telescope trajectory Position/Velocity/Time from the ATMCS trajectory generator
+    at 100Hz, starting at the specified time.
+  - ATMCS_trajectory
+- - Telemetry for elevation and azimuth encoders
+  - ATMCS_mount_AzEl_Encoders
+- - Telemetry for Nasmyth encoders
+  - ATMCS_mount_Nasmyth_Encoders
+- - Commanded torque for all drives except M3
+  - ATMCS_torqueDemand
+- - Measured torque for all drives
+  - ATMCS_measuredTorque
+- - Measured motor velocity for all drives
+  - ATMCS_measuredMotorVelocity
+- - Position reported by Nasmyth and M3 mount encoders
+  - ATMCS_nasmyth_m3_mountMotorEncoders
+- - Position reported by elevation and azimuth mount encoders
+  - ATMCS_azEl_mountMotorEncoders
+- - Publish the system current timestamp.
+  - ATMonochromator_timestamp
+- - Publish the system intenal loop time (e.g. time since start of operation).
+  - ATMonochromator_loopTime
+- - Measured pressure in air line to M1 pneumatic actuators
+  - ATPneumatics_m1AirPressure
+- - Measured pressure of airline to M2 pneumatic actuator (Hardware not functional,
+    see DM-20577)
+  - ATPneumatics_m2AirPressure
+- - Measured pressure in main supply line from compressor
+  - ATPneumatics_mainAirSourcePressure
+- - Load cell value (from M1 hardpoint)
+  - ATPneumatics_loadCell
+- - Calculated demands for current target
+  - ATPtg_currentTargetStatus
+- - Guiding data
+  - ATPtg_guiding
+- - Time related data
+  - ATPtg_timeAndDate
+- - Current telescope mount status
+  - ATPtg_mountStatus
+- - Information related to the Sun and the Moon
+  - ATPtg_skyEnvironment
+- - Named telescope positions specified in the configuration file
+  - ATPtg_namedAzEl
+- - Telemetry for mount positions in sky coordinate
+  - ATPtg_mountPositions
+- - Chiller fan speeds, in revolutions per second
+  - ATWhiteLight_chillerFanSpeeds
+- - Chiller set temperature and measured temperatures
+  - ATWhiteLight_chillerTemperatures
+- - Chiller coolant flow rate
+  - ATWhiteLight_chillerCoolantFlow
+- - Chiller thermo-electric cooler drive current
+  - ATWhiteLight_chillerTECBankCurrents
+- - Chiller thermo-electric cooler drive status
+  - ATWhiteLight_chillerTECDrive
+- - The status array of the CBP.
+  - CBP_status
+- - The mask of the CBP.
+  - CBP_mask
+- - The azimuth of the CBP.
+  - CBP_azimuth
+- - The elevation of the CBP.
+  - CBP_elevation
+- - The focus of the CBP.
+  - CBP_focus
+- - Is the CBP parked?
+  - CBP_parked
+- - Sky status
+  - DIMM_sky
+- - Meterology data
+  - DIMM_meterology
+- - DIMM status data
+  - DIMM_status
+- - Ambient environment measured in various locations within DREAM. Indexed by location
+    - 0 Dome, 1 Electronics Box, 2 Enclosure.
+  - DREAM_environment
+- - DREAM power supply status.
+  - DREAM_powerSupply
+- - DREAM dome telemetry.
+  - DREAM_dome
+- - DREAM UPS telemetry.
+  - DREAM_ups
+- - Timestamp (TAI).
+  - EAS_timestamp
+- - Loop time..
+  - EAS_loopTime
+- - Telemetry for Netbooter PDU devices.
+  - EPM_pdu
+- - Telemetry for Scheider PM5XXX devices.
+  - EPM_scheiderPm5xxx
+- - Telemetry for XUPS devices.
+  - EPM_xups
+- - Air turbulence measured by a 3-dimensional anemometer. The reported values are
+    computed from data that is accumulated over a configurable period that is typically
+    on the order of a minute.
+  - ESS_airTurbulence
+- - Wind speed and direction. The reported values are computed from data that is accumulated
+    over a configurable period that is typically on the order of a minute.
+  - ESS_airFlow
+- - Dew point.
+  - ESS_dewPoint
+- - Pressure sensors with up to 8 channels.
+  - ESS_pressure
+- - Rate of rainfall.
+  - ESS_rainRate
+- - Relative humidity.
+  - ESS_relativeHumidity
+- - Rate of snowfall.
+  - ESS_snowRate
+- - Solar radiation.
+  - ESS_solarRadiation
+- - Temperature Sensors with up to 16 channels.
+  - ESS_temperature
+- - Raw data from a 3-axis accelerometer.
+  - ESS_accelerometer
+- - Acceleration PSD computed from a 3-axis accelerometer.
+  - ESS_accelerometerPSD
+- - Electric field strength. The reported values are computed from data that is accumulated
+    over a configurable period that is typically on the order of a second.
+  - ESS_electricFieldStrength
+- - Lightning strike status (once per second). This is a summary of the lightning
+    strikes detected.
+  - ESS_lightningStrikeStatus
+- - Spectrum analyzer trace (once per second).
+  - ESS_spectrumAnalyzer
+- - Earthquake broad band, high gain data.
+  - ESS_earthquakeBroadBandHighGain
+- - Earthquake broad band, low gain data.
+  - ESS_earthquakeBroadBandLowGain
+- - Earthquake high broad band, high gain data.
+  - ESS_earthquakeHighBroadBandHighGain
+- - Earthquake high broad band, low gain data.
+  - ESS_earthquakeHighBroadBandLowGain
+- - Earthquake long period, high gain data.
+  - ESS_earthquakeLongPeriodHighGain
+- - Earthquake long period, low gain data.
+  - ESS_earthquakeLongPeriodLowGain
+- - Earthquake ultra long period, high gain data.
+  - ESS_earthquakeUltraLongPeriodHighGain
+- - Earthquake very long period, high gain data.
+  - ESS_earthquakeVeryLongPeriodHighGain
+- - Telemetry for the bombaAguaFriaP01 device.
+  - HVAC_bombaAguaFriaP01
+- - Telemetry for the chiller01P01 device.
+  - HVAC_chiller01P01
+- - Telemetry for the chiller02P01 device.
+  - HVAC_chiller02P01
+- - Telemetry for the chiller03P01 device.
+  - HVAC_chiller03P01
+- - Telemetry for the generalP01 device.
+  - HVAC_generalP01
+- - Telemetry for the glycolSensor device.
+  - HVAC_glycolSensor
+- - Telemetry for the valvulaP01 device.
+  - HVAC_valvulaP01
+- - Telemetry for the vea01P01 device.
+  - HVAC_vea01P01
+- - Telemetry for the vec01P01 device.
+  - HVAC_vec01P01
+- - Telemetry for the vin01P01 device.
+  - HVAC_vin01P01
+- - Telemetry for the crack01P02 device.
+  - HVAC_crack01P02
+- - Telemetry for the crack02P02 device.
+  - HVAC_crack02P02
+- - Telemetry for the fancoil01P02 device.
+  - HVAC_fancoil01P02
+- - Telemetry for the fancoil02P02 device.
+  - HVAC_fancoil02P02
+- - Telemetry for the fancoil03P02 device.
+  - HVAC_fancoil03P02
+- - Telemetry for the fancoil04P02 device.
+  - HVAC_fancoil04P02
+- - Telemetry for the fancoil05P02 device.
+  - HVAC_fancoil05P02
+- - Telemetry for the fancoil06P02 device.
+  - HVAC_fancoil06P02
+- - Telemetry for the fancoil07P02 device.
+  - HVAC_fancoil07P02
+- - Telemetry for the fancoil08P02 device.
+  - HVAC_fancoil08P02
+- - Telemetry for the fancoil09P02 device.
+  - HVAC_fancoil09P02
+- - Telemetry for the fancoil10P02 device.
+  - HVAC_fancoil10P02
+- - Telemetry for the fancoil11P02 device.
+  - HVAC_fancoil11P02
+- - Telemetry for the fancoil12P02 device.
+  - HVAC_fancoil12P02
+- - Telemetry for the manejadoraSblancaP04 device.
+  - HVAC_manejadoraSblancaP04
+- - Telemetry for the manejadoraSlimpiaP04 device.
+  - HVAC_manejadoraSlimpiaP04
+- - Telemetry for the vex03LowerP04 device.
+  - HVAC_vex03LowerP04
+- - Telemetry for the vex04CargaP04 device.
+  - HVAC_vex04CargaP04
+- - Telemetry for the Dynalene device.
+  - HVAC_dynaleneP05
+- - Telemetry for the manejadoraLower01P05 device.
+  - HVAC_manejadoraLower01P05
+- - Telemetry for the manejadoraLower02P05 device.
+  - HVAC_manejadoraLower02P05
+- - Telemetry for the manejadoraLower03P05 device.
+  - HVAC_manejadoraLower03P05
+- - Telemetry for the manejadoraLower04P05 device.
+  - HVAC_manejadoraLower04P05
+- - Telemetry for the vea01P05 device.
+  - HVAC_vea01P05
+- - Telemetry for the vea08P05 device.
+  - HVAC_vea08P05
+- - Telemetry for the vea09P05 device.
+  - HVAC_vea09P05
+- - Telemetry for the vea10P05 device.
+  - HVAC_vea10P05
+- - Telemetry for the vea11P05 device.
+  - HVAC_vea11P05
+- - Telemetry for the vea12P05 device.
+  - HVAC_vea12P05
+- - Telemetry for the vea13P05 device.
+  - HVAC_vea13P05
+- - Telemetry for the vea14P05 device.
+  - HVAC_vea14P05
+- - Telemetry for the vea15P05 device.
+  - HVAC_vea15P05
+- - Telemetry for the vea16P05 device.
+  - HVAC_vea16P05
+- - Telemetry for the vea17P05 device.
+  - HVAC_vea17P05
+- - Measured M1M3 bending modes values.
+  - MTAOS_m1m3BendingModes
+- - Measured M2 bending modes values.
+  - MTAOS_m2BendingModes
+- - Status of the azimuth axis and drives.
+  - MTDome_azimuth
+- - Status of the light/wind screen (elevation axis).
+  - MTDome_lightWindScreen
+- - Status of the aperture shutter.
+  - MTDome_apertureShutter
+- - Status of the louvers. The Louver enumeration describes the louver indices. Each
+    louver has two drives and the drive indices for louver N are 2N and 2N+1.
+  - MTDome_louvers
+- - Status of the global interlock system.
+  - MTDome_interlocks
+- - Status of the thermal system.
+  - MTDome_thermal
+- - Status of the rear access door.
+  - MTDome_rearAccessDoor
+- - Status of the calibration screen hardware.
+  - MTDome_calibrationScreen
+- - Hexapod actuators information.
+  - MTHexapod_actuators
+- - Hexapod movement details of application.
+  - MTHexapod_application
+- - Hexapod drive/electrical information.
+  - MTHexapod_electrical
+- - Thermal status response data. Return of ILC command 89 (0x59).
+  - MTM1M3TS_thermalData
+- - Mixing valve position.
+  - MTM1M3TS_mixingValve
+- - Glycol loop temperature, measured by Thermal Sensors.
+  - MTM1M3TS_glycolLoopTemperature
+- - Flow meter telemetry.
+  - MTM1M3TS_flowMeter
+- - Telemetry from glycol pump.
+  - MTM1M3TS_glycolPump
+- - Force actuator data - cylinder forces.
+  - MTM1M3_forceActuatorData
+- - Inclinometer data - mirror inclination.
+  - MTM1M3_inclinometerData
+- - Outer loop data - counters and execution time.
+  - MTM1M3_outerLoopData
+- - DC accelerometer data - mirror cell acceleration.
+  - MTM1M3_accelerometerData
+- - Hardpoint acctuator data - steps queued, current position and sensed forces.
+  - MTM1M3_hardpointActuatorData
+- - IMS data - XYZ mirror position and rotation.
+  - MTM1M3_imsData
+- - Reports mezzanine board pressure in push and pull cylinders. Pressure is read
+    with ILC command 119.
+  - MTM1M3_forceActuatorPressure
+- - Gyroscope data - mirror cell velocity.
+  - MTM1M3_gyroData
+- - Power supplies currents.
+  - MTM1M3_powerSupplyData
+- - Dorce Balance System PID data.
+  - MTM1M3_pidData
+- - Hardpoint monitor data - LVDT displacement, pressures inside hardpoint cylinders.
+  - MTM1M3_hardpointMonitorData
+- - Applied M1M3 azimuth forces.
+  - MTM1M3_appliedAzimuthForces
+- - "Applied M1M3 acceleration forces. Those shall counteract mirror inertia\n   \
+    \   as its acceleration is changing."
+  - MTM1M3_appliedAccelerationForces
+- - "M1M3 applied balance forces. Those forces are calculated from the forces\n  \
+    \    sensed on top of the hardopoints, and shall remove force excess from the\n\
+    \      hardpoints."
+  - MTM1M3_appliedBalanceForces
+- - Forces applied to the Force Actuator cylinders. Those are the forces the control
+    system sends to actuators.
+  - MTM1M3_appliedCylinderForces
+- - Applied gravity distribution / elevation forces. Those shall change as mirror
+    changes its inclination.
+  - MTM1M3_appliedElevationForces
+- - "Total applied forces in XYZ space. See appliedCylinderForces for forces\n   \
+    \   commanded to the force actuator cylinders.\\"
+  - MTM1M3_appliedForces
+- - Forces calculated from measured mirror temperatures.
+  - MTM1M3_appliedThermalForces
+- - Forces counteracting mirror inertia as the TMA slew to a new position.
+  - MTM1M3_appliedVelocityForces
+- - M2 mirror's rigid body position. Measured from hardpoints.
+  - MTM2_position
+- - M2 mirror's rigid body position measured by the independent measurement system
+    (IMS).
+  - MTM2_positionIMS
+- - Axial actuator forces data. Increasing force corresponds to increasing tension
+    in the load cell. The elements are the actuator Ids from 1 to 72. The related
+    ring Ids are B1-B30, C1-C24, and D1-D18.
+  - MTM2_axialForce
+- - Tangent actuator forces data. Increasing force corresponds to increasing tension
+    in the load cell. The elements are the actuator Ids from 73 to 78. The related
+    ring Ids are A1-A6. The related degrees are 0, 60, 120, 180, 240, and 300.
+  - MTM2_tangentForce
+- - Mirror and cell temperature sensor readings relative to the origin (offset).
+  - MTM2_temperature
+- - M2 internal inclinometer reading transforms to the zenith angle.
+  - MTM2_zenithAngle
+- - Received inclinometer angle from the telescope mount assembly (TMA). This topic
+    is used to debug the look-up table (LUT) calculation if needed.
+  - MTM2_inclinometerAngleTma
+- - Axial actuator stepper motor position in steps. Increasing step corresponds to
+    counterclockwise rotation of the motor shaft, looking along the shaft in the direction
+    of the motor. The elements are the actuator Ids from 1 to 72. The related ring
+    Ids are B1-B30, C1-C24, and D1-D18.
+  - MTM2_axialActuatorSteps
+- - Tangent actuator stepper motor position in steps. Increasing sign indicates extension
+    towards the mirror. The elements are the actuator Ids from 73 to 78. The related
+    ring Ids are A1-A6. The related degrees are 0, 60, 120, 180, 240, and 300.
+  - MTM2_tangentActuatorSteps
+- - Axial actuator encoder position. The sign of the position is consistent with the
+    optical coordinate system as per LTS-136. The elements are the actuator Ids from
+    1 to 72. The related ring Ids are B1-B30, C1-C24, and D1-D18.
+  - MTM2_axialEncoderPositions
+- - Tangent actuator encoder position. The sign of the position is consistent with
+    the optical coordinate system as per LTS-136. The elements are the actuator Ids
+    from 73 to 78. The related ring Ids are A1-A6. The related degrees are 0, 60,
+    120, 180, 240, and 300.
+  - MTM2_tangentEncoderPositions
+- - Inner-loop controller (ILC) data.
+  - MTM2_ilcData
+- - Raw measurements from displacement sensors.
+  - MTM2_displacementSensors
+- - Net forces and moments as commanded by the force balance system. These are calculated
+    using the 72 axial and 6 tangent balance forces, which are a component of the
+    total forces being commanded.
+  - MTM2_forceBalance
+- - Total actuator net forces.
+  - MTM2_netForcesTotal
+- - Total actuator net moments of force.
+  - MTM2_netMomentsTotal
+- - Total voltage and current for motors and communication system of M2.
+  - MTM2_powerStatus
+- - Raw total voltage and current for motors and communication system of M2.
+  - MTM2_powerStatusRaw
+- - Tangential force error used to compare with the thresholds to avoid the breaking
+    of mirror. A1 and A4 do not support the mirror. Only A2, A3, A5, and A6 do.
+  - MTM2_forceErrorTangent
+- - Heartbeat output by the MTMount CSC's telemetry client (not the TMA).
+  - MTMount_telemetryClientHeartbeat
+- - Azimuth axis detail
+  - MTMount_azimuth
+- - Mount safety system
+  - MTMount_safetySystem
+- - Elevation axis detail
+  - MTMount_elevation
+- - Locking pins status
+  - MTMount_lockingPins
+- - Deployable platforms status
+  - MTMount_deployablePlatforms
+- - Cabinet 0101 Thermal status
+  - MTMount_cabinet0101Thermal
+- - Azimuth cable wrap status
+  - MTMount_azimuthCableWrap
+- - Camera cable wrap status
+  - MTMount_cameraCableWrap
+- - Balncing detail
+  - MTMount_balancing
+- - Azimuth drive currents
+  - MTMount_azimuthDrives
+- - Azimuth drive temperatures
+  - MTMount_azimuthDrivesThermal
+- - Elevation drive currents
+  - MTMount_elevationDrives
+- - Elevation drive temperatures
+  - MTMount_elevationDrivesThermal
+- - Encoders detail
+  - MTMount_encoder
+- - Main cabinet temperatures
+  - MTMount_mainCabinetThermal
+- - Mirror cover locks
+  - MTMount_mirrorCoverLocks
+- - Mirror covers detail
+  - MTMount_mirrorCover
+- - Main power supply detail
+  - MTMount_mainPowerSupply
+- - Top end chiller detail
+  - MTMount_topEndChiller
+- - Auxillary cabinets temperatures
+  - MTMount_auxiliaryCabinetsThermal
+- - Oil supply system detail
+  - MTMount_oilSupplySystem
+- - Compressed air detail
+  - MTMount_compressedAir
+- - Cooling system detail
+  - MTMount_cooling
+- - Dynalene cooling system detail
+  - MTMount_dynaleneCooling
+- - Glycol cooling system detail
+  - MTMount_generalPurposeGlycolWater
+- - Calculated demands for current target
+  - MTPtg_currentTargetStatus
+- - Guiding data
+  - MTPtg_guiding
+- - Time related data
+  - MTPtg_timeAndDate
+- - Current telescope mount status
+  - MTPtg_mountStatus
+- - Information related to the Sun and the Moon
+  - MTPtg_skyEnvironment
+- - Named telescope positions specified in the configuration file
+  - MTPtg_namedAzEl
+- - Telemetry for mount positions in sky coordinates
+  - MTPtg_mountPosition
+- - Camera cable wrap following error.
+  - MTRotator_ccwFollowingError
+- - Demand and actual rotator position and velocity.
+  - MTRotator_rotation
+- - Rotator drive/electrical information.
+  - MTRotator_electrical
+- - Data about the two rotator motors, in order A, B
+  - MTRotator_motors
+- - VMS (1 sensor, 3 channels) accelerometer data.
+  - MTVMS_data
+- - Acceleration power spectral density (PSD), measured by a 3 axis accelerometer.
+  - MTVMS_psd
+- - Miscellaneous data.
+  - MTVMS_miscellaneous
+- - Scalar values.
+  - Test_scalars
+- - Array values.
+  - Test_arrays
+- - The temperature sensors that are available from the laser. (deg_C)
+  - TunableLaser_temperature
+- - The wavelength of the laser.
+  - TunableLaser_wavelength
+- - The average temperature of the Omrom scanner for measuring the cooling performance
+    of the laser.
+  - TunableLaser_scannerTemperature
+- - The metadata for the forecast data.
+  - WeatherForecast_metadata
+- - The hourly trend forecast data.
+  - WeatherForecast_hourlyTrend
+- - The daily trend for the forecast.
+  - WeatherForecast_dailyTrend
