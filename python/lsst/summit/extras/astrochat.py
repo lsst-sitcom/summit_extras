@@ -213,21 +213,34 @@ class ResponseFormatter:
             self.printAction(action)
             self.printObservation(observation)
 
-        output = response["output"]
-        print(f"\nFinal answer: {output}")
+        output = response.get("output", None)
+        if output:
+            print(f"\nFinal answer: {output}")
 
     @staticmethod
     def pprint(responses):
         print(f"Length of responses: {len(responses)}")
-        steps = responses["intermediate_steps"]
-        print(f"with {len(steps)} steps\n")
-        for stepNum, step in enumerate(steps):
-            action, logs = step
-            if action.tool == "python_repl_ast":
-                code = action.tool_input["query"]
+        if isinstance(responses, list):
+            for response in responses:
+                steps = response.get("intermediate_steps", [])
+                print(f"with {len(steps)} steps")
+                for stepNum, step in enumerate(steps):
+                    action, observation = step
+                    print(f"Step {stepNum + 1}")
+                    if isinstance(action, str):
+                        print(f"Action log: {action}")
+                    if isinstance(observation, str):
+                        print(f"Observation: {observation}")
+        else:
+            steps = responses.get("intermediate_steps", [])
+            print(f"with {len(steps)} steps")
+            for stepNum, step in enumerate(steps):
+                action, observation = step
                 print(f"Step {stepNum + 1}")
-                display(Markdown(f"```python\n{code}\n```"))
-                print(f"logs: {logs}")
+                if isinstance(action, str):
+                    print(f"Action log: {action}")
+                if isinstance(observation, str):
+                    print(f"Observation: {observation}")
 
     def __call__(self, response):
         """Format the response for notebook display.
@@ -242,9 +255,19 @@ class ResponseFormatter:
         formattedResponse : `str`
             The formatted response.
         """
+
         if self.agentType == "tool-calling":
-            self.pprint(response)
-            return
+            if isinstance(response, list):
+                for resp in response:
+                    self.pprint(resp)
+                    output = resp.get("output", None)
+                    if output:
+                        print(f"\nFinal answer: {output}")
+            else:
+                self.pprint(response)
+                output = response.get("output", None)
+                if output:
+                    print(f"\nFinal answer: {output}")
         elif self.agentType == "ZERO_SHOT_REACT_DESCRIPTION":
             self.printResponse(response)
             allCode = self.allCode
@@ -276,12 +299,12 @@ class Tools:
 
         self.tools = [
             Tool(
-                name="Secret Word",
+                name="secret_word",
                 func=self.secret_word,
                 description="Useful for when you need to answer what is the secret word",
             ),
             Tool(
-                name="NASA Image",
+                name="nasa_image",
                 func=self.nasa_image,
                 description=(
                     "Useful for when you need to answer what is the NASA image of the day"
@@ -289,12 +312,12 @@ class Tools:
                 ),
             ),
             Tool(
-                name="Random MTG",
+                name="random_mtg",
                 func=self.random_mtg_card,
                 description="Useful for when you need to show a random Magic The Gathering card",
             ),
             Tool(
-                name="YAML Topic Finder",
+                name="yaml_topic_finder",
                 func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI.",
             ),
@@ -557,6 +580,8 @@ class AstroChat:
         self.agentType = agentType
         if agentType == "ZERO_SHOT_REACT_DESCRIPTION":
             agentType = AgentType.ZERO_SHOT_REACT_DESCRIPTION
+        # else:
+        #     acting_agent = agentType
 
         prefix = """
         You are running in an interactive environment, so if users ask for
@@ -565,8 +590,8 @@ class AstroChat:
         answer user questions and generate plots from it.
 
         If the question is not related with pandas, you can use extra tools.
-        The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random
-        MTG', 4. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use
+        The extra tools are: 1. 'secret_word', 2. 'nasa_image', 3. 'random_mtg', 
+        4. 'yaml_topic_finder'. When using the 'Nasa Image' tool, use
         'self.date' as a date, do not use 'dayObs', and do not attempt any
         pandas analysis at all, so not use 'self.data'
         """
