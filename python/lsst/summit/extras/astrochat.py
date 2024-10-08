@@ -27,23 +27,31 @@ import warnings
 
 # TODO: work out a way to protect all of these imports
 import langchain_community
+import langchain_experimental
 import pandas as pd
 import requests
 import yaml
 from annoy import AnnoyIndex
 from IPython.display import Image, Markdown, display
-from langchain.agents import AgentType, Tool, initialize_agent
+from langchain.agents import AgentType, Tool, initialize_agent, create_structured_chat_agent
 from langchain.schema import HumanMessage
 from langchain_community.callbacks import get_openai_callback  # noqa: E402
 from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer
+from langchain import PromptTemplate
 
 from langchain_experimental.tools.python.tool import PythonAstREPLTool
+import asyncio
+import nest_asyncio
+
+from lsst_efd_client import EfdClient
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils import getPackageDir
 from lsst.utils.iteration import ensure_iterable
+
+nest_asyncio.apply()
 
 INSTALL_NEEDED = False
 LOG = logging.getLogger(__name__)
@@ -286,7 +294,12 @@ class Tools:
                 func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI.",
             ),
-            repl_tool,
+            Tool(
+                name="EFD data fetcher",
+                func=self.efd_data_fetcher,
+                description="Fetches data from EFD using a topic found from the description.",
+            ),
+            repl_tool 
         ]
 
     @staticmethod
@@ -403,11 +416,58 @@ class Tools:
             choice_index = int(best_match.group(1)) - 1
             if 0 <= choice_index < len(best_descriptions):
                 best_description, topic = best_descriptions[choice_index]
-                # return f"Best EFDB Topic: {topic}"
+                # return f"Best EFDB Topic: {topic}" 
                 return topic
 
         return "AI response could not identify the best description."
+    
+    async def efd_data_fetch_async(self, formatted_topic):
+        efd_client = EfdClient('usdf_efd')
+        try:
+            fields = await efd_client.get_fields(formatted_topic)
+            fields = [f for f in fields if 'private' not in f and f != 'name']
 
+            if not fields:
+                raise ValueError(f"No eligible fields found for topic: {formatted_topic}")
+
+            dd = await efd_client.select_top_n(formatted_topic, fields, 1)
+            return dd  # Return the fetched data
+
+        except Exception as e:
+            LOG.error(f"Error processing topic {formatted_topic}: {e}")
+            return None
+
+    async def efd_data_fetcher_async(self, query_description):
+        # Asynchronously find and format the topic using the topic finder tool
+        raw_topic = self.find_topic_with_ai(query_description)
+        if raw_topic == "AI response could not identify the best description.":
+            LOG.error("Topic finding failed")
+            return None
+
+        # Format topic to EFD standards
+        formatted_topic = self.format_topic(raw_topic)
+        print(f"Using identified topic: {formatted_topic}")
+
+        # Attempt to fetch data for the formatted topic and return it
+        try:
+            data = await self.efd_data_fetch_async(formatted_topic)
+            print("Response from the efd data: ", data)
+            return data
+
+        except Exception as e:
+            LOG.error(f"Unable to fetch data for topic {formatted_topic}: {e}")
+            return None
+
+    def efd_data_fetcher(self, query_description):
+        # Run the async version of efd_data_fetcher and return the result
+        return asyncio.run(self.efd_data_fetcher_async(query_description))
+
+
+    def format_topic(self, raw_topic: str) -> str:
+        """Convert a raw topic string to the EFD required format."""
+        topic_parts = raw_topic.split('_')
+        formatted_topic = "lsst.sal." + '.'.join(topic_parts)
+        return formatted_topic
 
 class AstroChat:
     allowedVerbosities = ("COST", "ALL", "NONE", None)
@@ -537,14 +597,24 @@ class AstroChat:
             handle_parsing_errors=True,
             prefix=prefix,
         )
-        self.customAgent = CustomAgent(
-            chat_model=self._chat,
+        self.customAgent = initialize_agent(
+            llm=self._chat,
             agent_type=agentType,
             return_intermediate_steps=True,
-            extra_tools=self.toolkit,
+            tools=self.toolkit,
             prefix=prefix,
         )
-
+    #     prompt_template = PromptTemplate(
+    #     input_variables=["input_text"],  
+    #     template="The user has asked: '{input_text}'. Please respond appropriately."
+    # )
+    #     self.customAgent = create_structured_chat_agent(
+    #         tools=self.toolkit,
+    #         llm=self._chat,
+    #         prompt=prompt_template
+    #     )
+        
+        # Setting the current active agent, initially as pandas agent
         self.activeAgent = self.customAgent
 
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
@@ -564,6 +634,7 @@ class AstroChat:
             LOG.info("Switched to CustomAgent.")
         else:
             raise ValueError("Invalid agent name provided. Choose 'pandas' or 'custom'.")
+
 
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
@@ -686,43 +757,3 @@ class AstroChat:
             print(f"\nRunning demo item '{item}':")
             print(f"Prompt text: {self.demoQueries[item]}")
             self.run(self.demoQueries[item])
-
-
-class CustomAgent:
-    def __init__(self, chat_model, agent_type, return_intermediate_steps, extra_tools, prefix):
-        LOG.debug("Initializing CustomAgent")
-        self.chat_model = chat_model
-
-        # This should be a list of Tool instances
-        self.tools = extra_tools
-
-        self.agent_type = agent_type
-        self.return_intermediate_steps = return_intermediate_steps
-        self.prefix = prefix
-        LOG.debug("CustomAgent initialized with tools: %s", self.tools)
-
-    def invoke(self, inputs, handle_parsing_errors=False):
-        user_input = inputs.get("input", "").strip()
-        print(f"CustomAgent processing input: {user_input}")
-
-        for tool in self.tools:
-            if "topic" in user_input.lower() and tool.name.lower() == "yaml topic finder":
-                try:
-                    response = tool.func(user_input)  # Use YAML Topic Finder
-                    print(f"Response from YAML Topic Finder: {response}")
-                    return {"output": response}
-                except Exception as e:
-                    print(f"Error with tool {tool.name}: {e}")
-                    if handle_parsing_errors:
-                        return {"error": str(e)}
-
-        # Fallback response from chat model
-        try:
-            chat_response = self.chat_model([HumanMessage(content=user_input)])
-            response = (
-                chat_response.content if hasattr(chat_response, "content") else "No final answer found."
-            )
-        except Exception as e:
-            return {"error": f"Error using chat model: {str(e)}"}
-
-        return {"output": response}
