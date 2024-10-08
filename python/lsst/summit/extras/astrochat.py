@@ -27,18 +27,19 @@ import warnings
 
 # TODO: work out a way to protect all of these imports
 import langchain_community
-import langchain_experimental
 import pandas as pd
 import requests
 import yaml
 from annoy import AnnoyIndex
 from IPython.display import Image, Markdown, display
-from langchain.agents import AgentType, Tool
+from langchain.agents import AgentType, Tool, initialize_agent
 from langchain.schema import HumanMessage
 from langchain_community.callbacks import get_openai_callback  # noqa: E402
 from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer
+
+from langchain_experimental.tools.python.tool import PythonAstREPLTool
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils import getPackageDir
@@ -199,7 +200,7 @@ class ResponseFormatter:
         print(f"Observation: {observation}")
 
     def printResponse(self, response):
-        steps = response["intermediate_steps"]
+        steps = response.get("intermediate_steps", [])
         nSteps = len(steps)
         if nSteps > 1:
             print(f"There were {len(steps)} steps to the process:\n")
@@ -213,7 +214,7 @@ class ResponseFormatter:
             self.printAction(action)
             self.printObservation(observation)
 
-        output = response["output"]
+        output = response.get("output", "No final answer found")
         print(f"\nFinal answer: {output}")
 
     @staticmethod
@@ -260,7 +261,7 @@ class Tools:
         self.data = self.load_yaml(yamlFilePath)
         self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
         self.index = self.build_annoy_index()
-
+        repl_tool = PythonAstREPLTool(locals={})
         self.tools = [
             Tool(
                 name="Secret Word",
@@ -285,6 +286,7 @@ class Tools:
                 func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI.",
             ),
+            repl_tool,
         ]
 
     @staticmethod
@@ -401,7 +403,8 @@ class Tools:
             choice_index = int(best_match.group(1)) - 1
             if 0 <= choice_index < len(best_descriptions):
                 best_description, topic = best_descriptions[choice_index]
-                return f"Best EFDB Topic: {topic}"
+                # return f"Best EFDB Topic: {topic}"
+                return topic
 
         return "AI response could not identify the best description."
 
@@ -521,7 +524,7 @@ class AstroChat:
         # Extract the tools for use in your agent
         self.toolkit = toolkit.tools
 
-        self._agent = create_pandas_dataframe_agent(
+        self.pandasAgent = create_pandas_dataframe_agent(
             self._chat,
             self.data,
             agent_type=agentType,
@@ -534,6 +537,16 @@ class AstroChat:
             handle_parsing_errors=True,
             prefix=prefix,
         )
+        self.customAgent = CustomAgent(
+            chat_model=self._chat,
+            agent_type=agentType,
+            return_intermediate_steps=True,
+            extra_tools=self.toolkit,
+            prefix=prefix,
+        )
+
+        self.activeAgent = self.customAgent
+
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter(agentType=self.agentType)
 
@@ -542,12 +555,22 @@ class AstroChat:
             # TODO: Improve this warning message.
             warnings.warn("Exporting variables from the agent after each call. This can cause problems!")
 
+    def setActiveAgent(self, agentName):
+        if agentName == "pandas":
+            self.activeAgent = self.pandasAgent
+            LOG.info("Switched to PandasAgent.")
+        elif agentName == "custom":
+            self.activeAgent = self.customAgent
+            LOG.info("Switched to CustomAgent.")
+        else:
+            raise ValueError("Invalid agent name provided. Choose 'pandas' or 'custom'.")
+
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
             raise ValueError(f"Allowed values are {self.allowedVerbosities}, got {level}")
         self._verbosity = level
 
-    def refine_query(self, query):
+    def refineQuery(self, query):
         messages = [
             {
                 "role": "user",
@@ -566,15 +589,13 @@ class AstroChat:
         replTool : `langchain.tools.python.tool.PythonAstREPLTool`
             The REPL tool.
         """
-        replTools = []
-        for item in self._agent.tools:
-            if isinstance(item, langchain_experimental.tools.python.tool.PythonAstREPLTool):
-                replTools.append(item)
+        replTools = [tool for tool in self.activeAgent.tools if isinstance(tool, PythonAstREPLTool)]
+        print(f"REPL Tools found: {replTools}")
+
         if not replTools:
             raise RuntimeError("Agent appears to have no REPL tools")
         if len(replTools) > 1:
             raise RuntimeError("Agent appears to have more than one REPL tool")
-
         return replTools[0]
 
     def exportLocalVariables(self):
@@ -615,7 +636,7 @@ class AstroChat:
     def run(self, inputStr):
         with get_openai_callback() as cb:
             try:
-                responses = self._agent.invoke(
+                responses = self.activeAgent.invoke(
                     {"input": inputStr}, handle_parsing_errors=True  # Ensure robust error handling
                 )
             except ValueError as e:
@@ -665,3 +686,43 @@ class AstroChat:
             print(f"\nRunning demo item '{item}':")
             print(f"Prompt text: {self.demoQueries[item]}")
             self.run(self.demoQueries[item])
+
+
+class CustomAgent:
+    def __init__(self, chat_model, agent_type, return_intermediate_steps, extra_tools, prefix):
+        LOG.debug("Initializing CustomAgent")
+        self.chat_model = chat_model
+
+        # This should be a list of Tool instances
+        self.tools = extra_tools
+
+        self.agent_type = agent_type
+        self.return_intermediate_steps = return_intermediate_steps
+        self.prefix = prefix
+        LOG.debug("CustomAgent initialized with tools: %s", self.tools)
+
+    def invoke(self, inputs, handle_parsing_errors=False):
+        user_input = inputs.get("input", "").strip()
+        print(f"CustomAgent processing input: {user_input}")
+
+        for tool in self.tools:
+            if "topic" in user_input.lower() and tool.name.lower() == "yaml topic finder":
+                try:
+                    response = tool.func(user_input)  # Use YAML Topic Finder
+                    print(f"Response from YAML Topic Finder: {response}")
+                    return {"output": response}
+                except Exception as e:
+                    print(f"Error with tool {tool.name}: {e}")
+                    if handle_parsing_errors:
+                        return {"error": str(e)}
+
+        # Fallback response from chat model
+        try:
+            chat_response = self.chat_model([HumanMessage(content=user_input)])
+            response = (
+                chat_response.content if hasattr(chat_response, "content") else "No final answer found."
+            )
+        except Exception as e:
+            return {"error": f"Error using chat model: {str(e)}"}
+
+        return {"output": response}
