@@ -32,13 +32,13 @@ import requests
 import yaml
 from annoy import AnnoyIndex
 from IPython.display import Image, Markdown, display
-from langchain.agents import AgentType, Tool, initialize_agent
+from langchain.agents import AgentType, Tool, create_react_agent, create_structured_chat_agent
 from langchain.schema import HumanMessage
 from langchain_community.callbacks import get_openai_callback  # noqa: E402
 from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer
-
+from langchain.prompts import PromptTemplate, BasePromptTemplate
 from langchain_experimental.tools.python.tool import PythonAstREPLTool
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
@@ -151,6 +151,23 @@ def getObservingData(dayObs=None):
 
     return table
 
+prompt_text = """
+You are running in an interactive environment where you have access to various tools.
+If users ask for plots, create them using the data at your disposal. You also have access to a
+pandas dataframe, referred to as `df`, and should use this dataframe to
+answer user questions and generate plots from it.
+
+If the question is not related to pandas, you can use extra tools.
+The extra tools are: {tool_names}.
+{agent_scratchpad}
+Answer the question: {question}
+"""
+
+prompt = PromptTemplate(
+    input_variables=["question", "tools", "tool_names", "agent_scratchpad"],
+    template=prompt_text
+)
+
 
 class ResponseFormatter:
     """Format the response from the chatbot.
@@ -200,6 +217,7 @@ class ResponseFormatter:
         print(f"Observation: {observation}")
 
     def printResponse(self, response):
+        print(f"\Raw response before intermediate steps: {response}")
         steps = response.get("intermediate_steps", [])
         nSteps = len(steps)
         if nSteps > 1:
@@ -261,7 +279,7 @@ class Tools:
         self.data = self.load_yaml(yamlFilePath)
         self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
         self.index = self.build_annoy_index()
-        repl_tool = PythonAstREPLTool(locals={})
+        repl_tool = PythonAstREPLTool(locals={"df": self.data})
         self.tools = [
             Tool(
                 name="Secret Word",
@@ -523,29 +541,50 @@ class AstroChat:
 
         # Extract the tools for use in your agent
         self.toolkit = toolkit.tools
-
-        self.pandasAgent = create_pandas_dataframe_agent(
-            self._chat,
-            self.data,
-            agent_type=agentType,
-            return_intermediate_steps=True,
-            include_df_in_prompt=True,
-            extra_tools=self.toolkit,
-            number_of_head_rows=1,
-            agent_executor_kwargs={"handle_parsing_errors": True},
-            allow_dangerous_code=True,
-            handle_parsing_errors=True,
-            prefix=prefix,
-        )
-        self.customAgent = CustomAgent(
-            chat_model=self._chat,
-            agent_type=agentType,
-            return_intermediate_steps=True,
-            extra_tools=self.toolkit,
-            prefix=prefix,
+        
+        tools_list = toolkit.tools  # Ensure this is a list of tool instances defined elsewhere
+        tool_names = ', '.join(tool.name for tool in tools_list)
+        agent_scratchpad = ""
+        filled_prompt = prompt.partial(
+            tools=tools_list,  # This should point to the actual tool data used in context
+            tool_names=tool_names,
+            agent_scratchpad=agent_scratchpad
         )
 
-        self.activeAgent = self.customAgent
+
+        # self._agent = create_react_agent(
+        #     self._chat,
+        #     self.data,
+        #     agent_type=agentType,
+        #     return_intermediate_steps=True,
+        #     include_df_in_prompt=True,
+        #     extra_tools=self.toolkit,
+        #     number_of_head_rows=1,
+        #     agent_executor_kwargs={"handle_parsing_errors": True},
+        #     allow_dangerous_code=True,
+        #     handle_parsing_errors=True,
+        #     prefix=prefix,
+        # )
+
+        
+
+        self._agent = create_react_agent(
+            llm=self._chat,
+            tools=tools_list,
+            prompt=filled_prompt,
+            output_parser=None,  # Use a specific parser if needed
+            stop_sequence=True,  # Customize as needed
+        )
+        
+        # self.customAgent = CustomAgent(
+        #     chat_model=self._chat,
+        #     agent_type=agentType,
+        #     return_intermediate_steps=True,
+        #     extra_tools=self.toolkit,
+        #     prefix=prefix,
+        # )
+
+        # self.activeAgent = self.customAgent
 
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter(agentType=self.agentType)
@@ -555,15 +594,15 @@ class AstroChat:
             # TODO: Improve this warning message.
             warnings.warn("Exporting variables from the agent after each call. This can cause problems!")
 
-    def setActiveAgent(self, agentName):
-        if agentName == "pandas":
-            self.activeAgent = self.pandasAgent
-            LOG.info("Switched to PandasAgent.")
-        elif agentName == "custom":
-            self.activeAgent = self.customAgent
-            LOG.info("Switched to CustomAgent.")
-        else:
-            raise ValueError("Invalid agent name provided. Choose 'pandas' or 'custom'.")
+    # def setActiveAgent(self, agentName):
+    #     if agentName == "pandas":
+    #         self.activeAgent = self.pandasAgent
+    #         LOG.info("Switched to PandasAgent.")
+    #     elif agentName == "custom":
+    #         self.activeAgent = self.customAgent
+    #         LOG.info("Switched to CustomAgent.")
+    #     else:
+    #         raise ValueError("Invalid agent name provided. Choose 'pandas' or 'custom'.")
 
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
@@ -589,7 +628,7 @@ class AstroChat:
         replTool : `langchain.tools.python.tool.PythonAstREPLTool`
             The REPL tool.
         """
-        replTools = [tool for tool in self.activeAgent.tools if isinstance(tool, PythonAstREPLTool)]
+        replTools = [tool for tool in self._agent.tools if isinstance(tool, PythonAstREPLTool)]
         print(f"REPL Tools found: {replTools}")
 
         if not replTools:
@@ -633,17 +672,50 @@ class AstroChat:
         finally:
             del frame  # Explicitly delete the frame to avoid reference cycles
 
+    # def run(self, inputStr):
+    #     with get_openai_callback() as cb:
+    #         try:
+    #             responses = self._agent.invoke(
+    #                 {
+    #                 "question": inputStr,  # Ensure 'question' is included
+    #                 "intermediate_steps": [],  # Default for intermediate steps
+    #                 "agent_scratchpad": ""    # Default for scratchpad if needed
+    #             }
+    #             )
+    #         except ValueError as e:
+    #             LOG.error(f"Agent faced a parsing error: {str(e)}")
+    #             return f"An error occurred while processing your request: {str(e)}"
+
+    #     _ = self.formatter(responses)
+    #     self._addUsageAndDisplay(cb)
+
+    #     if self.export:
+    #         self.exportLocalVariables()
+    #     return
+
     def run(self, inputStr):
         with get_openai_callback() as cb:
             try:
-                responses = self.activeAgent.invoke(
-                    {"input": inputStr}, handle_parsing_errors=True  # Ensure robust error handling
-                )
+                # Assuming 'responses' now contains a dictionary with keys like 'output' or 'code'
+                responses = self._agent.invoke({
+                    "question": inputStr,
+                    "input": inputStr,
+                    "intermediate_steps": [],
+                    "agent_scratchpad": ""
+                })
+                
+                code_to_execute = responses.get('code')  # Check for executable code
+
+                if code_to_execute:
+                    # Execute the code and catch the output
+                    exec(code_to_execute, {'df': self.data})
+                    print(locals().get('number_of_images', 'Execution did not provide output'))
+                
+                _ = self.formatter(responses)
+
             except ValueError as e:
                 LOG.error(f"Agent faced a parsing error: {str(e)}")
                 return f"An error occurred while processing your request: {str(e)}"
-
-        _ = self.formatter(responses)
         self._addUsageAndDisplay(cb)
 
         if self.export:
