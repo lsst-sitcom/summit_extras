@@ -27,19 +27,18 @@ import warnings
 
 # TODO: work out a way to protect all of these imports
 import langchain_community
+import langchain_experimental
 import pandas as pd
 import requests
 import yaml
 from annoy import AnnoyIndex
+from langchain import hub
 from IPython.display import Image, Markdown, display
-from langchain.agents import AgentType, Tool, create_react_agent, create_structured_chat_agent
+from langchain.agents import AgentType, Tool, create_react_agent, AgentExecutor
 from langchain.schema import HumanMessage
 from langchain_community.callbacks import get_openai_callback  # noqa: E402
-from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer
-from langchain.prompts import PromptTemplate, BasePromptTemplate
-from langchain_experimental.tools.python.tool import PythonAstREPLTool
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils import getPackageDir
@@ -151,23 +150,6 @@ def getObservingData(dayObs=None):
 
     return table
 
-prompt_text = """
-You are running in an interactive environment where you have access to various tools.
-If users ask for plots, create them using the data at your disposal. You also have access to a
-pandas dataframe, referred to as `df`, and should use this dataframe to
-answer user questions and generate plots from it.
-
-If the question is not related to pandas, you can use extra tools.
-The extra tools are: {tool_names}.
-{agent_scratchpad}
-Answer the question: {question}
-"""
-
-prompt = PromptTemplate(
-    input_variables=["question", "tools", "tool_names", "agent_scratchpad"],
-    template=prompt_text
-)
-
 
 class ResponseFormatter:
     """Format the response from the chatbot.
@@ -217,8 +199,7 @@ class ResponseFormatter:
         print(f"Observation: {observation}")
 
     def printResponse(self, response):
-        print(f"\Raw response before intermediate steps: {response}")
-        steps = response.get("intermediate_steps", [])
+        steps = response["intermediate_steps"]
         nSteps = len(steps)
         if nSteps > 1:
             print(f"There were {len(steps)} steps to the process:\n")
@@ -232,21 +213,38 @@ class ResponseFormatter:
             self.printAction(action)
             self.printObservation(observation)
 
-        output = response.get("output", "No final answer found")
+        output = response["output"]
         print(f"\nFinal answer: {output}")
 
     @staticmethod
     def pprint(responses):
-        print(f"Length of responses: {len(responses)}")
-        steps = responses["intermediate_steps"]
-        print(f"with {len(steps)} steps\n")
-        for stepNum, step in enumerate(steps):
-            action, logs = step
-            if action.tool == "python_repl_ast":
-                code = action.tool_input["query"]
-                print(f"Step {stepNum + 1}")
-                display(Markdown(f"```python\n{code}\n```"))
-                print(f"logs: {logs}")
+        # Check if 'responses' is actually a dictionary and contains the expected key
+        if not isinstance(responses, dict):
+            print("The 'responses' object is not a dictionary. Cannot proceed.")
+            print(f"Type of 'responses': {type(responses)}")
+            print(f"Contents of 'responses': {responses}")
+            return
+        
+        print(f"Keys of 'responses': {list(responses.keys())}")
+        
+        if "intermediate_steps" in responses:
+            steps = responses["intermediate_steps"]
+            print(f"Length of responses steps: {len(steps)}")
+            print(f"with {len(steps)} steps\n")
+            
+            for stepNum, step in enumerate(steps):
+                action, logs = step
+                if action.tool == "python_repl_ast":
+                    code = action.tool_input["query"]
+                    print(f"Step {stepNum + 1}")
+                    display(Markdown(f"```python\n{code}\n```"))
+                    print(f"logs: {logs}")
+        else:
+            print("No intermediate steps found.")
+        if "output" in responses:
+            print("\nFinal answer:",responses["output"] )
+        else:
+            print("No final output found in the responses.")
 
     def __call__(self, response):
         """Format the response for notebook display.
@@ -273,13 +271,26 @@ class ResponseFormatter:
             raise ValueError(f"Unknown agent type: {self.agentType}")
 
 
+def convert_tuples_to_lists(data):
+    if isinstance(data, tuple):
+        return list(data)
+    elif isinstance(data, list):
+        return [convert_tuples_to_lists(item) for item in data]
+    elif isinstance(data, dict):
+        return {key: convert_tuples_to_lists(value) for key, value in data.items()}
+    else:
+        return data
+
+
 class Tools:
     def __init__(self, chat_model, yamlFilePath) -> None:
+        self.data_dir = os.path.dirname(yamlFilePath)
+        self.index_path = os.path.join(self.data_dir, "annoy_index.ann")
         self._chat = chat_model
         self.data = self.load_yaml(yamlFilePath)
         self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
-        self.index = self.build_annoy_index()
-        repl_tool = PythonAstREPLTool(locals={"df": self.data})
+        self.index, self.descriptions = self.load_or_build_annoy_index()
+
         self.tools = [
             Tool(
                 name="Secret Word",
@@ -304,7 +315,6 @@ class Tools:
                 func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI.",
             ),
-            repl_tool,
         ]
 
     @staticmethod
@@ -347,12 +357,22 @@ class Tools:
         return image_url
 
     def load_yaml(self, file_path):
+        # Load the YAML file with the custom constructor
         with open(file_path, "r") as file:
-            return yaml.safe_load(file)
+            return yaml.load(file, Loader=yaml.SafeLoader)
+
+    def load_or_build_annoy_index(self):
+        if os.path.exists(self.index_path):
+            return self.load_annoy_index()
+        else:
+            index, descriptions = self.build_annoy_index()
+            self.descriptions = descriptions
+            self.save_annoy_index(index)
+            return index, descriptions
 
     def build_annoy_index(self):
         index = AnnoyIndex(384, "angular")  # Adjust the vector length based on your embeddings
-        self.descriptions = []  # Store descriptions and topics for later use
+        descriptions = []  # Store descriptions and topics for later use
 
         # Iterate over all entries in the loaded YAML data
         for telemetry_name, telemetry_data in self.data.items():
@@ -369,13 +389,47 @@ class Tools:
                                     vector = self.embed_description(
                                         description
                                     )  # Convert description to vector
-                                    index.add_item(len(self.descriptions), vector)
+                                    index.add_item(len(descriptions), vector)
                                     # Keep track of the description and its
                                     # corresponding EFDB topic
-                                    self.descriptions.append((description, efdb_topic))
+                                    descriptions.append((description, efdb_topic))
 
         index.build(10)  # Build the Annoy index with 10 trees
-        return index
+        return index, descriptions
+
+    def save_annoy_index(self, index):
+        directory = os.path.dirname(self.index_path)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        index.save(self.index_path)
+        LOG.info(f"Annoy index saved to {self.index_path}")
+
+        normalized_descriptions = convert_tuples_to_lists(self.descriptions)
+
+        descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
+        with open(descriptions_path, "w") as file:
+            yaml.dump(normalized_descriptions, file)
+        print(f"Descriptions saved to {descriptions_path}, without tuples")
+        LOG.info(f"Descriptions saved to {descriptions_path}")
+
+    def load_annoy_index(self):
+        index = AnnoyIndex(384, "angular")
+        index.load(self.index_path)
+        LOG.info(f"Annoy index loaded from {self.index_path}")
+
+        descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
+        with open(descriptions_path, "r") as file:
+            descriptions = yaml.safe_load(file)
+        LOG.info(f"Descriptions loaded from {descriptions_path}")
+
+        return index, descriptions
+
+    def rebuild_annoy_index(self):
+        index, descriptions = self.build_annoy_index()
+        self.descriptions = descriptions
+        self.save_annoy_index(index)
+        self.index = index
+        LOG.info("Annoy index rebuilt")
 
     def embed_description(self, description: str):
         return self.sentence_model.encode(description).tolist()
@@ -421,8 +475,7 @@ class Tools:
             choice_index = int(best_match.group(1)) - 1
             if 0 <= choice_index < len(best_descriptions):
                 best_description, topic = best_descriptions[choice_index]
-                # return f"Best EFDB Topic: {topic}"
-                return topic
+                return f"Best EFDB Topic: {topic}"
 
         return "AI response could not identify the best description."
 
@@ -541,51 +594,14 @@ class AstroChat:
 
         # Extract the tools for use in your agent
         self.toolkit = toolkit.tools
-        
-        tools_list = toolkit.tools  # Ensure this is a list of tool instances defined elsewhere
-        tool_names = ', '.join(tool.name for tool in tools_list)
-        agent_scratchpad = ""
-        filled_prompt = prompt.partial(
-            tools=tools_list,  # This should point to the actual tool data used in context
-            tool_names=tool_names,
-            agent_scratchpad=agent_scratchpad
-        )
-
-
-        # self._agent = create_react_agent(
-        #     self._chat,
-        #     self.data,
-        #     agent_type=agentType,
-        #     return_intermediate_steps=True,
-        #     include_df_in_prompt=True,
-        #     extra_tools=self.toolkit,
-        #     number_of_head_rows=1,
-        #     agent_executor_kwargs={"handle_parsing_errors": True},
-        #     allow_dangerous_code=True,
-        #     handle_parsing_errors=True,
-        #     prefix=prefix,
-        # )
-
-        
+        prompt = hub.pull("hwchase17/react")
 
         self._agent = create_react_agent(
-            llm=self._chat,
-            tools=tools_list,
-            prompt=filled_prompt,
-            output_parser=None,  # Use a specific parser if needed
-            stop_sequence=True,  # Customize as needed
+            self._chat,
+            tools=self.toolkit,
+            prompt=prompt,
         )
-        
-        # self.customAgent = CustomAgent(
-        #     chat_model=self._chat,
-        #     agent_type=agentType,
-        #     return_intermediate_steps=True,
-        #     extra_tools=self.toolkit,
-        #     prefix=prefix,
-        # )
-
-        # self.activeAgent = self.customAgent
-
+        self.agent_executor = AgentExecutor(agent=self._agent, tools=self.toolkit)
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter(agentType=self.agentType)
 
@@ -594,22 +610,12 @@ class AstroChat:
             # TODO: Improve this warning message.
             warnings.warn("Exporting variables from the agent after each call. This can cause problems!")
 
-    # def setActiveAgent(self, agentName):
-    #     if agentName == "pandas":
-    #         self.activeAgent = self.pandasAgent
-    #         LOG.info("Switched to PandasAgent.")
-    #     elif agentName == "custom":
-    #         self.activeAgent = self.customAgent
-    #         LOG.info("Switched to CustomAgent.")
-    #     else:
-    #         raise ValueError("Invalid agent name provided. Choose 'pandas' or 'custom'.")
-
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
             raise ValueError(f"Allowed values are {self.allowedVerbosities}, got {level}")
         self._verbosity = level
 
-    def refineQuery(self, query):
+    def refine_query(self, query):
         messages = [
             {
                 "role": "user",
@@ -628,14 +634,19 @@ class AstroChat:
         replTool : `langchain.tools.python.tool.PythonAstREPLTool`
             The REPL tool.
         """
-        replTools = [tool for tool in self._agent.tools if isinstance(tool, PythonAstREPLTool)]
-        print(f"REPL Tools found: {replTools}")
+        try:
+            replTools = []
+            for item in getattr(self._agent, 'tools', []):  # This will not throw an error if 'tools' doesn't exist
+                if isinstance(item, langchain_experimental.tools.python.tool.PythonAstREPLTool):
+                    replTools.append(item)
 
-        if not replTools:
-            raise RuntimeError("Agent appears to have no REPL tools")
-        if len(replTools) > 1:
-            raise RuntimeError("Agent appears to have more than one REPL tool")
-        return replTools[0]
+            if not replTools:
+                print("No REPL tools found in the agent object.")
+        except AttributeError as e:
+            # Debug print to help determine the underlying structure and issue
+            print(f"An error occurred: {str(e)}")
+            print(f"The _agent object doesn't have a 'tools' attribute.")
+            print(f"Check if _agent should be structured differently, current type: {type(self._agent)}")
 
     def exportLocalVariables(self):
         """Add the variables from the REPL tool's execution environment an
@@ -651,6 +662,10 @@ class AstroChat:
         then should be used with some caution.
         """
         replTool = self.getReplTool()
+
+        if replTool is None:
+            warnings.warn("No REPL tool found; cannot export local variables.")
+            return
 
         try:
             frame = inspect.currentframe()
@@ -672,50 +687,17 @@ class AstroChat:
         finally:
             del frame  # Explicitly delete the frame to avoid reference cycles
 
-    # def run(self, inputStr):
-    #     with get_openai_callback() as cb:
-    #         try:
-    #             responses = self._agent.invoke(
-    #                 {
-    #                 "question": inputStr,  # Ensure 'question' is included
-    #                 "intermediate_steps": [],  # Default for intermediate steps
-    #                 "agent_scratchpad": ""    # Default for scratchpad if needed
-    #             }
-    #             )
-    #         except ValueError as e:
-    #             LOG.error(f"Agent faced a parsing error: {str(e)}")
-    #             return f"An error occurred while processing your request: {str(e)}"
-
-    #     _ = self.formatter(responses)
-    #     self._addUsageAndDisplay(cb)
-
-    #     if self.export:
-    #         self.exportLocalVariables()
-    #     return
-
     def run(self, inputStr):
         with get_openai_callback() as cb:
             try:
-                # Assuming 'responses' now contains a dictionary with keys like 'output' or 'code'
-                responses = self._agent.invoke({
-                    "question": inputStr,
-                    "input": inputStr,
-                    "intermediate_steps": [],
-                    "agent_scratchpad": ""
-                })
-                
-                code_to_execute = responses.get('code')  # Check for executable code
-
-                if code_to_execute:
-                    # Execute the code and catch the output
-                    exec(code_to_execute, {'df': self.data})
-                    print(locals().get('number_of_images', 'Execution did not provide output'))
-                
-                _ = self.formatter(responses)
-
+                responses = self.agent_executor.invoke(
+                    {"input": inputStr},
+                )
             except ValueError as e:
                 LOG.error(f"Agent faced a parsing error: {str(e)}")
                 return f"An error occurred while processing your request: {str(e)}"
+
+        _ = self.formatter(responses)
         self._addUsageAndDisplay(cb)
 
         if self.export:
@@ -758,43 +740,3 @@ class AstroChat:
             print(f"\nRunning demo item '{item}':")
             print(f"Prompt text: {self.demoQueries[item]}")
             self.run(self.demoQueries[item])
-
-
-class CustomAgent:
-    def __init__(self, chat_model, agent_type, return_intermediate_steps, extra_tools, prefix):
-        LOG.debug("Initializing CustomAgent")
-        self.chat_model = chat_model
-
-        # This should be a list of Tool instances
-        self.tools = extra_tools
-
-        self.agent_type = agent_type
-        self.return_intermediate_steps = return_intermediate_steps
-        self.prefix = prefix
-        LOG.debug("CustomAgent initialized with tools: %s", self.tools)
-
-    def invoke(self, inputs, handle_parsing_errors=False):
-        user_input = inputs.get("input", "").strip()
-        print(f"CustomAgent processing input: {user_input}")
-
-        for tool in self.tools:
-            if "topic" in user_input.lower() and tool.name.lower() == "yaml topic finder":
-                try:
-                    response = tool.func(user_input)  # Use YAML Topic Finder
-                    print(f"Response from YAML Topic Finder: {response}")
-                    return {"output": response}
-                except Exception as e:
-                    print(f"Error with tool {tool.name}: {e}")
-                    if handle_parsing_errors:
-                        return {"error": str(e)}
-
-        # Fallback response from chat model
-        try:
-            chat_response = self.chat_model([HumanMessage(content=user_input)])
-            response = (
-                chat_response.content if hasattr(chat_response, "content") else "No final answer found."
-            )
-        except Exception as e:
-            return {"error": f"Error using chat model: {str(e)}"}
-
-        return {"output": response}
