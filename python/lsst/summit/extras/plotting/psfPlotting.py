@@ -448,6 +448,13 @@ def makeAzElPlot(
     saveAs : `str`, optional
         The file path to save the figure.
     """
+    oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
+    # I think this is roughly right for plotting - diameter is 5x but we need
+    # less border, and 4.5 looks about right by eye.
+    fullCameraFactor = 4.5
+    plotLimit = 90 if oneRaftOnly else 90 * fullCameraFactor
+    quiverScale = 1 if oneRaftOnly else fullCameraFactor
+
     table = randomRows(table, maxPoints)
 
     cbar = addColorbarToAxes(axes[0, 0].scatter(table["aa_x"], table["aa_y"], c=table["T"], s=5))
@@ -475,51 +482,54 @@ def makeAzElPlot(
         table["e"] * np.sin(0.5 * np.arctan2(table["aa_e2"], table["aa_e1"])),
         headlength=0,
         headaxislength=0,
-        scale=1,
+        scale=quiverScale,
         pivot="middle",
     )
     axes[0, 1].quiverkey(Q, X=0.08, Y=0.95, U=0.05, label="0.05", labelpos="S")
+
     for ax in axes.ravel():
         ax.set_xlabel("Az")
         ax.set_ylabel("Alt")
         ax.set_aspect("equal")
-        ax.set_xlim(-90, 90)
-        ax.set_ylim(-90, 90)
+        ax.set_xlim(-plotLimit, plotLimit)
+        ax.set_ylim(-plotLimit, plotLimit)
 
-    # Plot camera detector outlines
-    aaRot = table.meta["aaRot"]
-    for det in camera:
-        xs = []
-        ys = []
-        for corner in det.getCorners(FOCAL_PLANE):
-            xs.append(corner.x)
-            ys.append(corner.y)
-        xs.append(xs[0])
-        ys.append(ys[0])
-        xs = np.array(xs)
-        ys = np.array(ys)
-        rxs = aaRot[0, 0] * xs + aaRot[0, 1] * ys
-        rys = aaRot[1, 0] * xs + aaRot[1, 1] * ys
-        # Place detector label
-        x = min([c.x for c in det.getCorners(FOCAL_PLANE)])
-        y = max([c.y for c in det.getCorners(FOCAL_PLANE)])
-        rx = aaRot[0, 0] * x + aaRot[0, 1] * y
-        ry = aaRot[1, 0] * x + aaRot[1, 1] * y
-        rtp = table.meta["rotTelPos"]
-        for ax in axes.ravel():
-            ax.plot(rxs, rys, c="k", lw=1, alpha=0.3)
-            ax.text(
-                rx,
-                ry,
-                det.getName(),
-                rotation_mode="anchor",
-                rotation=np.rad2deg(-rtp) - 90,
-                horizontalalignment="left",
-                verticalalignment="top",
-                color="k",
-                fontsize=6,
-                zorder=20,
-            )
+    # Plot camera detector outlines - only plot labels on single-raft cameras;
+    # otherwise it is overwhelming
+    if oneRaftOnly:
+        aaRot = table.meta["aaRot"]
+        for det in camera:
+            xs = []
+            ys = []
+            for corner in det.getCorners(FOCAL_PLANE):
+                xs.append(corner.x)
+                ys.append(corner.y)
+            xs.append(xs[0])
+            ys.append(ys[0])
+            xs = np.array(xs)
+            ys = np.array(ys)
+            rxs = aaRot[0, 0] * xs + aaRot[0, 1] * ys
+            rys = aaRot[1, 0] * xs + aaRot[1, 1] * ys
+            # Place detector label
+            x = min([c.x for c in det.getCorners(FOCAL_PLANE)])
+            y = max([c.y for c in det.getCorners(FOCAL_PLANE)])
+            rx = aaRot[0, 0] * x + aaRot[0, 1] * y
+            ry = aaRot[1, 0] * x + aaRot[1, 1] * y
+            rtp = table.meta["rotTelPos"]
+            for ax in axes.ravel():
+                ax.plot(rxs, rys, c="k", lw=1, alpha=0.3)
+                ax.text(
+                    rx,
+                    ry,
+                    det.getName(),
+                    rotation_mode="anchor",
+                    rotation=np.rad2deg(-rtp) - 90,
+                    horizontalalignment="left",
+                    verticalalignment="top",
+                    color="k",
+                    fontsize=6,
+                    zorder=20,
+                )
 
     fig.tight_layout()
     if saveAs:
