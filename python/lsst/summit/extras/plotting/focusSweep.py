@@ -52,6 +52,7 @@ def collectSweepData(records, consDbClient, efdClient):
         Table containing hexapod sweep motions and quick look PSF measurements.
     """
     visitString = ",".join(str(r.id) for r in records)
+    instrument = records[0].instrument
     data = consDbClient.query(
         "SELECT "
         "visit_id as visit_id, "
@@ -60,7 +61,7 @@ def collectSweepData(records, consDbClient, efdClient):
         "psf_ixx_median as ixx, "
         "psf_iyy_median as iyy, "
         "psf_ixy_median as ixy "
-        f"from cdb_lsstcomcamsim.visit1_quicklook WHERE visit_id in ({visitString}) "
+        f"from cdb_{instrument.lower()}.visit1_quicklook WHERE visit_id in ({visitString}) "
         "ORDER BY visit_id"
     )
     data["T"] = data["ixx"] + data["iyy"]
