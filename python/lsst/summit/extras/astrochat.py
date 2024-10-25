@@ -34,11 +34,34 @@ import yaml
 from annoy import AnnoyIndex
 from langchain import hub
 from IPython.display import Image, Markdown, display
-from langchain.agents import AgentType, Tool, create_react_agent, AgentExecutor
+from langchain.agents import AgentType, Tool, create_react_agent, create_tool_calling_agent
 from langchain.schema import HumanMessage
 from langchain_community.callbacks import get_openai_callback  # noqa: E402
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer
+from langchain_core.language_models import BaseLanguageModel
+from langchain_core.tools import BaseTool
+from langchain_experimental.tools.python.tool import PythonAstREPLTool
+from langchain.agents.agent import AgentExecutor, RunnableAgent, RunnableMultiActionAgent
+from typing import Any, List, Optional, Union, Literal
+from langchain_core.messages import SystemMessage
+from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
+
+
+from langchain.agents.mrkl.prompt import FORMAT_INSTRUCTIONS
+
+from langchain_core.prompts import (
+    BasePromptTemplate,
+    ChatPromptTemplate,
+    PromptTemplate,
+)
+from langchain_experimental.agents.agent_toolkits.pandas.prompt import (
+    FUNCTIONS_WITH_DF,
+    PREFIX,
+    PREFIX_FUNCTIONS,
+    SUFFIX_NO_DF,
+    SUFFIX_WITH_DF,
+)
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils import getPackageDir
@@ -199,7 +222,10 @@ class ResponseFormatter:
         print(f"Observation: {observation}")
 
     def printResponse(self, response):
-        steps = response["intermediate_steps"]
+        print("Response: ", response)
+        steps = response.get("intermediate_steps", [])
+        if not steps:
+            print("No intermediate steps recorded.")
         nSteps = len(steps)
         if nSteps > 1:
             print(f"There were {len(steps)} steps to the process:\n")
@@ -213,38 +239,35 @@ class ResponseFormatter:
             self.printAction(action)
             self.printObservation(observation)
 
-        output = response["output"]
-        print(f"\nFinal answer: {output}")
+        output = response.get("output", None)
+        if output:
+            print(f"\nFinal answer: {output}")
 
     @staticmethod
     def pprint(responses):
-        # Check if 'responses' is actually a dictionary and contains the expected key
-        if not isinstance(responses, dict):
-            print("The 'responses' object is not a dictionary. Cannot proceed.")
-            print(f"Type of 'responses': {type(responses)}")
-            print(f"Contents of 'responses': {responses}")
-            return
-        
-        print(f"Keys of 'responses': {list(responses.keys())}")
-        
-        if "intermediate_steps" in responses:
-            steps = responses["intermediate_steps"]
-            print(f"Length of responses steps: {len(steps)}")
-            print(f"with {len(steps)} steps\n")
-            
-            for stepNum, step in enumerate(steps):
-                action, logs = step
-                if action.tool == "python_repl_ast":
-                    code = action.tool_input["query"]
+        print(f"Length of responses: {len(responses)}")
+        print(f"Responses:", responses)
+        if isinstance(responses, list):
+            for response in responses:
+                steps = response.get("intermediate_steps", [])
+                print(f"with {len(steps)} steps")
+                for stepNum, step in enumerate(steps):
+                    action, observation = step
                     print(f"Step {stepNum + 1}")
-                    display(Markdown(f"```python\n{code}\n```"))
-                    print(f"logs: {logs}")
+                    if isinstance(action, str):
+                        print(f"Action log: {action}")
+                    if isinstance(observation, str):
+                        print(f"Observation: {observation}")
         else:
-            print("No intermediate steps found.")
-        if "output" in responses:
-            print("\nFinal answer:",responses["output"] )
-        else:
-            print("No final output found in the responses.")
+            steps = responses.get("intermediate_steps", [])
+            print(f"with {len(steps)} steps")
+            for stepNum, step in enumerate(steps):
+                action, observation = step
+                print(f"Step {stepNum + 1}")
+                if isinstance(action, str):
+                    print(f"Action log: {action}")
+                if isinstance(observation, str):
+                    print(f"Observation: {observation}")
 
     def __call__(self, response):
         """Format the response for notebook display.
@@ -259,9 +282,19 @@ class ResponseFormatter:
         formattedResponse : `str`
             The formatted response.
         """
+
         if self.agentType == "tool-calling":
-            self.pprint(response)
-            return
+            if isinstance(response, list):
+                for resp in response:
+                    self.pprint(resp)
+                    output = resp.get("output", None)
+                    if output:
+                        print(f"\nFinal answer: {output}")
+            else:
+                self.pprint(response)
+                output = response.get("output", None)
+                if output:
+                    print(f"\nFinal answer: {output}")
         elif self.agentType == "ZERO_SHOT_REACT_DESCRIPTION":
             self.printResponse(response)
             allCode = self.allCode
@@ -293,12 +326,12 @@ class Tools:
 
         self.tools = [
             Tool(
-                name="Secret Word",
+                name="SecretWord",
                 func=self.secret_word,
                 description="Useful for when you need to answer what is the secret word",
             ),
             Tool(
-                name="NASA Image",
+                name="NASAImage",
                 func=self.nasa_image,
                 description=(
                     "Useful for when you need to answer what is the NASA image of the day"
@@ -306,12 +339,12 @@ class Tools:
                 ),
             ),
             Tool(
-                name="Random MTG",
+                name="RandomMTG",
                 func=self.random_mtg_card,
                 description="Useful for when you need to show a random Magic The Gathering card",
             ),
             Tool(
-                name="YAML Topic Finder",
+                name="YAMLTopicFinder",
                 func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI.",
             ),
@@ -466,7 +499,7 @@ class Tools:
         )
 
         # Use the AI to determine the best description
-        response = self._chat([HumanMessage(content=combined_prompt)])
+        response = self._chat.invoke([HumanMessage(content=combined_prompt)])
         response_content = response.content.strip()
 
         # Extract the sentence or description that was determined to be best
@@ -591,17 +624,17 @@ class AstroChat:
         packageDir = getPackageDir("summit_extras")
         yamlFilePath = os.path.join(packageDir, "data", "sal_interface.yaml")
         toolkit = Tools(self._chat, yamlFilePath)
-
-        # Extract the tools for use in your agent
         self.toolkit = toolkit.tools
-        prompt = hub.pull("hwchase17/react")
 
-        self._agent = create_react_agent(
+        self._agent = custom_dataframe_agent(
             self._chat,
-            tools=self.toolkit,
-            prompt=prompt,
+            extra_tools=self.toolkit,
+            prefix=prefix,
+            df=self.data,
+            allow_dangerous_code=True,
+            return_intermediate_steps=True,
+            agent_type=self.agentType,
         )
-        self.agent_executor = AgentExecutor(agent=self._agent, tools=self.toolkit)
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter(agentType=self.agentType)
 
@@ -636,7 +669,9 @@ class AstroChat:
         """
         try:
             replTools = []
-            for item in getattr(self._agent, 'tools', []):  # This will not throw an error if 'tools' doesn't exist
+            for item in getattr(
+                self._agent, "tools", []
+            ):  # This will not throw an error if 'tools' doesn't exist
                 if isinstance(item, langchain_experimental.tools.python.tool.PythonAstREPLTool):
                     replTools.append(item)
 
@@ -690,8 +725,8 @@ class AstroChat:
     def run(self, inputStr):
         with get_openai_callback() as cb:
             try:
-                responses = self.agent_executor.invoke(
-                    {"input": inputStr},
+                responses = self._agent.invoke(
+                    {"input": inputStr}, handle_parsing_errors=True  # Ensure robust error handling
                 )
             except ValueError as e:
                 LOG.error(f"Agent faced a parsing error: {str(e)}")
@@ -740,3 +775,98 @@ class AstroChat:
             print(f"\nRunning demo item '{item}':")
             print(f"Prompt text: {self.demoQueries[item]}")
             self.run(self.demoQueries[item])
+
+
+def custom_dataframe_agent(
+    llm: BaseLanguageModel,
+    df: Any,
+    agent_type: Union[
+        AgentType, Literal["tool-calling", "openai-tools"]
+    ] = AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    prefix: Optional[str] = None,
+    suffix: Optional[str] = None,
+    include_df_in_prompt: Optional[bool] = True,
+    number_of_head_rows: int = 5,
+    extra_tools: List[BaseTool] = (),
+    allow_dangerous_code: bool = False,
+    return_intermediate_steps: bool = False,
+) -> AgentExecutor:
+    if not allow_dangerous_code:
+        raise ValueError("Dangerous code execution is not allowed without opting in.")
+
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError(f"Expected pandas DataFrame, got {type(df)}")
+
+    df_locals = {"df": df}
+    tools = [PythonAstREPLTool(locals=df_locals)] + extra_tools
+    prompt = _generate_prompt(
+        df,
+        agent_type,
+        prefix=prefix,
+        suffix=suffix,
+        include_df_in_prompt=include_df_in_prompt,
+        number_of_head_rows=number_of_head_rows,
+    )
+
+    if agent_type == "ZERO_SHOT_REACT_DESCRIPTION":
+        runnable = create_react_agent(llm, tools, prompt)
+        agent = RunnableAgent(
+            runnable=runnable,
+            input_keys_arg=["input"],
+            return_keys_arg=["output"],
+        )
+    elif agent_type == "tool-calling":
+        runnable = create_tool_calling_agent(llm, tools, prompt)
+        agent = RunnableMultiActionAgent(
+            runnable=runnable,
+            input_keys_arg=["input"],
+            return_keys_arg=["output"],
+        )
+    else:
+        print("AgentType we received: ", agent_type)
+        raise ValueError(f"Unsupported agent type: {agent_type}")
+
+    return AgentExecutor(agent=agent, tools=tools)
+
+
+def _generate_prompt(df: Any, agent_type: str, **kwargs: Any) -> BasePromptTemplate:
+    if agent_type == "ZERO_SHOT_REACT_DESCRIPTION":
+        return _get_single_prompt(df, **kwargs)
+    elif agent_type == "tool-calling":
+        return _get_functions_single_prompt(df, **kwargs)
+    else:
+        raise ValueError(f"Unsupported agent type for prompt generation: {agent_type}")
+
+
+def _get_single_prompt(
+    df: Any,
+    *,
+    prefix: Optional[str] = None,
+    suffix: Optional[str] = None,
+    include_df_in_prompt: Optional[bool] = True,
+    number_of_head_rows: int = 5,
+) -> BasePromptTemplate:
+    suffix_to_use = suffix if suffix else (SUFFIX_WITH_DF if include_df_in_prompt else SUFFIX_NO_DF)
+    prefix = prefix or PREFIX
+    template = "\n\n".join([prefix, "{tools}", FORMAT_INSTRUCTIONS, suffix_to_use])
+    prompt = PromptTemplate.from_template(template).partial()
+
+    if "df_head" in prompt.input_variables:
+        df_head = df.head(number_of_head_rows).to_markdown()
+        prompt = prompt.partial(df_head=str(df_head))
+    return prompt
+
+
+def _get_functions_single_prompt(
+    df: Any,
+    *,
+    prefix: Optional[str] = None,
+    suffix: str = "",
+    include_df_in_prompt: Optional[bool] = True,
+    number_of_head_rows: int = 5,
+) -> ChatPromptTemplate:
+    df_head = df.head(number_of_head_rows).to_markdown() if include_df_in_prompt else ""
+    suffix = (suffix or FUNCTIONS_WITH_DF).format(df_head=df_head)
+    prefix = prefix or PREFIX_FUNCTIONS
+    system_message = SystemMessage(content=prefix + suffix)
+    return OpenAIFunctionsAgent.create_prompt(system_message=system_message)
