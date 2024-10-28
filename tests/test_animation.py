@@ -27,6 +27,7 @@ import unittest
 import lsst.utils.tests
 from lsst.summit.extras.animation import Animator
 from lsst.summit.utils.butlerUtils import makeDefaultLatissButler
+from lsst.summit.utils.utils import getSite
 
 
 class AnimationTestCase(lsst.utils.tests.TestCase):
@@ -37,6 +38,8 @@ class AnimationTestCase(lsst.utils.tests.TestCase):
             raise unittest.SkipTest("Skipping tests that require ffmpeg.")
 
         try:
+            if getSite() == "jenkins":
+                raise unittest.SkipTest("Skip running butler-driven tests in Jenkins.")
             cls.butler = makeDefaultLatissButler()
         except FileNotFoundError:
             raise unittest.SkipTest("Skipping tests that require the LATISS butler repo.")
