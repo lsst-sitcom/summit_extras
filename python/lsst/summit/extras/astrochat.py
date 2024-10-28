@@ -626,7 +626,7 @@ class AstroChat:
         toolkit = Tools(self._chat, yamlFilePath)
         self.toolkit = toolkit.tools
 
-        self._agent = custom_dataframe_agent(
+        self._agent = customDataframeAgent(
             self._chat,
             extra_tools=self.toolkit,
             prefix=prefix,
@@ -777,7 +777,7 @@ class AstroChat:
             self.run(self.demoQueries[item])
 
 
-def custom_dataframe_agent(
+def customDataframeAgent(
     llm: BaseLanguageModel,
     df: Any,
     agent_type: Union[
@@ -799,7 +799,7 @@ def custom_dataframe_agent(
 
     df_locals = {"df": df}
     tools = [PythonAstREPLTool(locals=df_locals)] + extra_tools
-    prompt = _generate_prompt(
+    prompt = _generatePrompt(
         df,
         agent_type,
         prefix=prefix,
@@ -829,16 +829,16 @@ def custom_dataframe_agent(
     return AgentExecutor(agent=agent, tools=tools)
 
 
-def _generate_prompt(df: Any, agent_type: str, **kwargs: Any) -> BasePromptTemplate:
+def _generatePrompt(df: Any, agent_type: str, **kwargs: Any) -> BasePromptTemplate:
     if agent_type == "ZERO_SHOT_REACT_DESCRIPTION":
-        return _get_single_prompt(df, **kwargs)
+        return _getSinglePrompt(df, **kwargs)
     elif agent_type == "tool-calling":
-        return _get_functions_single_prompt(df, **kwargs)
+        return _getFunctionsSinglePrompt(df, **kwargs)
     else:
         raise ValueError(f"Unsupported agent type for prompt generation: {agent_type}")
 
 
-def _get_single_prompt(
+def _getSinglePrompt(
     df: Any,
     *,
     prefix: Optional[str] = None,
@@ -857,7 +857,7 @@ def _get_single_prompt(
     return prompt
 
 
-def _get_functions_single_prompt(
+def _getFunctionsSinglePrompt(
     df: Any,
     *,
     prefix: Optional[str] = None,
