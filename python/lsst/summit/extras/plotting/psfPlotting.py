@@ -453,7 +453,7 @@ def makeAzElPlot(
     # less border, and 4.5 looks about right by eye.
     fullCameraFactor = 4.5
     plotLimit = 90 if oneRaftOnly else 90 * fullCameraFactor
-    quiverScale = 1 if oneRaftOnly else fullCameraFactor
+    quiverScale = 5 if oneRaftOnly else fullCameraFactor
 
     table = randomRows(table, maxPoints)
 
@@ -485,7 +485,7 @@ def makeAzElPlot(
         scale=quiverScale,
         pivot="middle",
     )
-    axes[0, 1].quiverkey(Q, X=0.08, Y=0.95, U=0.05, label="0.05", labelpos="S")
+    axes[0, 1].quiverkey(Q, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
 
     for ax in axes.ravel():
         ax.set_xlabel("Az")
