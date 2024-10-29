@@ -232,18 +232,18 @@ def plotSweepParabola(data, varName, fitDict, saveAs=None, figAxes=None):
     label = varName.replace("_", " ")
     label = label.replace("u", "Rx")
     label = label.replace("v", "Ry")
-    unit = "deg" if "r" in label else "mm"
+    unit = "deg" if "r" in label else "µm"
 
     for ax in [fwhmVarAx, fwhmSeqAx]:
         ax.set_ylabel("fwhm [arcsec]")
 
     for ax in [camZAx, m2ZAx]:
-        ax.set_ylabel("z [mm]")
+        ax.set_ylabel("z [µm]")
     camZAx.set_title("Camera")
     m2ZAx.set_title("M2")
 
     for ax in [camXyAx, m2XyAx]:
-        ax.set_ylabel("x or y [mm]")
+        ax.set_ylabel("x or y [µm]")
 
     for ax in [camRAx, m2RAx]:
         ax.set_ylabel("Rx or Ry [deg]")
