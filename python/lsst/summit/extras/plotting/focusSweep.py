@@ -266,12 +266,12 @@ def plotSweepParabola(data, varName, fitDict, saveAs=None, figAxes=None):
     fig.text(xtext, 0.94, "FWHM fit", **kwargs)
     fig.text(xtext, 0.92, "--------", **kwargs)
     fig.text(
-        xtext, 0.90, f"vertex: {fitDict['vertex']:.3f} ± {fitDict['vertexUncertainty']:.3f} {unit}", **kwargs
+        xtext, 0.90, f"vertex:    {fitDict['vertex']:.3f} {unit}", **kwargs
     )
     fig.text(
         xtext,
         0.88,
-        f"extremum: {fitDict['extremum']:.3f} ± {fitDict['extremumUncertainty']:.3f} arcsec",
+        f"extremum:  {fitDict['extremum']:.3f} arcsec",
         **kwargs,
     )
     fig.text(xtext, 0.86, f"RMS resid: {fitDict['rms']:.3f} arcsec", **kwargs)
