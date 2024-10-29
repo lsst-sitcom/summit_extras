@@ -265,9 +265,7 @@ def plotSweepParabola(data, varName, fitDict, saveAs=None, figAxes=None):
     xtext = 0.6
     fig.text(xtext, 0.94, "FWHM fit", **kwargs)
     fig.text(xtext, 0.92, "--------", **kwargs)
-    fig.text(
-        xtext, 0.90, f"vertex:    {fitDict['vertex']:.3f} {unit}", **kwargs
-    )
+    fig.text(xtext, 0.90, f"vertex:    {fitDict['vertex']:.3f} {unit}", **kwargs)
     fig.text(
         xtext,
         0.88,
