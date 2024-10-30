@@ -46,6 +46,7 @@ from langchain.agents.agent import AgentExecutor, RunnableAgent, RunnableMultiAc
 from typing import Any, List, Optional, Union, Literal
 from langchain_core.messages import SystemMessage
 from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
+from langgraph.graph import StateGraph, MessagesState, START
 
 
 from langchain.agents.mrkl.prompt import FORMAT_INSTRUCTIONS
@@ -511,7 +512,10 @@ class Tools:
                 return f"Best EFDB Topic: {topic}"
 
         return "AI response could not identify the best description."
-
+class AgentState(MessagesState):
+    next: Literal["agent_1", "agent_2", "__end__"]
+    inputStr: str
+    data_frame: Any
 
 class AstroChat:
     allowedVerbosities = ("COST", "ALL", "NONE", None)
@@ -625,16 +629,33 @@ class AstroChat:
         yamlFilePath = os.path.join(packageDir, "data", "sal_interface.yaml")
         toolkit = Tools(self._chat, yamlFilePath)
         self.toolkit = toolkit.tools
+        self._totalCallbacks = {
+            "total_cost": 0,
+            "successful_requests": 0,
+            "completion_tokens": 0,
+            "prompt_tokens": 0,
+        }
 
-        self._agent = customDataframeAgent(
-            self._chat,
-            extra_tools=self.toolkit,
-            prefix=prefix,
-            df=self.data,
-            allow_dangerous_code=True,
-            return_intermediate_steps=True,
-            agent_type=self.agentType,
-        )
+        # Setup the state graph
+        self.builder = StateGraph(AgentState)
+        self.builder.add_node(self.supervisor)
+        self.builder.add_node(self.agent_1)
+        self.builder.add_node(self.agent_2)
+        self.builder.add_edge(START, "supervisor")
+        self.builder.add_conditional_edges("supervisor", lambda state: state["next"])
+        self.builder.add_edge("agent_1", "supervisor")
+        self.builder.add_edge("agent_2", "supervisor")
+        self.supervisor_fn = self.builder.compile()
+
+        # self._agent = customDataframeAgent(
+        #     self._chat,
+        #     extra_tools=self.toolkit,
+        #     prefix=prefix,
+        #     df=self.data,
+        #     allow_dangerous_code=True,
+        #     return_intermediate_steps=True,
+        #     agent_type=self.agentType,
+        # )
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter(agentType=self.agentType)
 
@@ -647,7 +668,23 @@ class AstroChat:
         if level not in self.allowedVerbosities:
             raise ValueError(f"Allowed values are {self.allowedVerbosities}, got {level}")
         self._verbosity = level
+    def supervisor(self, state: AgentState):
+        # This should include logic to determine action
+        response = {"next_agent": "agent_1"}  # Example logic: always go to agent_1
+        return {"next": response["next_agent"]}
 
+    def agent_1(self, state: AgentState):
+        response = customDataframeAgent(state.inputStr, state.data_frame, self._chat,
+            extra_tools=self.toolkit,
+            df=self.data,
+            allow_dangerous_code=True,
+            return_intermediate_steps=True,
+            agent_type=self.agentType,)
+        return {"messages": [response]}
+
+    def agent_2(self, state: AgentState):
+        response = self._chat.invoke(...)
+        return {"messages": [response]}
     def refine_query(self, query):
         messages = [
             {
@@ -722,22 +759,26 @@ class AstroChat:
         finally:
             del frame  # Explicitly delete the frame to avoid reference cycles
 
+    # def run(self, inputStr):
+    #     with get_openai_callback() as cb:
+    #         try:
+    #             responses = self._agent.invoke(
+    #                 {"input": inputStr}, handle_parsing_errors=True  # Ensure robust error handling
+    #             )
+    #         except ValueError as e:
+    #             LOG.error(f"Agent faced a parsing error: {str(e)}")
+    #             return f"An error occurred while processing your request: {str(e)}"
+
+    #     _ = self.formatter(responses)
+    #     self._addUsageAndDisplay(cb)
+
+    #     if self.export:
+    #         self.exportLocalVariables()
+    #     return
     def run(self, inputStr):
-        with get_openai_callback() as cb:
-            try:
-                responses = self._agent.invoke(
-                    {"input": inputStr}, handle_parsing_errors=True  # Ensure robust error handling
-                )
-            except ValueError as e:
-                LOG.error(f"Agent faced a parsing error: {str(e)}")
-                return f"An error occurred while processing your request: {str(e)}"
-
-        _ = self.formatter(responses)
-        self._addUsageAndDisplay(cb)
-
-        if self.export:
-            self.exportLocalVariables()
-        return
+        state = AgentState(inputStr=inputStr, data_frame=self.data, next="agent_1")
+        supervisor_fn = self.builder.compile()  # Compile the graph to start execution
+        supervisor_fn(state)
 
     def _addUsageAndDisplay(self, cb):
         self._totalCallbacks.total_cost += cb.total_cost
@@ -775,7 +816,6 @@ class AstroChat:
             print(f"\nRunning demo item '{item}':")
             print(f"Prompt text: {self.demoQueries[item]}")
             self.run(self.demoQueries[item])
-
 
 def customDataframeAgent(
     llm: BaseLanguageModel,
@@ -828,7 +868,6 @@ def customDataframeAgent(
 
     return AgentExecutor(agent=agent, tools=tools)
 
-
 def _generatePrompt(df: Any, agent_type: str, **kwargs: Any) -> BasePromptTemplate:
     if agent_type == "ZERO_SHOT_REACT_DESCRIPTION":
         return _getSinglePrompt(df, **kwargs)
@@ -836,7 +875,6 @@ def _generatePrompt(df: Any, agent_type: str, **kwargs: Any) -> BasePromptTempla
         return _getFunctionsSinglePrompt(df, **kwargs)
     else:
         raise ValueError(f"Unsupported agent type for prompt generation: {agent_type}")
-
 
 def _getSinglePrompt(
     df: Any,
@@ -855,7 +893,6 @@ def _getSinglePrompt(
         df_head = df.head(number_of_head_rows).to_markdown()
         prompt = prompt.partial(df_head=str(df_head))
     return prompt
-
 
 def _getFunctionsSinglePrompt(
     df: Any,
