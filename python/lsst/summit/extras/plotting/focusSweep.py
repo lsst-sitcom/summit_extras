@@ -52,6 +52,7 @@ def collectSweepData(records, consDbClient, efdClient):
         Table containing hexapod sweep motions and quick look PSF measurements.
     """
     visitString = ",".join(str(r.id) for r in records)
+    instrument = records[0].instrument
     data = consDbClient.query(
         "SELECT "
         "visit_id as visit_id, "
@@ -60,7 +61,7 @@ def collectSweepData(records, consDbClient, efdClient):
         "psf_ixx_median as ixx, "
         "psf_iyy_median as iyy, "
         "psf_ixy_median as ixy "
-        f"from cdb_lsstcomcamsim.visit1_quicklook WHERE visit_id in ({visitString}) "
+        f"from cdb_{instrument.lower()}.visit1_quicklook WHERE visit_id in ({visitString}) "
         "ORDER BY visit_id"
     )
     data["T"] = data["ixx"] + data["iyy"]
@@ -231,18 +232,18 @@ def plotSweepParabola(data, varName, fitDict, saveAs=None, figAxes=None):
     label = varName.replace("_", " ")
     label = label.replace("u", "Rx")
     label = label.replace("v", "Ry")
-    unit = "deg" if "r" in label else "mm"
+    unit = "deg" if "r" in label else "µm"
 
     for ax in [fwhmVarAx, fwhmSeqAx]:
         ax.set_ylabel("fwhm [arcsec]")
 
     for ax in [camZAx, m2ZAx]:
-        ax.set_ylabel("z [mm]")
+        ax.set_ylabel("z [µm]")
     camZAx.set_title("Camera")
     m2ZAx.set_title("M2")
 
     for ax in [camXyAx, m2XyAx]:
-        ax.set_ylabel("x or y [mm]")
+        ax.set_ylabel("x or y [µm]")
 
     for ax in [camRAx, m2RAx]:
         ax.set_ylabel("Rx or Ry [deg]")
@@ -255,29 +256,28 @@ def plotSweepParabola(data, varName, fitDict, saveAs=None, figAxes=None):
         ax.set_xlabel(label + "[" + unit + "]")
 
     for ax in [ellipSeqAx, ellipVarAx]:
-        ax.set_ylim(-0.11, 0.11)
+        ax.set_ylim(-0.21, 0.21)
         ax.axhline(0, c="k")
         ax.set_ylabel("e1 or e2")
 
     # Print useful info in the top right
     kwargs = dict(fontsize=10, ha="left", fontfamily="monospace")
-    fig.text(0.7, 0.94, "FWHM fit", **kwargs)
-    fig.text(0.7, 0.92, "--------", **kwargs)
+    xtext = 0.6
+    fig.text(xtext, 0.94, "FWHM fit", **kwargs)
+    fig.text(xtext, 0.92, "--------", **kwargs)
+    fig.text(xtext, 0.90, f"vertex:    {fitDict['vertex']:.3f} {unit}", **kwargs)
     fig.text(
-        0.7, 0.90, f"vertex: {fitDict['vertex']:.3f} ± {fitDict['vertexUncertainty']:.3f} {unit}", **kwargs
-    )
-    fig.text(
-        0.7,
+        xtext,
         0.88,
-        f"extremum: {fitDict['extremum']:.3f} ± {fitDict['extremumUncertainty']:.3f} arcsec",
+        f"extremum:  {fitDict['extremum']:.3f} arcsec",
         **kwargs,
     )
-    fig.text(0.7, 0.86, f"RMS resid: {fitDict['rms']:.3f} arcsec", **kwargs)
+    fig.text(xtext, 0.86, f"RMS resid: {fitDict['rms']:.3f} arcsec", **kwargs)
 
-    fig.text(0.7, 0.80, "Ellipticity spread", **kwargs)
-    fig.text(0.7, 0.78, "------------------", **kwargs)
-    fig.text(0.7, 0.76, f"e1 RMS: {fitDict['e1Rms']:.3f}", **kwargs)
-    fig.text(0.7, 0.74, f"e2 RMS: {fitDict['e2Rms']:.3f}", **kwargs)
+    fig.text(xtext, 0.80, "Ellipticity spread", **kwargs)
+    fig.text(xtext, 0.78, "------------------", **kwargs)
+    fig.text(xtext, 0.76, f"e1 RMS: {fitDict['e1Rms']:.3f}", **kwargs)
+    fig.text(xtext, 0.74, f"e2 RMS: {fitDict['e2Rms']:.3f}", **kwargs)
 
     fig.tight_layout()
     if saveAs is not None:
