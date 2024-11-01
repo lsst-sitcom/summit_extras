@@ -7,6 +7,7 @@ config.log
 *.cfgc
 *.pyc
 *_wrap.cc
+*.env
 *Lib.py
 
 # Built by sconsUtils
@@ -20,5 +21,4 @@ pytest_session.txt
 .pytest_cache
 .coverage
 
-notebooks/.ipynb_checkpoints*
-
+.ipynb_checkpoints/
