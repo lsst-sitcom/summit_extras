@@ -24,15 +24,15 @@ import logging
 import os
 import re
 import warnings
+import functools
+import operator
 
 # TODO: work out a way to protect all of these imports
 import langchain_community
-import langchain_experimental
 import pandas as pd
 import requests
 import yaml
 from annoy import AnnoyIndex
-from langchain import hub
 from IPython.display import Image, Markdown, display
 from langchain.agents import AgentType, Tool, create_react_agent, create_tool_calling_agent
 from langchain.schema import HumanMessage
@@ -43,11 +43,10 @@ from langchain_core.language_models import BaseLanguageModel
 from langchain_core.tools import BaseTool
 from langchain_experimental.tools.python.tool import PythonAstREPLTool
 from langchain.agents.agent import AgentExecutor, RunnableAgent, RunnableMultiActionAgent
-from typing import Any, List, Optional, Union, Literal
+from typing import Any, List, Dict, Optional, Union, Literal, TypedDict, Annotated
 from langchain_core.messages import SystemMessage
 from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
-from langgraph.graph import StateGraph, MessagesState, START
-
+from langgraph.graph import StateGraph, END
 
 from langchain.agents.mrkl.prompt import FORMAT_INSTRUCTIONS
 
@@ -512,10 +511,13 @@ class Tools:
                 return f"Best EFDB Topic: {topic}"
 
         return "AI response could not identify the best description."
-class AgentState(MessagesState):
-    next: Literal["agent_1", "agent_2", "__end__"]
-    inputStr: str
-    data_frame: Any
+
+class State(TypedDict):
+    """The state of the system."""
+    chat_history: Annotated[List[str], operator.add]
+    input: str
+    agent_type: str
+
 
 class AstroChat:
     allowedVerbosities = ("COST", "ALL", "NONE", None)
@@ -629,33 +631,29 @@ class AstroChat:
         yamlFilePath = os.path.join(packageDir, "data", "sal_interface.yaml")
         toolkit = Tools(self._chat, yamlFilePath)
         self.toolkit = toolkit.tools
-        self._totalCallbacks = {
-            "total_cost": 0,
-            "successful_requests": 0,
-            "completion_tokens": 0,
-            "prompt_tokens": 0,
-        }
+        
+        self.pandas_agent = customDataframeAgent(
+            self._chat,
+            extra_tools=self.toolkit,
+            prefix=prefix,
+            df=self.data,
+            allow_dangerous_code=True,
+            return_intermediate_steps=True,
+            agent_type=self.agentType,
+        )
+        self.pandas_agent_executor = AgentExecutor.from_agent_and_tools(
+            agent=self.pandas_agent,
+            tools=self.toolkit,
+            verbose=True
+        )
+        self.custom_agent = self.create_custom_agent(
+            self._chat, self.data, self.agentType, prefix, 
+            self.toolkit
+        )
+        self.database_agent = DatabaseAgent()
+        
+        self.graph = self._create_graph()
 
-        # Setup the state graph
-        self.builder = StateGraph(AgentState)
-        self.builder.add_node(self.supervisor)
-        self.builder.add_node(self.agent_1)
-        self.builder.add_node(self.agent_2)
-        self.builder.add_edge(START, "supervisor")
-        self.builder.add_conditional_edges("supervisor", lambda state: state["next"])
-        self.builder.add_edge("agent_1", "supervisor")
-        self.builder.add_edge("agent_2", "supervisor")
-        self.supervisor_fn = self.builder.compile()
-
-        # self._agent = customDataframeAgent(
-        #     self._chat,
-        #     extra_tools=self.toolkit,
-        #     prefix=prefix,
-        #     df=self.data,
-        #     allow_dangerous_code=True,
-        #     return_intermediate_steps=True,
-        #     agent_type=self.agentType,
-        # )
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter(agentType=self.agentType)
 
@@ -663,122 +661,82 @@ class AstroChat:
         if self.export:
             # TODO: Improve this warning message.
             warnings.warn("Exporting variables from the agent after each call. This can cause problems!")
+    def create_custom_agent(
+        self, llm, df, agent_type, prefix,
+         extra_tools, 
+    ):
+        return customDataframeAgent(
+            llm=llm,
+            df=df,
+            agent_type=agent_type,
+            prefix=prefix,
+            extra_tools=extra_tools,
+            allow_dangerous_code=True,
+            return_intermediate_steps=True
+        )
+    def _create_graph(self):
+        workflow = StateGraph(State)
 
+        workflow.add_node("router", self.route)
+        workflow.add_node("agent", self.agent_node)
+
+        workflow.add_edge("router", "agent")
+        workflow.add_edge("agent", END)
+
+        workflow.set_entry_point("router")
+
+        return workflow.compile()
+
+    def route(self, state: State) -> Dict[str, Any]:
+        if "database" in state["input"].lower():
+            return {"agent_type": "database"}
+        return {"agent_type": "custom"}
+
+    def agent_node(self, state: State) -> Dict[str, Any]:
+        try:
+            if state["agent_type"] == "database":
+                response = self.database_agent.run(state["input"])
+            else:
+                response = self.custom_agent.invoke(state["input"])
+                if isinstance(response, dict) and "output" in response:
+                    response = response["output"]
+                else:
+                    response = str(response)
+            
+            return {
+                "chat_history": [response],
+            }
+        except Exception as e:
+            return {
+                "chat_history": [f"Error: {str(e)}"],
+            }
+
+    def run(self, inputStr):
+        with get_openai_callback() as cb:
+            try:
+                result = self.graph.invoke({
+                    "input": inputStr,
+                    "chat_history": [],
+                    "agent_type": self.agentType
+                })
+                
+                formatted_response = self.formatter(result)
+                
+                response = result["chat_history"][-1] if result["chat_history"] else "No response generated."
+                
+            except Exception as e:
+                LOG.error(f"Agent faced an error: {str(e)}")
+                return f"An error occurred while processing your request: {str(e)}"
+
+        self._addUsageAndDisplay(cb)
+
+        return formatted_response, response
+
+    
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
             raise ValueError(f"Allowed values are {self.allowedVerbosities}, got {level}")
         self._verbosity = level
-    def supervisor(self, state: AgentState):
-        # This should include logic to determine action
-        response = {"next_agent": "agent_1"}  # Example logic: always go to agent_1
-        return {"next": response["next_agent"]}
-
-    def agent_1(self, state: AgentState):
-        response = customDataframeAgent(state.inputStr, state.data_frame, self._chat,
-            extra_tools=self.toolkit,
-            df=self.data,
-            allow_dangerous_code=True,
-            return_intermediate_steps=True,
-            agent_type=self.agentType,)
-        return {"messages": [response]}
-
-    def agent_2(self, state: AgentState):
-        response = self._chat.invoke(...)
-        return {"messages": [response]}
-    def refine_query(self, query):
-        messages = [
-            {
-                "role": "user",
-                "content": f"Refine the following query for better search in a database: {query}",
-            }
-        ]
-        response = self._chat.chat(messages=messages)
-        refined_query = response["choices"][0]["message"]["content"].strip()
-        return refined_query
-
-    def getReplTool(self):
-        """Get the REPL tool from the agent.
-
-        Returns
-        -------
-        replTool : `langchain.tools.python.tool.PythonAstREPLTool`
-            The REPL tool.
-        """
-        try:
-            replTools = []
-            for item in getattr(
-                self._agent, "tools", []
-            ):  # This will not throw an error if 'tools' doesn't exist
-                if isinstance(item, langchain_experimental.tools.python.tool.PythonAstREPLTool):
-                    replTools.append(item)
-
-            if not replTools:
-                print("No REPL tools found in the agent object.")
-        except AttributeError as e:
-            # Debug print to help determine the underlying structure and issue
-            print(f"An error occurred: {str(e)}")
-            print(f"The _agent object doesn't have a 'tools' attribute.")
-            print(f"Check if _agent should be structured differently, current type: {type(self._agent)}")
-
-    def exportLocalVariables(self):
-        """Add the variables from the REPL tool's execution environment an
-        jupyter notebook.
-
-        This is useful when running in a notebook, as the data manipulations
-        which have been done inside the agent cannot be easily reproduced with
-        the code the agent supplies without access to the variables.
-
-        Note - this function is only for notebook usage, and can easily cause
-        weird problems, as variables which already exist will be overwritten.
-        This is *only* for use in AstroChat-only notebooks at present, and even
-        then should be used with some caution.
-        """
-        replTool = self.getReplTool()
-
-        if replTool is None:
-            warnings.warn("No REPL tool found; cannot export local variables.")
-            return
-
-        try:
-            frame = inspect.currentframe()
-            # Find the frame of the original caller, which is the notebook
-            while frame and "get_ipython" not in frame.f_globals:
-                frame = frame.f_back
-
-            if not frame:
-                warnings.warn("Failed to find the original calling frame - variables not exported")
-
-            # Access the caller's global namespace
-            caller_globals = frame.f_globals
-
-            # add each item from the replTool's local variables to the caller's
-            # globals
-            for key, value in replTool.locals.items():
-                caller_globals[key] = value
-
-        finally:
-            del frame  # Explicitly delete the frame to avoid reference cycles
-
-    # def run(self, inputStr):
-    #     with get_openai_callback() as cb:
-    #         try:
-    #             responses = self._agent.invoke(
-    #                 {"input": inputStr}, handle_parsing_errors=True  # Ensure robust error handling
-    #             )
-    #         except ValueError as e:
-    #             LOG.error(f"Agent faced a parsing error: {str(e)}")
-    #             return f"An error occurred while processing your request: {str(e)}"
-
-    #     _ = self.formatter(responses)
-    #     self._addUsageAndDisplay(cb)
-
-    #     if self.export:
-    #         self.exportLocalVariables()
-    #     return
-    def run(self, inputStr):
-        state = AgentState(inputStr=inputStr, data_frame=self.data, next="agent_1")
-        supervisor_fn = self.builder.compile()  # Compile the graph to start execution
-        supervisor_fn(state)
 
     def _addUsageAndDisplay(self, cb):
         self._totalCallbacks.total_cost += cb.total_cost
@@ -907,3 +865,6 @@ def _getFunctionsSinglePrompt(
     prefix = prefix or PREFIX_FUNCTIONS
     system_message = SystemMessage(content=prefix + suffix)
     return OpenAIFunctionsAgent.create_prompt(system_message=system_message)
+class DatabaseAgent:
+    def run(self, input: str) -> str:
+        return "This is a placeholder response from the DatabaseAgent."
