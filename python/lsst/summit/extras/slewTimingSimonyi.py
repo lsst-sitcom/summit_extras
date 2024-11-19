@@ -160,6 +160,26 @@ inPositionTopics = {
 }
 
 
+def getAxis(axes, topic):
+    if "MTMount.logevent_elevationInPosition" in topic:
+        return axes["el"]
+
+    if "MTMount.logevent_azimuthInPosition" in topic:
+        return axes["az"]
+
+    if "MTRotator.logevent_inPosition" in topic:
+        return axes["rot"]
+
+    if any(x in topic for x in ["MTPtg", "MTMount", "MTM1M3", "MTM2"]):
+        return axes["mount"]
+
+    if any(x in topic for x in ["MTCamera", "MTRotator"]):
+        return axes["camera"]
+
+    if any(x in topic for x in ["MTAOS", "MTHexapod", "MTM1M3", "MTM2"]):
+        return axes["aos"]
+
+
 def plotExposureTiming(
     client: EfdClient,
     expRecords: list[dafButler.DimensionRecord],
@@ -218,11 +238,21 @@ def plotExposureTiming(
     # Create a figure with a grid specification and have axes share x
     # and have no room between each
     fig = plt.figure(figsize=(12, 6))
-    gs = fig.add_gridspec(3, 1, hspace=0)
-    azimuth_ax = fig.add_subplot(gs[0, 0])
-    elevation_ax = fig.add_subplot(gs[1, 0], sharex=azimuth_ax)
-    rotation_ax = fig.add_subplot(gs[2, 0], sharex=azimuth_ax)
-    axes = {"az": azimuth_ax, "el": elevation_ax, "rot": rotation_ax}
+    gs = fig.add_gridspec(6, 1, hspace=0)
+    mount_ax = fig.add_subplot(gs[0, 0])
+    azimuth_ax = fig.add_subplot(gs[1, 0], sharex=mount_ax)
+    elevation_ax = fig.add_subplot(gs[2, 0], sharex=mount_ax)
+    rotation_ax = fig.add_subplot(gs[3, 0], sharex=mount_ax)
+    aos_ax = fig.add_subplot(gs[4, 0], sharex=mount_ax)
+    camera_ax = fig.add_subplot(gs[5, 0], sharex=mount_ax)
+    axes = {
+        "az": azimuth_ax,
+        "el": elevation_ax,
+        "rot": rotation_ax,
+        "mount": mount_ax,
+        "camera": camera_ax,
+        "aos": aos_ax,
+    }
 
     # plot the telemetry
     axes["az"].plot(az["actualPosition"])
@@ -236,13 +266,13 @@ def plotExposureTiming(
         startExposing = record.timespan.begin.utc.datetime
         endExposing = record.timespan.end.utc.datetime
 
-        readoutEnd = (record.timespan.end + READOUT_TIME).utc.to_value("isot")
+        readoutEnd = (record.timespan.end + READOUT_TIME).utc.datetime
         seqNum = record.seq_num
         for axName, ax in axes.items():
             ax.axvspan(startExposing, endExposing, color=integrationColor, alpha=0.3)
             ax.axvspan(endExposing, readoutEnd, color=readoutColor, alpha=0.1)
             if axName == "el":  # only add seqNum annotation to bottom axis
-                label = f"seqNum = {seqNum}"
+                label = f"seqNum = {seqNum}\n{record.physical_filter}"
                 midpoint = startExposing + (endExposing - startExposing) / 2
                 ax.annotate(
                     label,
@@ -258,18 +288,14 @@ def plotExposureTiming(
     for label, topic in inPositionTopics.items():
         # TODO: need to iterate over colours in this loop
         inPostionTransitions = getEfdData(
-            client, topic, begin=begin, end=end, prePadding=prePadding, postPadding=postPadding
+            client, topic, begin=begin, end=end, prePadding=prePadding, postPadding=postPadding, warn=False
         )
         for time, data in inPostionTransitions.iterrows():
             inPosition = data["inPosition"]
             if inPosition:
-                axes["az"].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
-                axes["el"].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
-                axes["rot"].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
+                getAxis(axes, topic).axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
             else:
-                axes["az"].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
-                axes["el"].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
-                axes["rot"].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
+                getAxis(axes, topic).axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
 
         handle = Line2D(
             [0], [0], color="green", linestyle="--", label=f"{label} in position=True", alpha=inPositionAlpha
@@ -287,7 +313,13 @@ def plotExposureTiming(
     if plotHexapod:
         for topic in HEXAPOD_TOPICS:
             hexData = getEfdData(
-                client, topic, begin=begin, end=end, prePadding=prePadding, postPadding=postPadding
+                client,
+                topic,
+                begin=begin,
+                end=end,
+                prePadding=prePadding,
+                postPadding=postPadding,
+                warn=False,
             )
             newCommands = {}
             for time, data in hexData.iterrows():
@@ -299,9 +331,7 @@ def plotExposureTiming(
     commandColors = {command: next(colorCycle) for command in uniqueCommands}
     for time, command in commandTimes.items():
         color = commandColors[command]
-        axes["az"].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
-        axes["el"].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
-        axes["rot"].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
+        getAxis(axes, command).axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
 
     # manually build the legend to avoid duplicating the labels due to multiple
     # commands of the same name
@@ -311,6 +341,9 @@ def plotExposureTiming(
     ]
     legendHandles.extend(handles)
 
+    axes["mount"].set_ylabel("Mount commands")
+    axes["camera"].set_ylabel("Camera commands")
+    axes["aos"].set_ylabel("AOS commands")
     axes["az"].set_ylabel("Azimuth (deg)")
     axes["el"].set_ylabel("Elevation (deg)")
     axes["rot"].set_ylabel("Rotation (deg)")
