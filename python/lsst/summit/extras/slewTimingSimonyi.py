@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import itertools
+import warnings
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -160,32 +161,35 @@ inPositionTopics = {
 }
 
 
-def getAxis(axes, topic):
+def getAxisName(topic):
+    # Note the order here matters, e.g. cameraCableWrap is a substring of
+    # MTMount so it should be checked first, likewise axes are special cases
+    # of the MTMount so should be checked first.
     if "MTMount.logevent_elevationInPosition" in topic:
-        return axes["el"]
+        return "el"
 
     if "MTMount.logevent_azimuthInPosition" in topic:
-        return axes["az"]
+        return "az"
 
     if "MTRotator.logevent_inPosition" in topic:
-        return axes["rot"]
+        return "rot"
+
+    if any(x in topic for x in ["MTCamera", "MTRotator", "cameraCableWrap"]):
+        return "camera"
 
     if any(x in topic for x in ["MTPtg", "MTMount", "MTM1M3", "MTM2"]):
-        return axes["mount"]
-
-    if any(x in topic for x in ["MTCamera", "MTRotator"]):
-        return axes["camera"]
+        return "mount"
 
     if any(x in topic for x in ["MTAOS", "MTHexapod", "MTM1M3", "MTM2"]):
-        return axes["aos"]
+        return "aos"
 
 
 def plotExposureTiming(
     client: EfdClient,
     expRecords: list[dafButler.DimensionRecord],
-    plotHexapod: bool = False,
     prePadding: float = 1,
     postPadding: float = 3,
+    narrowHeightRatio: float = 0.4,
 ) -> matplotlib.figure.Figure:
     """Plot the mount command timings for a set of exposures.
 
@@ -203,13 +207,13 @@ def plotExposureTiming(
         A list of exposure records to plot. The timings will be plotted from
         the start of the first exposure to the end of the last exposure,
         regardless of whether intermediate exposures are included.
-    plotHexapod : `bool`, optional
-        Plot the ATAOS.logevent_hexapodCorrectionStarted and
-        ATAOS.logevent_hexapodCorrectionCompleted transitions?
     prePadding : `float`, optional
         The amount of time to pad before the start of the first exposure.
     postPadding : `float`, optional
         The amount of time to pad after the end of the last exposure.
+    narrowHeightRatio : `float`, optional
+        Height ratio for narrow panels (mount, camera, aos) relative to wide
+        ones.
 
     Returns
     -------
@@ -220,8 +224,6 @@ def plotExposureTiming(
     commandAlpha = 0.5
     integrationColor = "grey"
     readoutColor = "blue"
-
-    legendHandles = []
 
     expRecords = sorted(expRecords, key=lambda x: (x.day_obs, x.seq_num))  # ensure we're sorted
 
@@ -235,130 +237,221 @@ def plotExposureTiming(
 
     az, el, rot, _ = getAzElRotDataForPeriod(client, begin, end, prePadding, postPadding)
 
-    # Create a figure with a grid specification and have axes share x
-    # and have no room between each
-    fig = plt.figure(figsize=(12, 6))
-    gs = fig.add_gridspec(6, 1, hspace=0)
-    mount_ax = fig.add_subplot(gs[0, 0])
-    azimuth_ax = fig.add_subplot(gs[1, 0], sharex=mount_ax)
-    elevation_ax = fig.add_subplot(gs[2, 0], sharex=mount_ax)
-    rotation_ax = fig.add_subplot(gs[3, 0], sharex=mount_ax)
-    aos_ax = fig.add_subplot(gs[4, 0], sharex=mount_ax)
-    camera_ax = fig.add_subplot(gs[5, 0], sharex=mount_ax)
+    # Calculate relative heights for the gridspec
+    narrowHeight = narrowHeightRatio
+    wideHeight = 1.0
+    totalHeight = 3 * narrowHeight + 3 * wideHeight
+    heights = [
+        narrowHeight / totalHeight,  # mount
+        wideHeight / totalHeight,  # azimuth
+        wideHeight / totalHeight,  # elevation
+        wideHeight / totalHeight,  # rotation
+        narrowHeight / totalHeight,  # aos
+        narrowHeight / totalHeight,  # camera
+    ]
+
+    # Create figure with adjusted gridspec
+    fig = plt.figure(figsize=(18, 8))
+    gs = fig.add_gridspec(7, 2, height_ratios=[*heights, 0.15], width_ratios=[0.8, 0.2], hspace=0)
+
+    # Create axes with shared x-axis
+    mountAx = fig.add_subplot(gs[0, 0])
+    azimuthAx = fig.add_subplot(gs[1, 0], sharex=mountAx)
+    elevationAx = fig.add_subplot(gs[2, 0], sharex=mountAx)
+    rotationAx = fig.add_subplot(gs[3, 0], sharex=mountAx)
+    aosAx = fig.add_subplot(gs[4, 0], sharex=mountAx)
+    cameraAx = fig.add_subplot(gs[5, 0], sharex=mountAx)
+    bottomLegendAx = fig.add_subplot(gs[6, :])
+
+    # Create legend axes
+    mountLegendAx = fig.add_subplot(gs[0, 1])
+    azLegendAx = fig.add_subplot(gs[1, 1])
+    elLegendAx = fig.add_subplot(gs[2, 1])
+    rotLegendAx = fig.add_subplot(gs[3, 1])
+    aosLegendAx = fig.add_subplot(gs[4, 1])
+    cameraLegandAx = fig.add_subplot(gs[5, 1])
+
     axes = {
-        "az": azimuth_ax,
-        "el": elevation_ax,
-        "rot": rotation_ax,
-        "mount": mount_ax,
-        "camera": camera_ax,
-        "aos": aos_ax,
+        "az": azimuthAx,
+        "el": elevationAx,
+        "rot": rotationAx,
+        "mount": mountAx,
+        "camera": cameraAx,
+        "aos": aosAx,
     }
 
-    # plot the telemetry
+    legendAxes = {
+        "az": azLegendAx,
+        "el": elLegendAx,
+        "rot": rotLegendAx,
+        "mount": mountLegendAx,
+        "camera": cameraLegandAx,
+        "aos": aosLegendAx,
+        "bottom": bottomLegendAx,
+    }
+
+    # Remove frames and ticks from legend axes
+    for ax in legendAxes.values():
+        ax.set_frame_on(False)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    # Plot telemetry
     axes["az"].plot(az["actualPosition"])
     axes["el"].plot(el["actualPosition"])
     axes["rot"].plot(rot["actualPosition"])
 
-    # shade the expRecords' regions including the readout time
-    for i, record in enumerate(expRecords):
-        # these need to be in UTC because matplotlib magic turns all the axis
-        # timings into UTC when plotting from a dataframe.
+    # Remove y-ticks for mount, aos, and camera axes
+    for ax_name in ["mount", "aos", "camera"]:
+        axes[ax_name].set_yticks([])
+
+    # Hide the last x-tick label for all axes because although they're shared
+    # the last values sticks out to the right
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        for ax in axes.values():
+            ax.set_xticklabels(ax.get_xticklabels()[:-1])
+
+    # Shade exposure regions and add annotations
+    for record in expRecords:
         startExposing = record.timespan.begin.utc.datetime
         endExposing = record.timespan.end.utc.datetime
-
         readoutEnd = (record.timespan.end + READOUT_TIME).utc.datetime
         seqNum = record.seq_num
-        for axName, ax in axes.items():
+
+        for ax in axes.values():
             ax.axvspan(startExposing, endExposing, color=integrationColor, alpha=0.3)
             ax.axvspan(endExposing, readoutEnd, color=readoutColor, alpha=0.1)
-            if axName == "el":  # only add seqNum annotation to bottom axis
-                label = f"seqNum = {seqNum}\n{record.physical_filter}"
-                midpoint = startExposing + (endExposing - startExposing) / 2
-                ax.annotate(
-                    label,
-                    xy=(midpoint, 0.5),
-                    xycoords=("data", "axes fraction"),
-                    ha="center",
-                    va="center",
-                    fontsize=10,
-                    color="black",
-                )
 
-    # place vertical lines at the times when axes transition in/out of position
-    for label, topic in inPositionTopics.items():
-        # TODO: need to iterate over colours in this loop
-        inPostionTransitions = getEfdData(
-            client, topic, begin=begin, end=end, prePadding=prePadding, postPadding=postPadding, warn=False
+        # Add expRecord details inside the camera section of the plot
+        midpoint = startExposing + (endExposing - startExposing) / 2
+        label = f"seqNum = {seqNum}\nFilter={record.physical_filter}"
+        axes["camera"].annotate(
+            label,
+            xy=(midpoint, 0.2),
+            xycoords=("data", "axes fraction"),
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            color="black",
         )
-        for time, data in inPostionTransitions.iterrows():
+
+    # Create separate legend entries for each axis type
+    legendEntries = {ax_name: [] for ax_name in axes.keys()}
+
+    # Handle in-position transitions
+    for label, topic in inPositionTopics.items():
+        axisName = getAxisName(topic)
+
+        inPositionTransitions = getEfdData(
+            client,
+            topic,
+            begin=begin,
+            end=end,
+            prePadding=prePadding,
+            postPadding=postPadding,
+            warn=False,
+        )
+        for time, data in inPositionTransitions.iterrows():
             inPosition = data["inPosition"]
             if inPosition:
-                getAxis(axes, topic).axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
+                axes[axisName].axvline(time, color="green", linestyle="--", alpha=inPositionAlpha)
             else:
-                getAxis(axes, topic).axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
+                axes[axisName].axvline(time, color="red", linestyle="-", alpha=inPositionAlpha)
 
-        handle = Line2D(
-            [0], [0], color="green", linestyle="--", label=f"{label} in position=True", alpha=inPositionAlpha
+        legendEntries[axisName].extend(
+            [
+                Line2D(
+                    [0],
+                    [0],
+                    color="green",
+                    linestyle="--",
+                    label=f"{label} in position=True",
+                    alpha=inPositionAlpha,
+                ),
+                Line2D(
+                    [0],
+                    [0],
+                    color="red",
+                    linestyle="-",
+                    label=f"{label} in position=False",
+                    alpha=inPositionAlpha,
+                ),
+            ]
         )
-        legendHandles.append(handle)
-        handle = Line2D(
-            [0], [0], color="red", linestyle="-", label=f"{label} in position=False", alpha=inPositionAlpha
-        )
-        legendHandles.append(handle)
 
-    # place vertical lines at the times when commands were issued
+    # Handle commands
     commandTimes = getCommands(
         client, COMMANDS_TO_QUERY, begin, end, prePadding, postPadding, timeFormat="python"
     )
-    if plotHexapod:
-        for topic in HEXAPOD_TOPICS:
-            hexData = getEfdData(
-                client,
-                topic,
-                begin=begin,
-                end=end,
-                prePadding=prePadding,
-                postPadding=postPadding,
-                warn=False,
-            )
-            newCommands = {}
-            for time, data in hexData.iterrows():
-                newCommands[time] = topic
-            commandTimes.update(newCommands)
 
-    uniqueCommands = list(set(commandTimes.values()))
-    colorCycle = itertools.cycle(["b", "g", "r", "c", "m", "y", "k"])
-    commandColors = {command: next(colorCycle) for command in uniqueCommands}
+    for topic in HEXAPOD_TOPICS:
+        hexData = getEfdData(
+            client,
+            topic,
+            begin=begin,
+            end=end,
+            prePadding=prePadding,
+            postPadding=postPadding,
+            warn=False,
+        )
+        commandTimes.update({time: topic for time, _ in hexData.iterrows()})
+
+    # Create color maps for each axis
+    color_maps = {ax_name: {} for ax_name in axes.keys()}
+    colors = ["b", "g", "r", "c", "m", "y", "k"]
+    color_iterators = {ax_name: itertools.cycle(colors) for ax_name in axes.keys()}
+
+    # Group commands by axis and assign colors
     for time, command in commandTimes.items():
-        color = commandColors[command]
-        getAxis(axes, command).axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
+        axisName = getAxisName(command)
 
-    # manually build the legend to avoid duplicating the labels due to multiple
-    # commands of the same name
-    handles = [
-        Line2D([0], [0], color=color, linestyle="-.", label=label, alpha=commandAlpha)
-        for label, color in commandColors.items()
+        if command not in color_maps[axisName]:
+            color_maps[axisName][command] = next(color_iterators[axisName])
+        color = color_maps[axisName][command]
+        axes[axisName].axvline(time, linestyle="-.", alpha=commandAlpha, color=color)
+
+        # Add to legend entries if not already there
+        shortCommand = command.replace("lsst.sal.", "")
+        if shortCommand not in [entry.get_label() for entry in legendEntries[axisName]]:
+            entry = Line2D([0], [0], color=color, linestyle="-.", label=shortCommand, alpha=commandAlpha)
+            legendEntries[axisName].append(entry)
+
+    # Create separate legends, using 2 columns if more than 5 items
+    for axisName, entries in legendEntries.items():
+        if entries:
+            ncols = 2 if len(entries) > 5 else 1
+            legendAxes[axisName].legend(
+                handles=entries, loc="center left", bbox_to_anchor=(-0.5, 0.5), ncol=ncols
+            )
+
+    # Create bottom legend for shading explanation
+    shadingLegendHandles = [
+        Patch(facecolor=integrationColor, alpha=0.3, label="Shutter open period"),
+        Patch(facecolor=readoutColor, alpha=0.1, label="Readout period"),
     ]
-    legendHandles.extend(handles)
+    bottomLegendAx.legend(handles=shadingLegendHandles, loc="center", bbox_to_anchor=(0.4, 0.5), ncol=2)
 
-    axes["mount"].set_ylabel("Mount commands")
-    axes["camera"].set_ylabel("Camera commands")
-    axes["aos"].set_ylabel("AOS commands")
-    axes["az"].set_ylabel("Azimuth (deg)")
-    axes["el"].set_ylabel("Elevation (deg)")
-    axes["rot"].set_ylabel("Rotation (deg)")
-    axes["rot"].set_xlabel("Time (UTC)")  # this is UTC because of the magic matplotlib does on time indices
-    fig.suptitle(title)
+    # Set labels with horizontal orientation
+    for axisName, ax in axes.items():
+        ax.set_ylabel(
+            (
+                f"{axisName.title() if axisName!='aos' else 'AOS'} commands"
+                if axisName in ["mount", "camera", "aos"]
+                else f"{axisName.title()} (deg)"
+            ),
+            rotation=0,
+            ha="right",
+            va="center",
+        )
 
-    shaded_handle = Patch(facecolor=integrationColor, alpha=0.3, label="Shutter open period")
-    legendHandles.append(shaded_handle)
-    shaded_handle = Patch(facecolor=readoutColor, alpha=0.1, label="Readout period")
-    legendHandles.append(shaded_handle)
-    # put the legend under the plot itself
-    axes["rot"].legend(handles=legendHandles, loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=2)
+    axes["rot"].set_xlabel("Time (UTC)")
+
+    # Add title centered on main plot area only
+    axes["mount"].set_title(title)
 
     fig.tight_layout()
-    plt.show()
+
     return fig
 
 
@@ -381,4 +474,4 @@ if __name__ == "__main__":
 
     toPlot = [records[98], records[99]]
 
-    az = plotExposureTiming(client, toPlot, plotHexapod=True)
+    az = plotExposureTiming(client, toPlot)
