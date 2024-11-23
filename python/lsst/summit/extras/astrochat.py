@@ -116,7 +116,7 @@ def getObservingData(dayObs=None):
 
     filename = None
     if site == "summit":
-        filename = f"/project/rubintv/sidecar_metadata/dayObs_{dayObs}.json"
+        filename = f"/project/rubintv/LSSTComCam/sidecar_metadata/dayObs_{dayObs}.json"
     elif site in ["rubin-devl"]:
         LOG.warning(
             f"Observing metadata at {site} is currently copied by hand by Merlin and will"
