@@ -32,7 +32,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
-import easyocr
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -255,6 +254,13 @@ class SoarSeeingMonitor:
 
 class SoarDatabaseBuiler:
     def __init__(self):
+        try:
+            import easyocr
+        except ImportError:
+            raise ImportError(
+                "The 'easyocr' package is required to do the scraping."
+                "Either `pip install easyocr` or file an RFC!"
+            )
         site = getSite()
         self.STORE_FILE = STORE_FILE[site]
         self.ERROR_FILE = ERROR_FILE[site]
@@ -415,6 +421,7 @@ class SoarDatabaseBuiler:
         dateString = " ".join(results).strip()
         # replace common OCR errors
         dateString = dateString.replace(".", ":")
+        dateString = dateString.replace(",", ":")
         dateString = dateString.replace(";", ":")
         dateString = dateString.replace("o", "0")
         dateString = dateString.replace("O", "0")
