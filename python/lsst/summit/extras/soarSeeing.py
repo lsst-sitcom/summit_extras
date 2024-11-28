@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
 import io
 import logging
 import os
@@ -27,13 +29,17 @@ import time
 import traceback
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import easyocr
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
 import tables  # noqa: F401 required for HDFStore append mode
 from astropy.time import Time, TimeDelta
+from matplotlib.dates import DateFormatter, num2date
 from packaging import version
 
 # Check Pillow version to determine the correct resampling filter
@@ -41,12 +47,19 @@ from PIL import Image, ImageEnhance
 from PIL import __version__ as PILLOW_VERSION
 from requests.exceptions import HTTPError
 
+from lsst.summit.utils.efdUtils import getDayObsEndTime, getDayObsStartTime
 from lsst.summit.utils.utils import getSite, getSunAngle
 
 if version.parse(PILLOW_VERSION) >= version.parse("9.1.0"):
     resample_filter = Image.LANCZOS
 else:
     resample_filter = Image.ANTIALIAS
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
+    from pandas import DataFrame
+
+    from lsst.daf.butler import Butler, DataCoordinate, DimensionRecord
 
 # coordinates as (x0, y0), (x1, y1) for cropping the various image parts
 USER_COORDINATES = {
@@ -89,9 +102,13 @@ class SeeingConditions:
 
 
 class SoarSeeingMonitor:
-    def __init__(self, warningThreshold=300, errorThreshold=600):
+    def __init__(self, warningThreshold: float = 300, errorThreshold: float = 600):
         site = getSite()
         self.STORE_FILE = STORE_FILE[site]
+        self.warningThreshold = warningThreshold
+        self.errorThreshold = errorThreshold
+        self.log = logging.getLogger(__name__)
+        self.fig = plt.figure(figsize=(18, 10))
         self._reload()
 
     def _reload(self):
@@ -100,6 +117,7 @@ class SoarSeeingMonitor:
         self.df.index = Time(self.df.index)
 
     def getSeeingAtTime(self, time: Time) -> SeeingConditions:
+        self._reload()
         if self.df is None or self.df.empty:
             raise ValueError("Database is empty. No seeing data available.")
 
@@ -127,22 +145,27 @@ class SoarSeeingMonitor:
         if earlier is None or later is None:
             raise ValueError("Cannot interpolate: insufficient data before or after the requested time.")
 
-        # Check time difference to log warnings
+        # Check time difference to log warnings/raise as necessary
         earlierTime = earlier.name
         laterTime = later.name
         interval = (laterTime - earlierTime).sec
 
-        if interval > 5 * 60:
-            logging.warning("Interpolating between values more than 5 mins apart.")
-        if interval > 10 * 60:
-            raise ValueError(f"Interpolating between values more than 10 mins apart: {interval:.2f} seconds.")
+        if interval > self.warningThreshold:
+            self.log.warning(
+                f"Interpolating between values more than {self.warningThreshold/60:.1f} mins apart."
+            )
+        if interval > self.errorThreshold:
+            raise ValueError(
+                f"Requested time {time.isot} would require interpolating between values more "
+                f"than {self.errorThreshold} apart: {interval:.2f} seconds."
+            )
 
         # Perform linear interpolation
         t1 = earlierTime.mjd
         t2 = laterTime.mjd
         t = time.mjd
 
-        def interpolate(value1, value2):
+        def interpolate(value1: float, value2: float) -> float:
             return value1 + (value2 - value1) * ((t - t1) / (t2 - t1))
 
         seeing = interpolate(earlier["seeing"], later["seeing"])
@@ -153,7 +176,7 @@ class SoarSeeingMonitor:
             timestamp=time, seeing=seeing, freeAtmSeeing=freeAtmSeeing, groundLayer=groundLayer
         )
 
-    def rowToSeeingConditions(self, row):
+    def rowToSeeingConditions(self, row: pd.Series) -> SeeingConditions:
         return SeeingConditions(
             timestamp=row.name,
             seeing=row["seeing"],
@@ -161,19 +184,73 @@ class SoarSeeingMonitor:
             groundLayer=row["groundLayer"],
         )
 
-    def getSeeingForDataId(self, butler, dataId):
+    def getSeeingForDataId(self, butler: Butler, dataId: DataCoordinate) -> SeeingConditions:
         (expRecord,) = butler.registry.queryDimensionRecords("exposure", dataId=dataId)
         return self.getSeeingForExpRecord(expRecord)
 
-    def getSeeingForExpRecord(self, expRecord):
+    def getSeeingForExpRecord(self, expRecord: DimensionRecord) -> SeeingConditions:
         midPoint = expRecord.timespan.begin + TimeDelta(expRecord.exposure_time / 2, format="sec")
         return self.getSeeingAtTime(midPoint)
 
-    def plotTodaysSeeing(self):
-        raise NotImplementedError
+    def plotSeeingForDayObs(self, dayObs: int) -> Figure:
+        self._reload()
+        startTime = getDayObsStartTime(dayObs)
+        endTime = getDayObsEndTime(dayObs)
+        mask = (self.df.index >= startTime) & (self.df.index <= endTime)
+        maskedDf = self.df.loc[mask].copy()
+        fig = self.plotSeeing(maskedDf, self.fig)
+        return fig
 
-    def plotSeeingForDayObs(self, dayObs):
-        raise NotImplementedError
+    def plotSeeing(self, dataframe: DataFrame, fig=None) -> Figure:
+        ls = "-"
+        ms = "o"
+        df = dataframe
+
+        if df.empty:
+            raise ValueError("No data to plot for the given time range.")
+
+        if fig is None:
+            fig, ax1 = plt.subplots(figsize=(18, 10))
+        else:
+            fig = self.fig
+            fig.clear()
+            ax1 = fig.add_subplot(111)
+
+        utc = ZoneInfo("UTC")
+        chile_tz = ZoneInfo("America/Santiago")
+
+        # Function to convert UTC to Chilean time
+        def offset_time_aware(utc_time):
+            # Ensure the time is timezone-aware in UTC
+            if utc_time.tzinfo is None:
+                utc_time = utc.localize(utc_time)
+            return utc_time.astimezone(chile_tz)
+
+        df.index = pd.DatetimeIndex([t.to_datetime() for t in df.index])
+
+        ax1.plot(df["seeing"], "g", label="Seeing", ls=ls, marker=ms)
+        ax1.plot(df["freeAtmSeeing"], "b", label="Free atmos. seeing", ls=ls, marker=ms)
+        ax1.plot(df["groundLayer"], "r", label="Ground layer", ls=ls, marker=ms)
+
+        ax2 = ax1.twiny()
+        ax2.set_xlim(ax1.get_xlim())
+
+        # Format both axes to show only time
+        ax1.xaxis.set_major_formatter(DateFormatter("%H:%M:%S"))
+        ax2.xaxis.set_major_formatter(DateFormatter("%H:%M:%S"))
+
+        # Apply the timezone-aware offset to the top axis ticks
+        ax2.set_xticks(ax1.get_xticks())
+        offset_ticks = [offset_time_aware(num2date(tick)) for tick in ax1.get_xticks()]
+        ax2.set_xticklabels([tick.strftime("%H:%M:%S") for tick in offset_ticks])
+
+        ax1.set_ylim(0, 1.1 * max(df["seeing"]))
+        ax1.set_xlabel("Time (UTC)")
+        ax2.set_xlabel("Time (Chilean Time)")
+        ax1.set_ylabel("Seeing (arcsec)")
+        ax1.legend(loc="lower right")
+
+        return fig
 
 
 class SoarDatabaseBuiler:
@@ -184,7 +261,7 @@ class SoarDatabaseBuiler:
         self.FAILED_FILES_DIR = FAILED_FILES_DIR[site]
 
         logging.getLogger("easyocr").setLevel(logging.ERROR)
-        self.reader = easyocr.Reader(["en"])
+        self.reader = easyocr.Reader(["en"])  # type: ignore
 
         # Ensure the HDFStore file exists
         if not os.path.exists(self.STORE_FILE):
