@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 import requests
 import tables  # noqa: F401 required for HDFStore append mode
+from astropy.time import Time, TimeDelta
 from packaging import version
 
 # Check Pillow version to determine the correct resampling filter
@@ -73,14 +74,14 @@ FAILED_FILES_DIR = {
 
 @dataclass
 class SeeingConditions:
-    timestamp: datetime
+    timestamp: Time
     seeing: float
     freeAtmSeeing: float
     groundLayer: float
 
     def __repr__(self):
         return (
-            f"SeeingConditions @ {self.timestamp.isoformat()}\n"
+            f"SeeingConditions @ {self.timestamp.isot}\n"
             f"  Seeing          = {self.seeing}\n"
             f"  Free Atm Seeing = {self.freeAtmSeeing}\n"
             f"  Ground layer    = {self.groundLayer}\n"
@@ -88,14 +89,90 @@ class SeeingConditions:
 
 
 class SoarSeeingMonitor:
-    def __init__(self):
+    def __init__(self, warningThreshold=300, errorThreshold=600):
         site = getSite()
         self.STORE_FILE = STORE_FILE[site]
+        self._reload()
 
     def _reload(self):
         self.df = pd.read_hdf(self.STORE_FILE, key="data")
+        # Convert the index from datetime.datetime to astropy.time.Time
+        self.df.index = Time(self.df.index)
 
-    def getSeeingAtTime(self, time):
+    def getSeeingAtTime(self, time: Time) -> SeeingConditions:
+        if self.df is None or self.df.empty:
+            raise ValueError("Database is empty. No seeing data available.")
+
+        # Ensure the timestamp is sorted
+        self.df.sort_index(inplace=True)
+
+        # Check if the exact time exists in the database
+        if time in self.df.index:
+            row = self.df.loc[time]
+            return SeeingConditions(
+                timestamp=time,
+                seeing=row["seeing"],
+                freeAtmSeeing=row["freeAtmSeeing"],
+                groundLayer=row["groundLayer"],
+            )
+
+        # Find the closest timestamps around the requested time
+        earlier = self.df[self.df.index < time].iloc[-1] if not self.df[self.df.index < time].empty else None
+        later = self.df[self.df.index > time].iloc[0] if not self.df[self.df.index > time].empty else None
+
+        if later is None and (time - earlier.name).sec < self.errorThreshold:
+            self.log.info("Returning the last available value.")
+            return self.rowToSeeingConditions(earlier)
+
+        if earlier is None or later is None:
+            raise ValueError("Cannot interpolate: insufficient data before or after the requested time.")
+
+        # Check time difference to log warnings
+        earlierTime = earlier.name
+        laterTime = later.name
+        interval = (laterTime - earlierTime).sec
+
+        if interval > 5 * 60:
+            logging.warning("Interpolating between values more than 5 mins apart.")
+        if interval > 10 * 60:
+            raise ValueError(f"Interpolating between values more than 10 mins apart: {interval:.2f} seconds.")
+
+        # Perform linear interpolation
+        t1 = earlierTime.mjd
+        t2 = laterTime.mjd
+        t = time.mjd
+
+        def interpolate(value1, value2):
+            return value1 + (value2 - value1) * ((t - t1) / (t2 - t1))
+
+        seeing = interpolate(earlier["seeing"], later["seeing"])
+        freeAtmSeeing = interpolate(earlier["freeAtmSeeing"], later["freeAtmSeeing"])
+        groundLayer = interpolate(earlier["groundLayer"], later["groundLayer"])
+
+        return SeeingConditions(
+            timestamp=time, seeing=seeing, freeAtmSeeing=freeAtmSeeing, groundLayer=groundLayer
+        )
+
+    def rowToSeeingConditions(self, row):
+        return SeeingConditions(
+            timestamp=row.name,
+            seeing=row["seeing"],
+            freeAtmSeeing=row["freeAtmSeeing"],
+            groundLayer=row["groundLayer"],
+        )
+
+    def getSeeingForDataId(self, butler, dataId):
+        (expRecord,) = butler.registry.queryDimensionRecords("exposure", dataId=dataId)
+        return self.getSeeingForExpRecord(expRecord)
+
+    def getSeeingForExpRecord(self, expRecord):
+        midPoint = expRecord.timespan.begin + TimeDelta(expRecord.exposure_time / 2, format="sec")
+        return self.getSeeingAtTime(midPoint)
+
+    def plotTodaysSeeing(self):
+        raise NotImplementedError
+
+    def plotSeeingForDayObs(self, dayObs):
         raise NotImplementedError
 
 
@@ -119,7 +196,7 @@ class SoarDatabaseBuiler:
         self.last_etag = None
         self.lastModified = None
 
-    def getCurrentSeeingFromWebsite(self):
+    def getCurrentSeeingFromWebsite(self) -> SeeingConditions | None:
         headers = {
             "User-Agent": "Mozilla/5.0 (compatible; SoarSeeingMonitor/1.0; +http://tellmeyourseeing.com/bot)"
         }
@@ -197,7 +274,7 @@ class SoarDatabaseBuiler:
 
         return SeeingConditions(date, seeing, freeAtmSeeing, groundLayer)
 
-    def getLastTimestamp(self):
+    def getLastTimestamp(self) -> Time | None:
         """Retrieve the last timestamp from the HDFStore."""
         with pd.HDFStore(self.STORE_FILE, mode="r") as store:
             if "/data" in store.keys():
@@ -232,7 +309,7 @@ class SoarDatabaseBuiler:
                         "freeAtmSeeing": [seeing.freeAtmSeeing],
                         "groundLayer": [seeing.groundLayer],
                     },
-                    index=[newTimestamp],
+                    index=[seeing.timestamp.to_datetime()],
                 )
 
                 # Append the new data to the HDFStore
@@ -245,7 +322,16 @@ class SoarDatabaseBuiler:
 
             time.sleep(30)
 
-    def _getDateTime(self, dateImage):
+    @staticmethod
+    def fixMissingColon(dateString):
+        # Match the format "YYYY-MM-DD HHMM:SS"
+        match = re.match(r"^\d{4}-\d{2}-\d{2} \d{4}:\d{2}$", dateString)
+        if match:
+            # Add the colon in the HHMM part
+            return dateString[:11] + dateString[11:13] + ":" + dateString[13:]
+        return dateString  # Return unmodified if the format doesn't match
+
+    def _getDateTime(self, dateImage) -> Time:
         dateImage = self._preprocessImage(dateImage)
         # dateImage_np = np.array(dateImage)
         results = self.reader.readtext(dateImage, detail=0)
@@ -261,15 +347,18 @@ class SoarDatabaseBuiler:
         dateString = dateString.replace("::", ":")
         dateString = dateString.replace("*", ":")
         dateString = dateString.replace(" :", ":")
+        dateString = self.fixMissingColon(dateString)
 
         try:
-            date_obj = datetime.strptime(dateString, "%Y-%m-%d %H:%M:%S")
+            date = datetime.strptime(dateString, "%Y-%m-%d %H:%M:%S")
         except ValueError:
             # If the format doesn't match, try alternative formats
             # For example, if there's an underscore instead of a space
-            date_obj = datetime.strptime(dateString, "%Y-%m-%d_%H:%M:%S")
+            date = datetime.strptime(dateString, "%Y-%m-%d_%H:%M:%S")
 
-        return date_obj
+        astopyTime = Time(val=date.isoformat(), format="isot")
+
+        return astopyTime
 
     @staticmethod
     def thresholdImage(image, threshold):
@@ -291,7 +380,7 @@ class SoarDatabaseBuiler:
         imageBwNumpy = np.array(imageBw).astype(np.uint8)
         return imageBwNumpy
 
-    def _getSeeingNumber(self, image):
+    def _getSeeingNumber(self, image) -> float:
         image = self._preprocessImage(image)
 
         results = self.reader.readtext(image, detail=0, contrast_ths=0.1, adjust_contrast=0.5)
