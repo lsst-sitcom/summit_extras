@@ -235,7 +235,11 @@ def plotExposureTiming(
     begin = expRecords[0].timespan.begin
     end = expRecords[-1].timespan.end
 
-    az, el, rot, _ = getAzElRotDataForPeriod(client, begin, end, prePadding, postPadding)
+    mountData = getAzElRotDataForPeriod(client, begin, end, prePadding, postPadding)
+
+    az = mountData.azimuthData
+    el = mountData.elevationData
+    rot = mountData.rotationData
 
     # Calculate relative heights for the gridspec
     narrowHeight = narrowHeightRatio
