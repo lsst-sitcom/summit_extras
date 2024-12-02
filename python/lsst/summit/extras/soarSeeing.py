@@ -184,6 +184,14 @@ class SoarSeeingMonitor:
             groundLayer=row["groundLayer"],
         )
 
+    def getMostRecentTimestamp(self) -> Time:
+        self._reload()
+        return Time(self.df.index[-1])
+
+    def getMostRecentSeeing(self) -> SeeingConditions:
+        self._reload()
+        return self.rowToSeeingConditions(self.df.iloc[-1])
+
     def getSeeingForDataId(self, butler: Butler, dataId: DataCoordinate) -> SeeingConditions:
         (expRecord,) = butler.registry.queryDimensionRecords("exposure", dataId=dataId)
         return self.getSeeingForExpRecord(expRecord)
@@ -192,16 +200,20 @@ class SoarSeeingMonitor:
         midPoint = expRecord.timespan.begin + TimeDelta(expRecord.exposure_time / 2, format="sec")
         return self.getSeeingAtTime(midPoint)
 
-    def plotSeeingForDayObs(self, dayObs: int) -> Figure:
+    def plotSeeingForDayObs(
+        self, dayObs: int, addMostRecentBox: bool = True, fig: Figure | None = None
+    ) -> Figure:
         self._reload()
         startTime = getDayObsStartTime(dayObs)
         endTime = getDayObsEndTime(dayObs)
         mask = (self.df.index >= startTime) & (self.df.index <= endTime)
         maskedDf = self.df.loc[mask].copy()
-        fig = self.plotSeeing(maskedDf, self.fig)
+        fig = self.plotSeeing(maskedDf, addMostRecentBox=addMostRecentBox, fig=fig)
         return fig
 
-    def plotSeeing(self, dataframe: DataFrame, addMostRecentBox=True, fig=None) -> Figure:
+    def plotSeeing(
+        self, dataframe: DataFrame, addMostRecentBox: bool = True, fig: Figure | None = None
+    ) -> Figure:
         ls = "-"
         ms = "o"
         df = dataframe
@@ -248,6 +260,8 @@ class SoarSeeingMonitor:
         ax1.set_xlabel("Time (UTC)")
         ax2.set_xlabel("Time (Chilean Time)")
         ax1.set_ylabel("Seeing (arcsec)")
+        ax1.yaxis.grid(True, which="major", linestyle="--", linewidth=0.5, alpha=0.7)
+        ax1.xaxis.grid(True, which="major", linestyle="--", linewidth=0.5, alpha=0.7)
 
         # Update legend with larger font size
         ax1.legend(loc="lower left", fontsize=14)
