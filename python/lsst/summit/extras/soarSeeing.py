@@ -38,7 +38,6 @@ import pandas as pd
 import requests
 import tables  # noqa: F401 required for HDFStore append mode
 from astropy.time import Time, TimeDelta
-from humanize.time import precisedelta
 from matplotlib.dates import DateFormatter, num2date
 from packaging import version
 
@@ -268,21 +267,19 @@ class SoarSeeingMonitor:
 
         # Calculate current seeing and age of data
         if addMostRecentBox:
-            currentTime = Time.now()
             lastTime = Time(df.index[-1])
-            ageSeconds = (currentTime - lastTime).sec  # Age in seconds
-            ageHumanized = precisedelta(ageSeconds, minimum_unit="seconds")
             currentSeeing = df["seeing"].iloc[-1]
+            justTime = lastTime.isot.split("T")[1].split(".")[0]
 
-            text = f'Current Seeing: {currentSeeing:.2f}"\n' f"Last updated: {ageHumanized} minutes ago"
+            text = f'Current Seeing: {currentSeeing:.2f}"\n' f"Last updated @ {justTime} UTC"
             ax1.text(
-                0.95,
+                0.05,
                 0.95,
                 text,
                 transform=ax1.transAxes,
                 fontsize=14,
                 verticalalignment="top",
-                horizontalalignment="right",
+                horizontalalignment="left",
                 bbox=dict(boxstyle="round", facecolor="white", alpha=0.7),
             )
 
