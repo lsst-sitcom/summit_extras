@@ -176,7 +176,7 @@ def getAxisName(topic):
     if "MTRotator.logevent_inPosition" in topic:
         return "rot"
 
-    if any(x in topic for x in ["MTCamera", "MTRotator", "cameraCableWrap"]):
+    if any(x in topic for x in ["CCCamera", "MTRotator", "cameraCableWrap"]):
         return "camera"
 
     if any(x in topic for x in ["MTPtg", "MTMount", "MTM1M3", "MTM2"]):
