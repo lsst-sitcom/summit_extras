@@ -19,19 +19,22 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import inspect
 import logging
 import os
 import re
 import warnings
-import functools
 import operator
+import traceback
 
 # TODO: work out a way to protect all of these imports
 import langchain_community
 import pandas as pd
 import requests
 import yaml
+
+import chromadb
+from chromadb import Client, Settings
+
 from annoy import AnnoyIndex
 from IPython.display import Image, Markdown, display
 from langchain.agents import AgentType, Tool, create_react_agent, create_tool_calling_agent
@@ -316,13 +319,14 @@ def convert_tuples_to_lists(data):
 
 
 class Tools:
-    def __init__(self, chat_model, yamlFilePath) -> None:
+    def __init__(self, chat_model, yamlFilePath, csvFilePath) -> None:
         self.data_dir = os.path.dirname(yamlFilePath)
         self.index_path = os.path.join(self.data_dir, "annoy_index.ann")
         self._chat = chat_model
         self.data = self.load_yaml(yamlFilePath)
         self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
         self.index, self.descriptions = self.load_or_build_annoy_index()
+        self.queryFinder = QueryFinderAgent(csvFilePath)
 
         self.tools = [
             Tool(
@@ -348,7 +352,35 @@ class Tools:
                 func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI.",
             ),
+            Tool(
+                name="QueryFinder",
+                func=self.queryFinderWrapper,
+                description="Finds a relevant query from the extracted_queries.csv file based on the input description.",
+            ),
+            Tool(
+                name="SampleQueries",
+                func=self.sampleQueriesWrapper,
+                description="Returns a sample of queries from the extracted_queries.csv file.",
+            ),
         ]
+
+    def queryFinderWrapper(self, inputText):
+        try:
+            result = self.queryFinder.findQuery(inputText)
+            print(f"QueryFinder result: {result}")
+            return result
+        except Exception as e:
+            print(f"Error in queryFinderWrapper: {e}")
+            return f"An error occurred while finding a query: {str(e)}"
+
+    def sampleQueriesWrapper(self, n=5):
+        try:
+            result = self.queryFinder.getSampleQueries(n)
+            print(f"SampleQueries result: {result}")
+            return result
+        except Exception as e:
+            print(f"Error in sampleQueriesWrapper: {e}")
+            return f"An error occurred while getting sample queries: {str(e)}"
 
     @staticmethod
     def secret_word(self):
@@ -512,11 +544,14 @@ class Tools:
 
         return "AI response could not identify the best description."
 
+
 class State(TypedDict):
     """The state of the system."""
+
     chat_history: Annotated[List[str], operator.add]
     input: str
     agent_type: str
+    short_term_memory: Dict[str, Any]
 
 
 class AstroChat:
@@ -546,6 +581,8 @@ class AstroChat:
         "randomMTG": "Show me a random Magic The Gathering card",
         # 'find_topic': 'What is the topic to find query?',
         "find_topic_with_ai": "Find the EFDB_Topic based on the description of data.",
+        "find_query": "Find a query related to exposure time",
+        "sample_queries": "Show me some sample queries from the CSV file",
     }
 
     def __init__(
@@ -629,9 +666,10 @@ class AstroChat:
 
         packageDir = getPackageDir("summit_extras")
         yamlFilePath = os.path.join(packageDir, "data", "sal_interface.yaml")
-        toolkit = Tools(self._chat, yamlFilePath)
+        csvFilePath = os.path.join(packageDir, "data", "generated_prompt_influxql.csv")
+        toolkit = Tools(self._chat, yamlFilePath, csvFilePath)
         self.toolkit = toolkit.tools
-        
+
         self.pandas_agent = customDataframeAgent(
             self._chat,
             extra_tools=self.toolkit,
@@ -642,16 +680,13 @@ class AstroChat:
             agent_type=self.agentType,
         )
         self.pandas_agent_executor = AgentExecutor.from_agent_and_tools(
-            agent=self.pandas_agent,
-            tools=self.toolkit,
-            verbose=True
+            agent=self.pandas_agent, tools=self.toolkit, verbose=True
         )
         self.custom_agent = self.create_custom_agent(
-            self._chat, self.data, self.agentType, prefix, 
-            self.toolkit
+            self._chat, self.data, self.agentType, prefix, self.toolkit
         )
         self.database_agent = DatabaseAgent()
-        
+
         self.graph = self._create_graph()
 
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
@@ -661,9 +696,14 @@ class AstroChat:
         if self.export:
             # TODO: Improve this warning message.
             warnings.warn("Exporting variables from the agent after each call. This can cause problems!")
+
     def create_custom_agent(
-        self, llm, df, agent_type, prefix,
-         extra_tools, 
+        self,
+        llm,
+        df,
+        agent_type,
+        prefix,
+        extra_tools,
     ):
         return customDataframeAgent(
             llm=llm,
@@ -672,8 +712,9 @@ class AstroChat:
             prefix=prefix,
             extra_tools=extra_tools,
             allow_dangerous_code=True,
-            return_intermediate_steps=True
+            return_intermediate_steps=True,
         )
+
     def _create_graph(self):
         workflow = StateGraph(State)
 
@@ -689,41 +730,35 @@ class AstroChat:
 
     def route(self, state: State) -> Dict[str, Any]:
         if "database" in state["input"].lower():
-            return {"agent_type": "database"}
-        return {"agent_type": "custom"}
-
-    def agent_node(self, state: State) -> Dict[str, Any]:
-        try:
-            if state["agent_type"] == "database":
-                response = self.database_agent.run(state["input"])
-            else:
-                response = self.custom_agent.invoke(state["input"])
-                if isinstance(response, dict) and "output" in response:
-                    response = response["output"]
-                else:
-                    response = str(response)
-            
-            return {
-                "chat_history": [response],
-            }
-        except Exception as e:
-            return {
-                "chat_history": [f"Error: {str(e)}"],
-            }
+            return {"agent_type": "database", "short_term_memory": state.get("short_term_memory", {})}
+        return {"agent_type": "custom", "short_term_memory": state.get("short_term_memory", {})}
 
     def run(self, inputStr):
         with get_openai_callback() as cb:
             try:
-                result = self.graph.invoke({
-                    "input": inputStr,
-                    "chat_history": [],
-                    "agent_type": self.agentType
-                })
-                
+                # First, try to find a relevant query using QueryFinderAgent
+                query_result = self.toolkit[4].func(inputStr)  # Assuming QueryFinder is the 5th tool
+
+                # If no query is found, try to find a relevant YAML topic
+                if "No matching query found" in query_result:
+                    yaml_result = self.toolkit[3].func(inputStr)  # Assuming YAMLTopicFinder is the 4th tool
+
+                    if "No relevant descriptions found" not in yaml_result:
+                        inputStr += f" Use this EFDB Topic: {yaml_result}"
+
+                result = self.graph.invoke(
+                    {
+                        "input": inputStr,
+                        "chat_history": [],
+                        "agent_type": self.agentType,
+                        "short_term_memory": {},
+                    }
+                )
+
                 formatted_response = self.formatter(result)
-                
+
                 response = result["chat_history"][-1] if result["chat_history"] else "No response generated."
-                
+
             except Exception as e:
                 LOG.error(f"Agent faced an error: {str(e)}")
                 return f"An error occurred while processing your request: {str(e)}"
@@ -732,7 +767,37 @@ class AstroChat:
 
         return formatted_response, response
 
-    
+    def agent_node(self, state: State) -> Dict[str, Any]:
+        try:
+            short_term_memory = state.get("short_term_memory", {})
+
+            if state["agent_type"] == "database":
+                response = self.database_agent.run(state["input"])
+            else:
+                response = self.custom_agent.invoke(state["input"])
+                if isinstance(response, dict):
+                    if "output" in response:
+                        response = response["output"]
+                    elif "intermediate_steps" in response:
+                        steps = response["intermediate_steps"]
+                        response = "\n".join(
+                            [
+                                f"Step {i+1}: {step[0].log}\nObservation: {step[1]}"
+                                for i, step in enumerate(steps)
+                            ]
+                        )
+                else:
+                    response = str(response)
+
+            short_term_memory["last_response"] = response
+
+            return {"chat_history": [response], "short_term_memory": short_term_memory}
+        except Exception as e:
+            return {
+                "chat_history": [f"Error: {str(e)}"],
+                "short_term_memory": state.get("short_term_memory", {}),
+            }
+
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
             raise ValueError(f"Allowed values are {self.allowedVerbosities}, got {level}")
@@ -774,6 +839,7 @@ class AstroChat:
             print(f"\nRunning demo item '{item}':")
             print(f"Prompt text: {self.demoQueries[item]}")
             self.run(self.demoQueries[item])
+
 
 def customDataframeAgent(
     llm: BaseLanguageModel,
@@ -826,6 +892,7 @@ def customDataframeAgent(
 
     return AgentExecutor(agent=agent, tools=tools)
 
+
 def _generatePrompt(df: Any, agent_type: str, **kwargs: Any) -> BasePromptTemplate:
     if agent_type == "ZERO_SHOT_REACT_DESCRIPTION":
         return _getSinglePrompt(df, **kwargs)
@@ -833,6 +900,7 @@ def _generatePrompt(df: Any, agent_type: str, **kwargs: Any) -> BasePromptTempla
         return _getFunctionsSinglePrompt(df, **kwargs)
     else:
         raise ValueError(f"Unsupported agent type for prompt generation: {agent_type}")
+
 
 def _getSinglePrompt(
     df: Any,
@@ -852,6 +920,7 @@ def _getSinglePrompt(
         prompt = prompt.partial(df_head=str(df_head))
     return prompt
 
+
 def _getFunctionsSinglePrompt(
     df: Any,
     *,
@@ -865,6 +934,78 @@ def _getFunctionsSinglePrompt(
     prefix = prefix or PREFIX_FUNCTIONS
     system_message = SystemMessage(content=prefix + suffix)
     return OpenAIFunctionsAgent.create_prompt(system_message=system_message)
+
+
 class DatabaseAgent:
     def run(self, input: str) -> str:
         return "This is a placeholder response from the DatabaseAgent."
+
+
+class QueryFinderAgent:
+    def __init__(self, csvFilePath):
+        self.csvFilePath = csvFilePath
+        self.queriesDf = None
+        self.loadQueries()
+
+        # Initialize SentenceTransformer for embeddings
+        self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+        # Initialize Chroma client and create or access collection
+        self.chroma_client = Client(Settings())
+
+        self.collection_name = "question_embeddings"
+        self.chroma_collection = self.chroma_client.get_or_create_collection(name=self.collection_name)
+
+        # Prepare embeddings
+        self.prepareEmbeddings()
+
+    def loadQueries(self):
+        if os.path.exists(self.csvFilePath):
+            try:
+                self.queriesDf = pd.read_csv(self.csvFilePath, header=0, names=["name", "query", "question"])
+            except Exception as e:
+                print(f"Error loading CSV file: {e}")
+                self.queriesDf = None
+        else:
+            print("CSV file not found")
+
+    def prepareEmbeddings(self):
+        if self.queriesDf is not None and not self.queriesDf.empty:
+            questions = self.queriesDf["question"].tolist()
+            embeddings = self.embedding_model.encode(questions)
+
+            # Prepare lists for IDs and metadata
+            ids = [str(idx) for idx in range(len(embeddings))]
+            metadata = [
+                {"query": self.queriesDf.iloc[idx]["query"], "question": self.queriesDf.iloc[idx]["question"]}
+                for idx in range(len(embeddings))
+            ]
+
+            # Add data into the collection
+            self.chroma_collection.add(
+                ids=ids,
+                embeddings=embeddings.tolist(),  # Convert numpy array to list
+                metadatas=metadata,
+                documents=questions,  # Add the original questions as documents
+            )
+
+    def findQuery(self, inputText):
+        input_embedding = self.embedding_model.encode([inputText])[0]
+
+        results = self.chroma_collection.query(
+            query_embeddings=[input_embedding.tolist()], n_results=1  # Convert numpy array to list
+        )
+
+        if results and results["distances"][0]:
+            similar_query = results["metadatas"][0][0]
+            distance = results["distances"][0][0]
+            return f"Matching query found: {similar_query['query']} (Similarity: {1 - distance:.2f})"
+        else:
+            return "No matching query found."
+
+    def getSampleQueries(self, n=5):
+        if self.queriesDf is not None and not self.queriesDf.empty:
+            sample = self.queriesDf.sample(n=min(n, len(self.queriesDf)))
+            return sample[["query", "question"]].to_dict("records")
+        else:
+            return "No queries available."
