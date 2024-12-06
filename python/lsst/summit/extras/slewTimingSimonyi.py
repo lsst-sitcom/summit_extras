@@ -40,6 +40,8 @@ __all__ = ["plotExposureTiming"]
 READOUT_TIME = TimeDelta(2.3, format="sec")
 
 COMMANDS_TO_QUERY = [
+    # Script
+    "lsst.sal.Script.logevent_state",
     # MTPtg
     "lsst.sal.MTPtg.command_azElTarget",
     "lsst.sal.MTPtg.command_disable",
@@ -179,7 +181,7 @@ def getAxisName(topic):
     if any(x in topic for x in ["CCCamera", "MTRotator", "cameraCableWrap"]):
         return "camera"
 
-    if any(x in topic for x in ["MTPtg", "MTMount", "MTM1M3", "MTM2"]):
+    if any(x in topic for x in ["MTPtg", "MTMount", "MTM1M3", "MTM2", "Script"]):
         return "mount"
 
     if any(x in topic for x in ["MTAOS", "MTHexapod", "MTM1M3", "MTM2"]):
