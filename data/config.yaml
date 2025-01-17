@@ -1,0 +1,4 @@
+OPENAI_API_KEY: "your-api-key-here"
+JIRA_API_TOKEN: "your-jira-token"
+JIRA_API_HOSTNAME: "your-jira-hostname"
+JIRA_API_USERNAME: "your-username"
