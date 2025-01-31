@@ -208,7 +208,7 @@ class Animator:
         if self.pngsToMakeDataIds:
             logger.info("Creating necessary pngs...")
             for i, dataId in enumerate(self.pngsToMakeDataIds):
-                logger.info(f"Making png for file {i+1} of {len(self.pngsToMakeDataIds)}")
+                logger.info(f"Making png for file {i + 1} of {len(self.pngsToMakeDataIds)}")
                 self.makePng(dataId, self.dataIdToFilename(dataId))
 
         # stage files in temp dir with numbers prepended to filenames
