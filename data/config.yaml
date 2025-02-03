@@ -1,4 +1,3 @@
-OPENAI_API_KEY: "your-api-key-here"
-JIRA_API_TOKEN: "your-jira-token"
-JIRA_API_HOSTNAME: "your-jira-hostname"
-JIRA_API_USERNAME: "your-username"
+# config.yaml
+OPENAI_API_KEY: "1234567890-0987654321"
+OLLAMA_SERVER: "https://2e36-200-29-147-35.ngrok-free.app"
