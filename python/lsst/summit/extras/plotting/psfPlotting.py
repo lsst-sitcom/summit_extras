@@ -158,7 +158,7 @@ def makeTableFromSourceCatalogs(icSrcs: dict[int, SourceCatalog], visitInfo: Vis
     return table
 
 
-def extendTable(table: Table, rot: npt.NDArray[np.float_], prefix: str) -> Table:
+def extendTable(table: Table, rot: npt.NDArray[np.float64], prefix: str) -> Table:
     """Extend the given table with additional columns for the rotated shapes.
 
     Parameters
