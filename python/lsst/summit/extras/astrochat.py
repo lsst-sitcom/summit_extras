@@ -19,26 +19,58 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import inspect
 import logging
 import os
 import re
 import warnings
+import operator
+import traceback
 
 # TODO: work out a way to protect all of these imports
 import langchain_community
-import langchain_experimental
 import pandas as pd
+import numpy as np
 import requests
 import yaml
+import matplotlib.pyplot as plt
+
+import chromadb
+
+import ast
+import sys
+from io import StringIO
+from typing import Dict, Any
+
+from chromadb import Client, Settings
+
 from annoy import AnnoyIndex
 from IPython.display import Image, Markdown, display
-from langchain.agents import AgentType, Tool
+from langchain.agents import AgentType, Tool, create_react_agent, create_tool_calling_agent
 from langchain.schema import HumanMessage
 from langchain_community.callbacks import get_openai_callback  # noqa: E402
-from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer
+from langchain_core.language_models import BaseLanguageModel
+from langchain.agents.agent import AgentExecutor, RunnableAgent, RunnableMultiActionAgent
+from typing import Any, List, Dict, Optional, Union, Literal, TypedDict, Annotated
+from langchain_core.messages import SystemMessage
+from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
+from langgraph.graph import StateGraph, END
+
+from langchain.agents.mrkl.prompt import FORMAT_INSTRUCTIONS
+
+from langchain_core.prompts import (
+    BasePromptTemplate,
+    ChatPromptTemplate,
+    PromptTemplate,
+)
+from langchain_experimental.agents.agent_toolkits.pandas.prompt import (
+    FUNCTIONS_WITH_DF,
+    PREFIX,
+    PREFIX_FUNCTIONS,
+    SUFFIX_NO_DF,
+    SUFFIX_WITH_DF,
+)
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils import getPackageDir
@@ -150,125 +182,104 @@ def getObservingData(dayObs=None):
 
     return table
 
-
 class ResponseFormatter:
-    """Format the response from the chatbot.
-
-    Format the intermiediate responses from the chatbot. This is a simple class
-    which provides a __call__ method which can be used as a callback for the
-    chatbot. The __call__ method formats the response as a markdown table.
+    """Format the response from the chatbot, displaying intermediate steps
+    with thought, tool action, and executed Python code.
     """
 
     def __init__(self, agentType):
         self.agentType = agentType
-        self.allCode = []
 
-    @staticmethod
-    def getThoughtFromAction(action):
-        logMessage = action.log
+    def getThoughtFromAction(self, action_log):
+        """Extract the thought part from the action log."""
+        lines = action_log.split('\n')
+        for line in lines:
+            if line.startswith("Thought:"):
+                return line.strip()
+        return "No thought available."
 
-        # Split the input string based on "Action:" or "Action Input:" and take
-        # the first part
-        splitParts = re.split(r"Action:|Action Input:", logMessage)
-        thought = splitParts[0].strip()
-        return thought
-
-    def printAction(self, action):
-        if action.tool == "python_repl_ast":
-            print("\nExcuted the following code:")
+    def extractCodeFromAction(self, action):
+        """Extract code from action if applicable, specifically for Python actions."""
+        if action.tool == "python_repl":
             code = action.tool_input
-            if not code.startswith("```"):
-                self.allCode.append(code)
-                display(Markdown(f"```python\n{code}\n```"))
-            else:
-                display(Markdown(code))
-                self.allCode.extend(code.split("\n")[1:-1])
-        else:
-            print(f"Tool: {action.tool}")
-            print(f"Tool input: {action.tool_input}")
+            return f"```python\n{code}\n```" if code else None
+        return None
 
-    @staticmethod
-    def printObservation(observation):
-        # observation can be many things, including an empty string
-        # but can be a pd.Series or maybe even potentially other things.
-        # So we need to check for None and empty string, and then just return
-        # and otherwise print whatever we get, because testing truthiness
-        # of other objects is tricky as pd.Series need any()/all() called etc
-        if (isinstance(observation, str) and observation == "") or observation is None:
-            return
-        print(f"Observation: {observation}")
+    def printObservation(self, observation):
+        """Display observation if it exists."""
+        if observation not in [None, '', ' ']:
+            print(f"Observation: {observation}")
+
+    def printFinalAnswer(self, response):
+        """Print the final answer from the response."""
+        final_answer = response.get("chat_history", [None])[-1]
+        if final_answer:
+            print(f"\nFinal Answer: {final_answer}")
 
     def printResponse(self, response):
-        steps = response["intermediate_steps"]
-        nSteps = len(steps)
-        if nSteps > 1:
-            print(f"There were {len(steps)} steps to the process:\n")
-        for stepNum, step in enumerate(steps):
-            if nSteps > 1:
-                print(f"Step {stepNum + 1}:")
-            action, observation = step  # unpack the tuple
-            thought = self.getThoughtFromAction(action)
+        """Format and print response including intermediate steps."""
+        steps = response.get("intermediate_steps", [])
+        if not steps:
+            return
 
+        for step_num, (action, observation) in enumerate(steps, start=1):
+            thought = self.getThoughtFromAction(action.log)
+            print(f"\nStep {step_num}:")
             print(thought)
-            self.printAction(action)
+            print(f"Tool: {action.tool}")
+            print(f"Tool input: {action.tool_input}")
             self.printObservation(observation)
 
-        output = response["output"]
-        print(f"\nFinal answer: {output}")
+            code_snippet = self.extractCodeFromAction(action)
+            if code_snippet:
+                print("\nUsed Python code:")
+                display(Markdown(code_snippet))
 
-    @staticmethod
-    def pprint(responses):
-        print(f"Length of responses: {len(responses)}")
-        steps = responses["intermediate_steps"]
-        print(f"with {len(steps)} steps\n")
-        for stepNum, step in enumerate(steps):
-            action, logs = step
-            if action.tool == "python_repl_ast":
-                code = action.tool_input["query"]
-                print(f"Step {stepNum + 1}")
-                display(Markdown(f"```python\n{code}\n```"))
-                print(f"logs: {logs}")
+        # Print the final answer separately
+        self.printFinalAnswer(response)
 
     def __call__(self, response):
-        """Format the response for notebook display.
-
-        Parameters
-        ----------
-        response : `str`
-            The response from the chatbot.
-
-        Returns
-        -------
-        formattedResponse : `str`
-            The formatted response.
-        """
-        if self.agentType == "tool-calling":
-            self.pprint(response)
-            return
-        elif self.agentType == "ZERO_SHOT_REACT_DESCRIPTION":
-            self.printResponse(response)
-            allCode = self.allCode
-            self.allCode = []
-            return allCode
+        """Format the response for notebook display."""
+        if self.agentType in ["tool-calling", "ZERO_SHOT_REACT_DESCRIPTION"]:
+            if isinstance(response, list):
+                for resp in response:
+                    self.printResponse(resp)
+            else:
+                self.printResponse(response)
         else:
             raise ValueError(f"Unknown agent type: {self.agentType}")
+        
+
+        
+def convert_tuples_to_lists(data):
+    if isinstance(data, tuple):
+        return list(data)
+    elif isinstance(data, list):
+        return [convert_tuples_to_lists(item) for item in data]
+    elif isinstance(data, dict):
+        return {key: convert_tuples_to_lists(value) for key, value in data.items()}
+    else:
+        return data
 
 
 class Tools:
-    def __init__(self, chat_model, yamlFilePath) -> None:
+    def __init__(self, chat_model, yamlFilePath, csvFilePath) -> None:
+        self.data_dir = os.path.dirname(yamlFilePath)
+        self.index_path = os.path.join(self.data_dir, "annoy_index.ann")
         self._chat = chat_model
         self.data = self.load_yaml(yamlFilePath)
         self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
-        self.index = self.build_annoy_index()
+        self.index, self.descriptions = self.load_or_build_annoy_index()
+        self.queryFinder = QueryFinderAgent(csvFilePath)
 
         self.tools = [
             Tool(
-                name="Secret Word",
+                name="SecretWord",
                 func=self.secret_word,
                 description="Useful for when you need to answer what is the secret word",
             ),
             Tool(
-                name="NASA Image",
+                name="NASAImage",
                 func=self.nasa_image,
                 description=(
                     "Useful for when you need to answer what is the NASA image of the day"
@@ -276,16 +287,44 @@ class Tools:
                 ),
             ),
             Tool(
-                name="Random MTG",
+                name="RandomMTG",
                 func=self.random_mtg_card,
                 description="Useful for when you need to show a random Magic The Gathering card",
             ),
             Tool(
-                name="YAML Topic Finder",
+                name="YAMLTopicFinder",
                 func=lambda prompt: self.find_topic_with_ai(prompt),
                 description="Finds the topic in the YAML file based on the description provided using AI.",
             ),
+            Tool(
+                name="QueryFinder",
+                func=self.queryFinderWrapper,
+                description="Finds a relevant query from the extracted_queries.csv file based on the input description.",
+            ),
+            Tool(
+                name="SampleQueries",
+                func=self.sampleQueriesWrapper,
+                description="Returns a sample of queries from the extracted_queries.csv file.",
+            ),
         ]
+
+    def queryFinderWrapper(self, inputText):
+        try:
+            result = self.queryFinder.findQuery(inputText)
+            print(f"QueryFinder result: {result}")
+            return result
+        except Exception as e:
+            print(f"Error in queryFinderWrapper: {e}")
+            return f"An error occurred while finding a query: {str(e)}"
+
+    def sampleQueriesWrapper(self, n=5):
+        try:
+            result = self.queryFinder.getSampleQueries(n)
+            print(f"SampleQueries result: {result}")
+            return result
+        except Exception as e:
+            print(f"Error in sampleQueriesWrapper: {e}")
+            return f"An error occurred while getting sample queries: {str(e)}"
 
     @staticmethod
     def secret_word(self):
@@ -327,12 +366,22 @@ class Tools:
         return image_url
 
     def load_yaml(self, file_path):
+        # Load the YAML file with the custom constructor
         with open(file_path, "r") as file:
-            return yaml.safe_load(file)
+            return yaml.load(file, Loader=yaml.SafeLoader)
+
+    def load_or_build_annoy_index(self):
+        if os.path.exists(self.index_path):
+            return self.load_annoy_index()
+        else:
+            index, descriptions = self.build_annoy_index()
+            self.descriptions = descriptions
+            self.save_annoy_index(index)
+            return index, descriptions
 
     def build_annoy_index(self):
         index = AnnoyIndex(384, "angular")  # Adjust the vector length based on your embeddings
-        self.descriptions = []  # Store descriptions and topics for later use
+        descriptions = []  # Store descriptions and topics for later use
 
         # Iterate over all entries in the loaded YAML data
         for telemetry_name, telemetry_data in self.data.items():
@@ -349,13 +398,47 @@ class Tools:
                                     vector = self.embed_description(
                                         description
                                     )  # Convert description to vector
-                                    index.add_item(len(self.descriptions), vector)
+                                    index.add_item(len(descriptions), vector)
                                     # Keep track of the description and its
                                     # corresponding EFDB topic
-                                    self.descriptions.append((description, efdb_topic))
+                                    descriptions.append((description, efdb_topic))
 
         index.build(10)  # Build the Annoy index with 10 trees
-        return index
+        return index, descriptions
+
+    def save_annoy_index(self, index):
+        directory = os.path.dirname(self.index_path)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        index.save(self.index_path)
+        LOG.info(f"Annoy index saved to {self.index_path}")
+
+        normalized_descriptions = convert_tuples_to_lists(self.descriptions)
+
+        descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
+        with open(descriptions_path, "w") as file:
+            yaml.dump(normalized_descriptions, file)
+        print(f"Descriptions saved to {descriptions_path}, without tuples")
+        LOG.info(f"Descriptions saved to {descriptions_path}")
+
+    def load_annoy_index(self):
+        index = AnnoyIndex(384, "angular")
+        index.load(self.index_path)
+        LOG.info(f"Annoy index loaded from {self.index_path}")
+
+        descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
+        with open(descriptions_path, "r") as file:
+            descriptions = yaml.safe_load(file)
+        LOG.info(f"Descriptions loaded from {descriptions_path}")
+
+        return index, descriptions
+
+    def rebuild_annoy_index(self):
+        index, descriptions = self.build_annoy_index()
+        self.descriptions = descriptions
+        self.save_annoy_index(index)
+        self.index = index
+        LOG.info("Annoy index rebuilt")
 
     def embed_description(self, description: str):
         return self.sentence_model.encode(description).tolist()
@@ -392,7 +475,7 @@ class Tools:
         )
 
         # Use the AI to determine the best description
-        response = self._chat([HumanMessage(content=combined_prompt)])
+        response = self._chat.invoke([HumanMessage(content=combined_prompt)])
         response_content = response.content.strip()
 
         # Extract the sentence or description that was determined to be best
@@ -404,6 +487,15 @@ class Tools:
                 return f"Best EFDB Topic: {topic}"
 
         return "AI response could not identify the best description."
+
+
+class State(TypedDict):
+    """The state of the system."""
+
+    chat_history: Annotated[List[str], operator.add]
+    input: str
+    agent_type: str
+    short_term_memory: Dict[str, Any]
 
 
 class AstroChat:
@@ -433,6 +525,8 @@ class AstroChat:
         "randomMTG": "Show me a random Magic The Gathering card",
         # 'find_topic': 'What is the topic to find query?',
         "find_topic_with_ai": "Find the EFDB_Topic based on the description of data.",
+        "find_query": "Find a query related to exposure time",
+        "sample_queries": "Show me some sample queries from the CSV file",
     }
 
     def __init__(
@@ -516,24 +610,29 @@ class AstroChat:
 
         packageDir = getPackageDir("summit_extras")
         yamlFilePath = os.path.join(packageDir, "data", "sal_interface.yaml")
-        toolkit = Tools(self._chat, yamlFilePath)
-
-        # Extract the tools for use in your agent
+        csvFilePath = os.path.join(packageDir, "data", "generated_prompt_influxql.csv")
+        toolkit = Tools(self._chat, yamlFilePath, csvFilePath)
         self.toolkit = toolkit.tools
 
-        self._agent = create_pandas_dataframe_agent(
+        self.pandas_agent = customDataframeAgent(
             self._chat,
-            self.data,
-            agent_type=agentType,
-            return_intermediate_steps=True,
-            include_df_in_prompt=True,
             extra_tools=self.toolkit,
-            number_of_head_rows=1,
-            agent_executor_kwargs={"handle_parsing_errors": True},
-            allow_dangerous_code=True,
-            handle_parsing_errors=True,
             prefix=prefix,
+            df=self.data,
+            allow_dangerous_code=True,
+            return_intermediate_steps=True,
+            agent_type=self.agentType,
         )
+        self.pandas_agent_executor = AgentExecutor.from_agent_and_tools(
+            agent=self.pandas_agent, tools=self.toolkit, verbose=True
+        )
+        self.custom_agent = self.create_custom_agent(
+            self._chat, self.data, self.agentType, prefix, self.toolkit
+        )
+        self.database_agent = DatabaseAgent()
+
+        self.graph = self._create_graph()
+
         self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter(agentType=self.agentType)
 
@@ -542,92 +641,99 @@ class AstroChat:
             # TODO: Improve this warning message.
             warnings.warn("Exporting variables from the agent after each call. This can cause problems!")
 
-    def setVerbosityLevel(self, level):
-        if level not in self.allowedVerbosities:
-            raise ValueError(f"Allowed values are {self.allowedVerbosities}, got {level}")
-        self._verbosity = level
+    def create_custom_agent(
+        self,
+        llm,
+        df,
+        agent_type,
+        prefix,
+        extra_tools,
+    ):
+        return customDataframeAgent(
+            llm=llm,
+            df=df,
+            agent_type=agent_type,
+            prefix=prefix,
+            extra_tools=extra_tools,
+            allow_dangerous_code=True,
+            return_intermediate_steps=True,
+        )
 
-    def refine_query(self, query):
-        messages = [
-            {
-                "role": "user",
-                "content": f"Refine the following query for better search in a database: {query}",
-            }
-        ]
-        response = self._chat.chat(messages=messages)
-        refined_query = response["choices"][0]["message"]["content"].strip()
-        return refined_query
+    def _create_graph(self):
+        workflow = StateGraph(State)
 
-    def getReplTool(self):
-        """Get the REPL tool from the agent.
+        workflow.add_node("router", self.route)
+        workflow.add_node("agent", self.agent_node)
 
-        Returns
-        -------
-        replTool : `langchain.tools.python.tool.PythonAstREPLTool`
-            The REPL tool.
-        """
-        replTools = []
-        for item in self._agent.tools:
-            if isinstance(item, langchain_experimental.tools.python.tool.PythonAstREPLTool):
-                replTools.append(item)
-        if not replTools:
-            raise RuntimeError("Agent appears to have no REPL tools")
-        if len(replTools) > 1:
-            raise RuntimeError("Agent appears to have more than one REPL tool")
+        workflow.add_edge("router", "agent")
+        workflow.add_edge("agent", END)
 
-        return replTools[0]
+        workflow.set_entry_point("router")
 
-    def exportLocalVariables(self):
-        """Add the variables from the REPL tool's execution environment an
-        jupyter notebook.
+        return workflow.compile()
 
-        This is useful when running in a notebook, as the data manipulations
-        which have been done inside the agent cannot be easily reproduced with
-        the code the agent supplies without access to the variables.
-
-        Note - this function is only for notebook usage, and can easily cause
-        weird problems, as variables which already exist will be overwritten.
-        This is *only* for use in AstroChat-only notebooks at present, and even
-        then should be used with some caution.
-        """
-        replTool = self.getReplTool()
-
-        try:
-            frame = inspect.currentframe()
-            # Find the frame of the original caller, which is the notebook
-            while frame and "get_ipython" not in frame.f_globals:
-                frame = frame.f_back
-
-            if not frame:
-                warnings.warn("Failed to find the original calling frame - variables not exported")
-
-            # Access the caller's global namespace
-            caller_globals = frame.f_globals
-
-            # add each item from the replTool's local variables to the caller's
-            # globals
-            for key, value in replTool.locals.items():
-                caller_globals[key] = value
-
-        finally:
-            del frame  # Explicitly delete the frame to avoid reference cycles
+    def route(self, state: State) -> Dict[str, Any]:
+        if "database" in state["input"].lower():
+            return {"agent_type": "database", "short_term_memory": state.get("short_term_memory", {})}
+        return {"agent_type": "custom", "short_term_memory": state.get("short_term_memory", {})}
 
     def run(self, inputStr):
         with get_openai_callback() as cb:
             try:
-                responses = self._agent.invoke(
-                    {"input": inputStr}, handle_parsing_errors=True  # Ensure robust error handling
-                )
-            except ValueError as e:
-                LOG.error(f"Agent faced a parsing error: {str(e)}")
+                result = self.graph.invoke({
+                    "input": inputStr,
+                    "chat_history": [],
+                    "agent_type": self.agentType,
+                    "short_term_memory": {},
+                })
+
+                # Use the ResponseFormatter instead of print statements
+                self.formatter(result)
+
+            except Exception as e:
+                LOG.error(f"Agent faced an error: {str(e)}")
+                traceback.print_exc()
                 return f"An error occurred while processing your request: {str(e)}"
 
-        _ = self.formatter(responses)
         self._addUsageAndDisplay(cb)
 
-        if self.export:
-            self.exportLocalVariables()
-        return
+        return None  # We're not returning the full result anymore
+
+
+    def agent_node(self, state: State) -> Dict[str, Any]:
+        try:
+            short_term_memory = state.get("short_term_memory", {})
+
+            if state["agent_type"] == "database":
+                response = self.database_agent.run(state["input"])
+            else:
+                result = self.custom_agent.invoke(state["input"])
+                
+                # Using ResponseFormatter to process the result
+                all_intermediate_steps = []
+                if isinstance(result, dict):
+                    response = result.get("output", "")
+                    intermediate_steps = result.get("intermediate_steps", [])
+                    all_intermediate_steps.extend(intermediate_steps)
+                else:
+                    response = str(result)
+
+                # Use the formatter to format responses and intermediate steps
+                formatted_steps = self.formatter.printResponse({"intermediate_steps": all_intermediate_steps})
+                
+            short_term_memory["last_response"] = response
+
+            return {"chat_history": [response], "short_term_memory": short_term_memory}
+        except Exception as e:
+            return {
+                "chat_history": [f"Error: {str(e)}"],
+                "short_term_memory": state.get("short_term_memory", {}),
+            }
+    
+    def setVerbosityLevel(self, level):
+        if level not in self.allowedVerbosities:
+            raise ValueError(f"Allowed values are {self.allowedVerbosities}, got {level}")
+        self._verbosity = level
 
     def _addUsageAndDisplay(self, cb):
         self._totalCallbacks.total_cost += cb.total_cost
@@ -665,3 +771,245 @@ class AstroChat:
             print(f"\nRunning demo item '{item}':")
             print(f"Prompt text: {self.demoQueries[item]}")
             self.run(self.demoQueries[item])
+
+def customDataframeAgent(
+    llm: BaseLanguageModel,
+    df: Any,
+    agent_type: Union[
+        AgentType, Literal["tool-calling", "openai-tools"]
+    ] = AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    prefix: Optional[str] = None,
+    suffix: Optional[str] = None,
+    include_df_in_prompt: Optional[bool] = True,
+    number_of_head_rows: int = 5,
+    extra_tools: List[Tool] = (),
+    allow_dangerous_code: bool = False,
+    return_intermediate_steps: bool = False,
+) -> AgentExecutor:
+    if not allow_dangerous_code:
+        raise ValueError("Dangerous code execution is not allowed without opting in.")
+
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError(f"Expected pandas DataFrame, got {type(df)}")
+
+    df_locals = {
+        "df": df,
+        "pd": pd,
+        "plt": plt,
+        "np": np,
+        "display": display,
+        "Markdown": Markdown,
+        "Image": Image
+    }  # Add any other necessary libraries
+    
+    repl = CustomPythonREPL(locals=df_locals)
+    
+    tools = [
+        Tool(
+            name="python_repl",
+            func=repl,
+            description="A Python REPL. Use this to execute python commands. Input should be a valid python command. The output will be the result of the execution."
+        )
+    ] + extra_tools
+
+    prompt = _generatePrompt(
+        df,
+        agent_type,
+        prefix=prefix,
+        suffix=suffix,
+        include_df_in_prompt=include_df_in_prompt,
+        number_of_head_rows=number_of_head_rows,
+    )
+
+    if agent_type == "ZERO_SHOT_REACT_DESCRIPTION":
+        runnable = create_react_agent(llm, tools, prompt)
+        agent = RunnableAgent(
+            runnable=runnable,
+            input_keys_arg=["input"],
+            return_keys_arg=["output"],
+        )
+    elif agent_type == "tool-calling":
+        runnable = create_tool_calling_agent(llm, tools, prompt)
+        agent = RunnableMultiActionAgent(
+            runnable=runnable,
+            input_keys_arg=["input"],
+            return_keys_arg=["output"],
+        )
+    else:
+        print("AgentType we received: ", agent_type)
+        raise ValueError(f"Unsupported agent type: {agent_type}")
+
+    return AgentExecutor(
+        agent=agent,
+        tools=tools,
+        return_intermediate_steps=return_intermediate_steps,
+        verbose=True
+    )
+
+def _generatePrompt(df: Any, agent_type: str, **kwargs: Any) -> BasePromptTemplate:
+    if agent_type == "ZERO_SHOT_REACT_DESCRIPTION":
+        return _getSinglePrompt(df, **kwargs)
+    elif agent_type == "tool-calling":
+        return _getFunctionsSinglePrompt(df, **kwargs)
+    else:
+        raise ValueError(f"Unsupported agent type for prompt generation: {agent_type}")
+
+
+def _getSinglePrompt(
+    df: Any,
+    *,
+    prefix: Optional[str] = None,
+    suffix: Optional[str] = None,
+    include_df_in_prompt: Optional[bool] = True,
+    number_of_head_rows: int = 5,
+) -> BasePromptTemplate:
+    suffix_to_use = suffix if suffix else (SUFFIX_WITH_DF if include_df_in_prompt else SUFFIX_NO_DF)
+    prefix = prefix or PREFIX
+    template = "\n\n".join([prefix, "{tools}", FORMAT_INSTRUCTIONS, suffix_to_use])
+    prompt = PromptTemplate.from_template(template).partial()
+
+    if "df_head" in prompt.input_variables:
+        df_head = df.head(number_of_head_rows).to_markdown()
+        prompt = prompt.partial(df_head=str(df_head))
+    return prompt
+
+
+def _getFunctionsSinglePrompt(
+    df: Any,
+    *,
+    prefix: Optional[str] = None,
+    suffix: str = "",
+    include_df_in_prompt: Optional[bool] = True,
+    number_of_head_rows: int = 5,
+) -> ChatPromptTemplate:
+    df_head = df.head(number_of_head_rows).to_markdown() if include_df_in_prompt else ""
+    suffix = (suffix or FUNCTIONS_WITH_DF).format(df_head=df_head)
+    prefix = prefix or PREFIX_FUNCTIONS
+    system_message = SystemMessage(content=prefix + suffix)
+    return OpenAIFunctionsAgent.create_prompt(system_message=system_message)
+
+
+class DatabaseAgent:
+    def run(self, input: str) -> str:
+        return "This is a placeholder response from the DatabaseAgent."
+
+
+class QueryFinderAgent:
+    def __init__(self, csvFilePath):
+        self.csvFilePath = csvFilePath
+        self.queriesDf = None
+        self.loadQueries()
+
+        # Initialize SentenceTransformer for embeddings
+        self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+        # Initialize Chroma client and create or access collection
+        self.chroma_client = Client(Settings())
+
+        self.collection_name = "question_embeddings"
+        self.chroma_collection = self.chroma_client.get_or_create_collection(name=self.collection_name)
+
+        # Prepare embeddings
+        self.prepareEmbeddings()
+
+    def loadQueries(self):
+        if os.path.exists(self.csvFilePath):
+            try:
+                self.queriesDf = pd.read_csv(self.csvFilePath, header=0, names=["name", "query", "question"])
+            except Exception as e:
+                print(f"Error loading CSV file: {e}")
+                self.queriesDf = None
+        else:
+            print("CSV file not found")
+
+    def prepareEmbeddings(self):
+        if self.queriesDf is not None and not self.queriesDf.empty:
+            questions = self.queriesDf["question"].tolist()
+            embeddings = self.embedding_model.encode(questions)
+
+            # Prepare lists for IDs and metadata
+            ids = [str(idx) for idx in range(len(embeddings))]
+            metadata = [
+                {"query": self.queriesDf.iloc[idx]["query"], "question": self.queriesDf.iloc[idx]["question"]}
+                for idx in range(len(embeddings))
+            ]
+
+            # Add data into the collection
+            self.chroma_collection.add(
+                ids=ids,
+                embeddings=embeddings.tolist(),  # Convert numpy array to list
+                metadatas=metadata,
+                documents=questions,  # Add the original questions as documents
+            )
+
+    def findQuery(self, inputText):
+        input_embedding = self.embedding_model.encode([inputText])[0]
+
+        results = self.chroma_collection.query(
+            query_embeddings=[input_embedding.tolist()], n_results=1  # Convert numpy array to list
+        )
+
+        if results and results["distances"][0]:
+            similar_query = results["metadatas"][0][0]
+            distance = results["distances"][0][0]
+            return f"Matching query found: {similar_query['query']} (Similarity: {1 - distance:.2f})"
+        else:
+            return "No matching query found."
+
+    def getSampleQueries(self, n=5):
+        if self.queriesDf is not None and not self.queriesDf.empty:
+            sample = self.queriesDf.sample(n=min(n, len(self.queriesDf)))
+            return sample[["query", "question"]].to_dict("records")
+        else:
+            return "No queries available."
+# class CustomPythonREPL:
+#     def __init__(self, locals: Dict[str, Any] = None):
+#         self.locals = locals or {}
+#         self.locals['_last_executed_code'] = ''
+#         self.locals['_last_result'] = ''
+class CustomPythonREPL:
+    def __init__(self, locals: Dict[str, Any] = None):
+        self.locals = locals or {}
+        self.locals['_last_executed_code'] = ''
+        self.locals['_last_result'] = ''
+
+    def run(self, command: str) -> str:
+        # Strip leading and trailing whitespace and backticks from the command
+        command = command.strip().strip('`')
+        
+        # Remove Python-specific triple backtick markdown if present
+        if command.startswith('python'):
+            command = command[len('python'):].strip()
+        
+        # Redirect standard output to capture prints
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+
+        try:
+            self.locals['_last_executed_code'] = command
+            
+            # Parse and execute the command
+            tree = ast.parse(command)
+            exec(compile(tree, "<string>", "exec"), self.locals)
+            
+            # Capture the output
+            sys.stdout.flush()
+            output = sys.stdout.getvalue()
+
+            # Evaluate the last expression if present to return it
+            if isinstance(tree.body[-1], ast.Expr):
+                self.locals['_last_result'] = eval(compile(ast.Expression(tree.body[-1].value), "<string>", "eval"), self.locals)
+            else:
+                self.locals['_last_result'] = "Command executed successfully (no return value)."
+                
+            result = str(self.locals['_last_result'])
+            return output + "\n" + result if output else result
+
+        except Exception as e:
+            return f"An error occurred: {str(e)}"
+        finally:
+            # Restore original standard output
+            sys.stdout = old_stdout
+
+    def __call__(self, command: str) -> str:
+        return self.run(command)
