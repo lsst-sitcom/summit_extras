@@ -151,7 +151,7 @@ class SoarSeeingMonitor:
 
         if interval > self.warningThreshold:
             self.log.warning(
-                f"Interpolating between values more than {self.warningThreshold/60:.1f} mins apart."
+                f"Interpolating between values more than {self.warningThreshold / 60:.1f} mins apart."
             )
         if interval > self.errorThreshold:
             raise ValueError(
