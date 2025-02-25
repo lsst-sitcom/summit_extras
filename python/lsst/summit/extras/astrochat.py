@@ -13,233 +13,197 @@
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+# [License header and imports remain unchanged]
+
+# [License header and imports unchanged]
+import ast
 import logging
 import os
 import re
+import sys
+import traceback
 import warnings
 import operator
-import traceback
-
-# TODO: work out a way to protect all of these imports
-import langchain_community
-import pandas as pd
-import numpy as np
-import requests
-import yaml
-import matplotlib.pyplot as plt
+from io import StringIO
+from typing import Dict, Any, List, Optional, Union, Literal, TypedDict, Annotated
 
 import chromadb
-
-import ast
-import sys
-from io import StringIO
-from typing import Dict, Any
-
-from chromadb import Client, Settings
-
+import langchain_community
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import requests
+import yaml
 from annoy import AnnoyIndex
+from chromadb import Client, Settings
 from IPython.display import Image, Markdown, display
 from langchain.agents import AgentType, Tool, create_react_agent, create_tool_calling_agent
 from langchain.schema import HumanMessage
-from langchain_community.callbacks import get_openai_callback  # noqa: E402
-from langchain_openai import ChatOpenAI
-from sentence_transformers import SentenceTransformer
-from langchain_core.language_models import BaseLanguageModel
-from langchain.agents.agent import AgentExecutor, RunnableAgent, RunnableMultiActionAgent
-from typing import Any, List, Dict, Optional, Union, Literal, TypedDict, Annotated
+from langchain_community.callbacks import get_openai_callback
 from langchain_core.messages import SystemMessage
+from langchain_core.prompts import PromptTemplate
+from langchain_experimental.agents.agent_toolkits.pandas.prompt import (
+    FUNCTIONS_WITH_DF, PREFIX, PREFIX_FUNCTIONS, SUFFIX_NO_DF, SUFFIX_WITH_DF
+)
+from langchain_openai import ChatOpenAI
+from langchain.agents.agent import AgentExecutor, RunnableAgent, RunnableMultiActionAgent
+from langchain.agents.mrkl.prompt import FORMAT_INSTRUCTIONS
 from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langgraph.graph import StateGraph, END
-
-from langchain.agents.mrkl.prompt import FORMAT_INSTRUCTIONS
-
-from langchain_core.prompts import (
-    BasePromptTemplate,
-    ChatPromptTemplate,
-    PromptTemplate,
-)
-from langchain_experimental.agents.agent_toolkits.pandas.prompt import (
-    FUNCTIONS_WITH_DF,
-    PREFIX,
-    PREFIX_FUNCTIONS,
-    SUFFIX_NO_DF,
-    SUFFIX_WITH_DF,
-)
+from sentence_transformers import SentenceTransformer
 
 from lsst.summit.utils.utils import getCurrentDayObs_int, getSite
 from lsst.utils import getPackageDir
 from lsst.utils.iteration import ensure_iterable
 
-INSTALL_NEEDED = False
-LOG = logging.getLogger(__name__)
+installNeeded = False
+log = logging.getLogger(__name__)
 
 try:
     import openai
 except ImportError:
-    INSTALL_NEEDED = True
-    LOG.warning("openai package not found. Please install openai: pip install openai")
+    installNeeded = True
+    log.warning("openai package not found. Please install openai: pip install openai")
 
-
-def _checkInstallation():
-    """Check that all required packages are installed.
-
-    Raises a RuntimeError if any are missing so that we can fail early.
-    """
-    if INSTALL_NEEDED:
+def checkInstallation():
+    """Check that all required packages are installed."""
+    if installNeeded:
         raise RuntimeError("openai package not found. Please install openai: pip install openai")
 
-
-def setApiKey(filename="~/.openaikey.txt"):
-    """Set the OpenAI API key from a file.
-
-    Set the OpenAI API key from a file. The file should contain a single line
-    with the API key. The file name can be specified as an argument. If the
-    API key is already set, it will be overwritten, with a warning issues.
-
-    Parameters
-    ----------
-    filename : `str`
-        Name of the file containing the API key.
-    """
-    _checkInstallation()
-
+def setApiKey(fileName="~/.openaikey.txt"):
+    """Set the OpenAI API key from a file."""
+    checkInstallation()
     currentKey = os.getenv("OPENAI_API_KEY")
     if currentKey:
-        LOG.warning(f"OPENAI_API_KEY is already set. Overwriting with key from {filename}")
-
-    filename = os.path.expanduser(filename)
-    with open(filename, "r") as file:
+        log.warning(f"OPENAI_API_KEY is already set. Overwriting with key from {fileName}")
+    
+    fileName = os.path.expanduser(fileName)
+    with open(fileName, "r") as file:
         apiKey = file.readline().strip()
-
+    
     openai.api_key = apiKey
     os.environ["OPENAI_API_KEY"] = apiKey
 
-
 def getObservingData(dayObs=None):
-    """Get the observing metadata for the current or a past day.
-
-    Get the observing metadata for the current or a past day. The metadata
-    is the contents of the table on RubinTV. If a day is not specified, the
-    current day is used. The metadata is returned as a pandas dataframe.
-
-    Parameters
-    ----------
-    dayObs : `int`, optional
-        The day for which to get the observing metadata. If not specified,
-        the current day is used.
-
-    Returns
-    -------
-    observingData: `pandas.DataFrame`
-        The observing metadata for the specified day.
-    """
+    """Get observing metadata for the current or a past day."""
     currentDayObs = getCurrentDayObs_int()
     if dayObs is None:
         dayObs = currentDayObs
     isCurrent = dayObs == currentDayObs
-
+    
     site = getSite()
-
-    filename = None
+    fileName = None
     if site == "summit":
-        filename = f"/project/rubintv/sidecar_metadata/dayObs_{dayObs}.json"
+        fileName = f"/project/rubintv/sidecar_metadata/dayObs_{dayObs}.json"
     elif site in ["rubin-devl"]:
-        LOG.warning(
-            f"Observing metadata at {site} is currently copied by hand by Merlin and will"
-            " not be updated in realtime"
+        log.warning(
+            f"Observing metadata at {site} is currently copied by hand by Merlin and will "
+            "not be updated in realtime"
         )
-        filename = f"/sdf/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
+        fileName = f"/sdf/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
     elif site in ["staff-rsp"]:
-        LOG.warning(
-            f"Observing metadata at {site} is currently copied by hand by Merlin and will"
-            " not be updated in realtime"
+        log.warning(
+            f"Observing metadata at {site} is currently copied by hand by Merlin and will "
+            "not be updated in realtime"
         )
-        filename = f"/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
+        fileName = f"/home/m/mfl/u/rubinTvDataProducts/sidecar_metadata/dayObs_{dayObs}.json"
     else:
         raise RuntimeError(f"Observing metadata not available for site {site}")
-
-    # check the file exists, and raise if not
-    if not os.path.exists(filename):
-        LOG.warning(
+    
+    if not os.path.exists(fileName):
+        log.warning(
             f"Observing metadata file for {'current' if isCurrent else ''} dayObs "
-            f"{dayObs} does not exist at {filename}."
+            f"{dayObs} does not exist at {fileName}."
         )
         return pd.DataFrame()
-
-    table = pd.read_json(filename).T
+    
+    table = pd.read_json(fileName).T
     table = table.sort_index()
-
-    # remove all the columns which start with a leading underscore, as these
-    # are used by the backend to signal how specific cells should be colored
-    # on RubinTV, and for nothing else.
     table = table.drop([col for col in table.columns if col.startswith("_")], axis=1)
-
     return table
 
 class ResponseFormatter:
-    """Format the response from the chatbot, displaying intermediate steps
-    with thought, tool action, and executed Python code.
-    """
-
+    """Format chatbot responses, ensuring Python code is shown before observation."""
+    
     def __init__(self, agentType):
         self.agentType = agentType
-
-    def getThoughtFromAction(self, action_log):
-        """Extract the thought part from the action log."""
-        lines = action_log.split('\n')
+    
+    def getThoughtFromAction(self, actionLog):
+        """Extract thought from action log."""
+        if not isinstance(actionLog, str):
+            return "No thought available."
+        lines = actionLog.split('\n')
         for line in lines:
             if line.startswith("Thought:"):
                 return line.strip()
         return "No thought available."
-
+    
     def extractCodeFromAction(self, action):
-        """Extract code from action if applicable, specifically for Python actions."""
-        if action.tool == "python_repl":
-            code = action.tool_input
+        """Extract Python code from action if applicable."""
+        if hasattr(action, 'tool') and action.tool == "PythonRepl":
+            code = action.tool_input.strip() if isinstance(action.tool_input, str) else str(action.tool_input)
             return f"```python\n{code}\n```" if code else None
         return None
-
+    
     def printObservation(self, observation):
         """Display observation if it exists."""
-        if observation not in [None, '', ' ']:
+        if observation and observation.strip():
             print(f"Observation: {observation}")
-
+    
     def printFinalAnswer(self, response):
         """Print the final answer from the response."""
-        final_answer = response.get("chat_history", [None])[-1]
-        if final_answer:
-            print(f"\nFinal Answer: {final_answer}")
-
+        finalAnswer = response.get("chatHistory", [None])[-1]
+        if finalAnswer and finalAnswer.strip():
+            print(f"\nFinal Answer: {finalAnswer}")
+        else:
+            print("\nNo final answer provided.")
+    
     def printResponse(self, response):
-        """Format and print response including intermediate steps."""
-        steps = response.get("intermediate_steps", [])
+        """Format and print response with intermediate steps, code before observation."""
+        steps = response.get("intermediateSteps", [])
+        print("> Entering new AgentExecutor chain...")
+        
         if not steps:
+            print("No intermediate steps received.")
+            self.printFinalAnswer(response)
+            print("> Finished chain.")
             return
-
-        for step_num, (action, observation) in enumerate(steps, start=1):
-            thought = self.getThoughtFromAction(action.log)
-            print(f"\nStep {step_num}:")
+        
+        seenSteps = set()
+        for stepNum, (action, observation) in enumerate(steps, start=1):
+            stepKey = (action.tool if hasattr(action, 'tool') else "unknown", 
+                       str(action.tool_input) if hasattr(action, 'tool_input') else "no_input")
+            if stepKey in seenSteps:
+                continue
+            seenSteps.add(stepKey)
+            
+            thought = self.getThoughtFromAction(action.log if hasattr(action, 'log') else str(action))
+            tool = action.tool if hasattr(action, 'tool') else "Unknown"
+            toolInput = action.tool_input if hasattr(action, 'tool_input') else "No input"
+            
+            print(f"\nStep {stepNum}:")
             print(thought)
-            print(f"Tool: {action.tool}")
-            print(f"Tool input: {action.tool_input}")
-            self.printObservation(observation)
-
-            code_snippet = self.extractCodeFromAction(action)
-            if code_snippet:
+            print(f"Tool: {tool}")
+            print(f"Tool input: {toolInput}")
+            
+            codeSnippet = self.extractCodeFromAction(action)
+            if codeSnippet:
                 print("\nUsed Python code:")
-                display(Markdown(code_snippet))
-
-        # Print the final answer separately
+                display(Markdown(codeSnippet))
+            
+            self.printObservation(observation)
+        
         self.printFinalAnswer(response)
-
+        print("> Finished chain.")
+    
     def __call__(self, response):
-        """Format the response for notebook display."""
+        """Format response for notebook display."""
         if self.agentType in ["tool-calling", "ZERO_SHOT_REACT_DESCRIPTION"]:
             if isinstance(response, list):
                 for resp in response:
@@ -248,66 +212,112 @@ class ResponseFormatter:
                 self.printResponse(response)
         else:
             raise ValueError(f"Unknown agent type: {self.agentType}")
-        
 
+class CustomPythonREPL:
+    def __init__(self, locals=None):
+        self.locals = locals or {}
+        self.locals['_lastExecutedCode'] = ''
+        self.locals['_lastResult'] = ''
+    
+    def isMaliciousCode(self, command):
+        """Check if the code contains potentially malicious operations."""
+        try:
+            tree = ast.parse(command)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
+                    for name in node.names:
+                        if name.name in ["shutil", "os", "sys"]:
+                            for parent in ast.walk(tree):
+                                if isinstance(parent, ast.Call) and isinstance(parent.func, ast.Attribute):
+                                    if parent.func.value.id in ["shutil", "os", "sys"]:
+                                        funcName = parent.func.attr
+                                        if funcName in ["rmtree", "remove", "unlink", "exec", "system"]:
+                                            return True
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    if node.func.id in ["exec", "eval"]:
+                        return True
+            return False
+        except SyntaxError:
+            return False
+    
+    def run(self, command):
+        command = command.strip().strip('`')
+        if command.startswith('python'):
+            command = command[len('python'):].strip()
         
-def convert_tuples_to_lists(data):
-    if isinstance(data, tuple):
-        return list(data)
-    elif isinstance(data, list):
-        return [convert_tuples_to_lists(item) for item in data]
-    elif isinstance(data, dict):
-        return {key: convert_tuples_to_lists(value) for key, value in data.items()}
-    else:
-        return data
-
+        if self.isMaliciousCode(command):
+            raise ValueError("Potentially malicious code detected. Execution aborted.")
+        
+        oldStdout = sys.stdout
+        sys.stdout = StringIO()
+        
+        try:
+            self.locals['_lastExecutedCode'] = command
+            tree = ast.parse(command)
+            exec(compile(tree, "<string>", "exec"), self.locals)
+            output = sys.stdout.getvalue().strip()  # Capture printed output
+            if output:  # If there’s output, return it
+                return output
+            # Check if the last statement is an expression with a return value
+            if isinstance(tree.body[-1], ast.Expr):
+                self.locals['_lastResult'] = eval(compile(ast.Expression(tree.body[-1].value), "<string>", "eval"), self.locals)
+                return str(self.locals['_lastResult'])
+            return "Command executed successfully (no return value)"  # Default for no output
+        except Exception as e:
+            return f"An error occurred: {str(e)}"
+        finally:
+            sys.stdout = oldStdout
+    def __call__(self, command):
+        return self.run(command)
 
 class Tools:
-    def __init__(self, chat_model, yamlFilePath, csvFilePath) -> None:
-        self.data_dir = os.path.dirname(yamlFilePath)
-        self.index_path = os.path.join(self.data_dir, "annoy_index.ann")
-        self._chat = chat_model
-        self.data = self.load_yaml(yamlFilePath)
-        self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
-        self.index, self.descriptions = self.load_or_build_annoy_index()
-        self.queryFinder = QueryFinderAgent(csvFilePath)
-
+    def __init__(self, chatModel, yamlFilePath, csvFilePath, dataDir=None):
+        self.dataDir = dataDir or os.path.dirname(yamlFilePath)
+        self.indexPath = os.path.join(self.dataDir, "annoyIndex.ann")
+        self.chat = chatModel
+        self.data = self.loadYaml(yamlFilePath)
+        self.sentenceModel = SentenceTransformer("all-MiniLM-L6-v2")
+        self.index, self.descriptions = self.loadOrBuildAnnoyIndex()
+        self.queryFinder = QueryFinderAgent(csvFilePath, dataDir=self.dataDir)
+        
         self.tools = [
             Tool(
+                name="PythonRepl",
+                func=CustomPythonREPL(locals={"df": pd.DataFrame()}),
+                description="A Python REPL for executing commands. Input must be valid Python."
+            ),
+            Tool(
                 name="SecretWord",
-                func=self.secret_word,
-                description="Useful for when you need to answer what is the secret word",
+                func=self.secretWord,
+                description="Returns the secret word when needed."
             ),
             Tool(
                 name="NASAImage",
-                func=self.nasa_image,
-                description=(
-                    "Useful for when you need to answer what is the NASA image of the day"
-                    "for a given date (self.date)"
-                ),
+                func=self.nasaImage,
+                description="Returns NASA image of the day for a given date (self.date)."
             ),
             Tool(
                 name="RandomMTG",
-                func=self.random_mtg_card,
-                description="Useful for when you need to show a random Magic The Gathering card",
+                func=self.randomMtgCard,
+                description="Shows a random Magic The Gathering card."
             ),
             Tool(
                 name="YAMLTopicFinder",
-                func=lambda prompt: self.find_topic_with_ai(prompt),
-                description="Finds the topic in the YAML file based on the description provided using AI.",
+                func=lambda prompt: self.findTopicWithAi(prompt),
+                description="Finds topic in YAML file using AI based on description."
             ),
             Tool(
                 name="QueryFinder",
                 func=self.queryFinderWrapper,
-                description="Finds a relevant query from the extracted_queries.csv file based on the input description.",
+                description="Finds relevant query from CSV based on description."
             ),
             Tool(
                 name="SampleQueries",
                 func=self.sampleQueriesWrapper,
-                description="Returns a sample of queries from the extracted_queries.csv file.",
-            ),
+                description="Returns sample queries from CSV."
+            )
         ]
-
+    
     def queryFinderWrapper(self, inputText):
         try:
             result = self.queryFinder.findQuery(inputText)
@@ -316,7 +326,7 @@ class Tools:
         except Exception as e:
             print(f"Error in queryFinderWrapper: {e}")
             return f"An error occurred while finding a query: {str(e)}"
-
+    
     def sampleQueriesWrapper(self, n=5):
         try:
             result = self.queryFinder.getSampleQueries(n)
@@ -325,276 +335,188 @@ class Tools:
         except Exception as e:
             print(f"Error in sampleQueriesWrapper: {e}")
             return f"An error occurred while getting sample queries: {str(e)}"
-
+    
     @staticmethod
-    def secret_word(self):
+    def secretWord(self):
         return "The secret word is 'Rubin'"
-
-    def nasa_image(self, date):
-        # NASA API URL
+    
+    def nasaImage(self, date):
         url = (
             f"https://api.nasa.gov/planetary/apod?date={date}&api_key="
             "GXacxntSzk6wpkUmDVw4L1Gfgt4kF6PzZrmSNWBb"
         )
-
-        # Make the API request
         response = requests.get(url)
         data = response.json()
-
-        # Check if the response contains an image URL
+        
         if "url" in data:
-            image_url = data["url"]
-
-            # Display the image directly in the notebook
-            display(Image(url=image_url))
-            return image_url
-
+            imageUrl = data["url"]
+            display(Image(url=imageUrl))
+            return imageUrl
         else:
             print("No image available for this date.")
             return None
-
+    
     @staticmethod
-    def random_mtg_card(self):
+    def randomMtgCard(self):
         url = "https://api.scryfall.com/cards/random"
         response = requests.get(url)
         data = response.json()
-
-        image_url = data["image_uris"]["normal"]
-
-        display(Image(url=image_url))
-
-        return image_url
-
-    def load_yaml(self, file_path):
-        # Load the YAML file with the custom constructor
-        with open(file_path, "r") as file:
+        imageUrl = data["image_uris"]["normal"]
+        display(Image(url=imageUrl))
+        return imageUrl
+    
+    def loadYaml(self, filePath):
+        with open(filePath, "r") as file:
             return yaml.load(file, Loader=yaml.SafeLoader)
-
-    def load_or_build_annoy_index(self):
-        if os.path.exists(self.index_path):
-            return self.load_annoy_index()
+    
+    def loadOrBuildAnnoyIndex(self):
+        if os.path.exists(self.indexPath):
+            return self.loadAnnoyIndex()
         else:
-            index, descriptions = self.build_annoy_index()
+            index, descriptions = self.buildAnnoyIndex()
             self.descriptions = descriptions
-            self.save_annoy_index(index)
+            self.saveAnnoyIndex(index)
             return index, descriptions
-
-    def build_annoy_index(self):
-        index = AnnoyIndex(384, "angular")  # Adjust the vector length based on your embeddings
-        descriptions = []  # Store descriptions and topics for later use
-
-        # Iterate over all entries in the loaded YAML data
-        for telemetry_name, telemetry_data in self.data.items():
-            # Check if the telemetry name ends with '_Telemetry'
-            if telemetry_name.endswith("_Telemetry") and isinstance(telemetry_data, dict):
-                if "SALTelemetrySet" in telemetry_data:
-                    sal_telemetry_set = telemetry_data["SALTelemetrySet"]
-                    if "SALTelemetry" in sal_telemetry_set:
-                        for telemetry in sal_telemetry_set["SALTelemetry"]:
+    
+    def buildAnnoyIndex(self):
+        index = AnnoyIndex(384, "angular")
+        descriptions = []
+        
+        for telemetryName, telemetryData in self.data.items():
+            if telemetryName.endswith("_Telemetry") and isinstance(telemetryData, dict):
+                if "SALTelemetrySet" in telemetryData:
+                    salTelemetrySet = telemetryData["SALTelemetrySet"]
+                    if "SALTelemetry" in salTelemetrySet:
+                        for telemetry in salTelemetrySet["SALTelemetry"]:
                             if isinstance(telemetry, dict):
                                 description = telemetry.get("Description")
-                                efdb_topic = telemetry.get("EFDB_Topic", "No EFDB_Topic found")
+                                efdbTopic = telemetry.get("EFDB_Topic", "No EFDB_Topic found")
                                 if description:
-                                    vector = self.embed_description(
-                                        description
-                                    )  # Convert description to vector
+                                    vector = self.embedDescription(description)
                                     index.add_item(len(descriptions), vector)
-                                    # Keep track of the description and its
-                                    # corresponding EFDB topic
-                                    descriptions.append((description, efdb_topic))
-
-        index.build(10)  # Build the Annoy index with 10 trees
+                                    descriptions.append((description, efdbTopic))
+        
+        index.build(10)
         return index, descriptions
-
-    def save_annoy_index(self, index):
-        directory = os.path.dirname(self.index_path)
+    
+    def saveAnnoyIndex(self, index):
+        directory = os.path.dirname(self.indexPath)
         if not os.path.exists(directory):
             os.makedirs(directory)
-        index.save(self.index_path)
-        LOG.info(f"Annoy index saved to {self.index_path}")
-
-        normalized_descriptions = convert_tuples_to_lists(self.descriptions)
-
-        descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
-        with open(descriptions_path, "w") as file:
-            yaml.dump(normalized_descriptions, file)
-        print(f"Descriptions saved to {descriptions_path}, without tuples")
-        LOG.info(f"Descriptions saved to {descriptions_path}")
-
-    def load_annoy_index(self):
+        index.save(self.indexPath)
+        log.info(f"Annoy index saved to {self.indexPath}")
+        
+        normalizedDescriptions = convertTuplesToLists(self.descriptions)
+        descriptionsPath = os.path.splitext(self.indexPath)[0] + ".yaml"
+        with open(descriptionsPath, "w") as file:
+            yaml.dump(normalizedDescriptions, file)
+        print(f"Descriptions saved to {descriptionsPath}, without tuples")
+        log.info(f"Descriptions saved to {descriptionsPath}")
+    
+    def loadAnnoyIndex(self):
         index = AnnoyIndex(384, "angular")
-        index.load(self.index_path)
-        LOG.info(f"Annoy index loaded from {self.index_path}")
-
-        descriptions_path = os.path.splitext(self.index_path)[0] + ".yaml"
-        with open(descriptions_path, "r") as file:
+        index.load(self.indexPath)
+        log.info(f"Annoy index loaded from {self.indexPath}")
+        
+        descriptionsPath = os.path.splitext(self.indexPath)[0] + ".yaml"
+        with open(descriptionsPath, "r") as file:
             descriptions = yaml.safe_load(file)
-        LOG.info(f"Descriptions loaded from {descriptions_path}")
-
+        log.info(f"Descriptions loaded from {descriptionsPath}")
         return index, descriptions
-
-    def rebuild_annoy_index(self):
-        index, descriptions = self.build_annoy_index()
+    
+    def rebuildAnnoyIndex(self):
+        index, descriptions = self.buildAnnoyIndex()
         self.descriptions = descriptions
-        self.save_annoy_index(index)
+        self.saveAnnoyIndex(index)
         self.index = index
-        LOG.info("Annoy index rebuilt")
-
-    def embed_description(self, description: str):
-        return self.sentence_model.encode(description).tolist()
-
-    def find_topic_with_ai(self, prompt: str):
-        query_vector = self.embed_description(prompt)  # Convert prompt to vector
-        nearest_indices = self.index.get_nns_by_vector(query_vector, 5)  # Get 5 nearest neighbors
-
-        # Filter descriptions based on keywords from the prompt
-        filtered_indices = self.filter_descriptions_based_on_keywords(prompt, nearest_indices)
-
-        # Use AI to select the best description and topic from filtered indices
-        chosen_topic_info = self.choose_best_description(filtered_indices)
-        return chosen_topic_info
-
-    def filter_descriptions_based_on_keywords(self, prompt: str, indices):
-        keywords = prompt.lower().split()  # Simple keyword extraction
-        filtered_indices = [
+        log.info("Annoy index rebuilt")
+    
+    def embedDescription(self, description):
+        return self.sentenceModel.encode(description).tolist()
+    
+    def findTopicWithAi(self, prompt):
+        queryVector = self.embedDescription(prompt)
+        nearestIndices = self.index.get_nns_by_vector(queryVector, 5)
+        filteredIndices = self.filterDescriptionsBasedOnKeywords(prompt, nearestIndices)
+        chosenTopicInfo = self.chooseBestDescription(filteredIndices)
+        return chosenTopicInfo
+    
+    def filterDescriptionsBasedOnKeywords(self, prompt, indices):
+        keywords = prompt.lower().split()
+        filteredIndices = [
             i for i in indices if any(keyword in self.descriptions[i][0].lower() for keyword in keywords)
         ]
-        return filtered_indices if filtered_indices else indices
-
-    def choose_best_description(self, indices):
+        return filteredIndices if filteredIndices else indices
+    
+    def chooseBestDescription(self, indices):
         if not indices:
             return "No relevant descriptions found."
-
-        best_descriptions = [self.descriptions[i] for i in indices]
-        descriptions_text = "\n".join(f"{i + 1}. {desc[0]}" for i, desc in enumerate(best_descriptions))
-
-        combined_prompt = (
+        
+        bestDescriptions = [self.descriptions[i] for i in indices]
+        descriptionsText = "\n".join(f"{i + 1}. {desc[0]}" for i, desc in enumerate(bestDescriptions))
+        
+        combinedPrompt = (
             f"Based on the following descriptions, choose the best one related to your prompt:\n\n"
-            f"{descriptions_text}\n\n"
+            f"{descriptionsText}\n\n"
             f"Choose the best description and explain why you selected that one."
         )
-
-        # Use the AI to determine the best description
-        response = self._chat.invoke([HumanMessage(content=combined_prompt)])
-        response_content = response.content.strip()
-
-        # Extract the sentence or description that was determined to be best
-        best_match = re.search(r"(\d+)\.\s(.+)", response_content)
-        if best_match:
-            choice_index = int(best_match.group(1)) - 1
-            if 0 <= choice_index < len(best_descriptions):
-                best_description, topic = best_descriptions[choice_index]
+        
+        response = self.chat.invoke([HumanMessage(content=combinedPrompt)])
+        responseContent = response.content.strip()
+        
+        bestMatch = re.search(r"(\d+)\.\s(.+)", responseContent)
+        if bestMatch:
+            choiceIndex = int(bestMatch.group(1)) - 1
+            if 0 <= choiceIndex < len(bestDescriptions):
+                bestDescription, topic = bestDescriptions[choiceIndex]
                 return f"Best EFDB Topic: {topic}"
-
+        
         return "AI response could not identify the best description."
-
-
-class State(TypedDict):
-    """The state of the system."""
-
-    chat_history: Annotated[List[str], operator.add]
-    input: str
-    agent_type: str
-    short_term_memory: Dict[str, Any]
-
-
 class AstroChat:
     allowedVerbosities = ("COST", "ALL", "NONE", None)
-
+    
     @staticmethod
-    def load_yaml(file_path):
-        with open(file_path, "r") as file:
+    def loadYaml(filePath):
+        with open(filePath, "r") as file:
             return yaml.safe_load(file)
-
+    
     demoQueries = {
         "darktime": "What is the total darktime for Image type = bias?",
         "imageCount": "How many engtest and bias images were taken?",
         "expTime": "What is the total exposure time?",
-        "obsBreakdown": "What are the different kinds of observation reasons, and how many of each type? Please list as a table",  # noqa: E501
-        "pieChart": "Can you make a pie chart of the total integration time for each of these filters and image type = science? Please add a legend with total time in minutes",  # noqa: E501
-        "pythonCode": "Can you give me some python code that will produce a histogram of zenith angles for all entries with Observation reason = object and Filter = SDSSr_65mm",  # noqa: E501
-        "azVsTime": "Can you show me a plot of azimuth vs. time (TAI) for all lines with Observation reason = intra",  # noqa: E501
-        "imageDegradation": "Large values of mount image motion degradation is considered a bad thing. Is there a correlation with azimuth? Can you show a correlation plot?",  # noqa: E501
-        "analysis": "Act as an expert astronomer. It seems azimuth of around 180 has large values. I wonder is this is due to low tracking rate. Can you assess that by making a plot vs. tracking rate, which you will have to compute?",  # noqa: E501
-        "correlation": "Try looking for a correlation between mount motion degradation and declination. Show a plot with grid lines",  # noqa: E501
-        "pieChartObsReasons": "Please produce a pie chart of total exposure time for different categories of Observation reason",  # noqa: E501
-        "airmassVsTime": "I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass",  # noqa: E501
-        "seeingVsTime": "The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.",  # noqa: E501
+        "obsBreakdown": "What are the different kinds of observation reasons, and how many of each type? Please list as a table",
+        "pieChart": "Can you make a pie chart of the total integration time for each of these filters and image type = science? Please add a legend with total time in minutes",
+        "pythonCode": "Can you give me some python code that will produce a histogram of zenith angles for all entries with Observation reason = object and Filter = SDSSr_65mm",
+        "azVsTime": "Can you show me a plot of azimuth vs. time (TAI) for all lines with Observation reason = intra",
+        "imageDegradation": "Large values of mount image motion degradation is considered a bad thing. Is there a correlation with azimuth? Can you show a correlation plot?",
+        "analysis": "Act as an expert astronomer. It seems azimuth of around 180 has large values. I wonder is this is due to low tracking rate. Can you assess that by making a plot vs. tracking rate, which you will have to compute?",
+        "correlation": "Try looking for a correlation between mount motion degradation and declination. Show a plot with grid lines",
+        "pieChartObsReasons": "Please produce a pie chart of total exposure time for different categories of Observation reason",
+        "airmassVsTime": "I would like a plot of airmass vs time for all objects, as a scatter plot on a single graph, with the legend showing each object. Airmass of one should be at the top, with increasing airmass plotted as decreasing y position. Exclude points with zero airmass",
+        "seeingVsTime": "The PSF FWHM is an important performance parameter. Restricting the analysis to images with filter name that includes SDSS, can you please make a scatter plot of FWHM vs. time for all such images, with a legend. I want all data points on a single graph.",
         "secretWord": "Tell me what is the secret word.",
         "nasaImage": "Show me the NASA image of the day for the current observation day.",
         "randomMTG": "Show me a random Magic The Gathering card",
-        # 'find_topic': 'What is the topic to find query?',
-        "find_topic_with_ai": "Find the EFDB_Topic based on the description of data.",
-        "find_query": "Find a query related to exposure time",
-        "sample_queries": "Show me some sample queries from the CSV file",
+        "findTopicWithAi": "Find the EFDB_Topic based on the description of data.",
+        "findQuery": "Find a query related to exposure time",
+        "sampleQueries": "Show me some sample queries from the CSV file"
     }
-
-    def __init__(
-        self,
-        dayObs=None,
-        export=False,
-        temperature=0.0,
-        verbosity="COST",
-        agentType="tool-calling",
-        modelName="gpt-4-1106-preview",
-    ):
-        """Create an ASTROCHAT bot.
-
-        ASTROCHAT: "Advanced Systems for Telemetry-Linked Realtime Observing
-            and Chat-Based Help with Astronomy Tactics"
-
-        A GPT-4 based chatbot for answering questions about Rubin Observatory
-        conditions and observing metadata.
-
-        Note that ``verbosity`` here is the verbosity of this interface, not of
-        the underlying model, which has been pre-tuned for this application.
-
-        Note that the use of export is only for notebook usage, and can easily
-        cause problems, as any name clashes from inside the agent with
-        variables you have defined in your notebook will be overwritten. The
-        same functionality can be achieved by calling the
-        ``exportLocalVariables`` function whenever you want to get things out,
-        but this permanent setting is provided for notebook convenience (only).
-
-        Parameters
-        ----------
-        dayObs : `int`, optional
-            The day for which to get the observing metadata. If not specified,
-            the current day is used.
-        export : `bool`, optional
-            Whether to export the variables from the agent's execution after
-            each call. The default is False. Note that any variables exported
-            will be exported to the global namespace and overwrite any existing
-            with the same names.
-        temperature : `float`, optional
-            The temperature of the model. Higher temperatures result in more
-            random responses. The default is 0.0.
-        verbosity : `str`, optional
-            The verbosity level of the interface. Allowed values are 'COST',
-            'ALL', and 'NONE'. The default is 'COST'.
-        agentType : `str`, optional
-            One of ["tool-calling", "ZERO_SHOT_REACT_DESCRIPTION"]. Specifies
-            the agent type, either the new "tool-calling" type, or the old
-            AgentType.ZERO_SHOT_REACT_DESCRIPTION type. For convenience, both
-            are specified as strings.
-        modelName : `str`, optional
-            The name of the model to use. The default is (currently)
-            "gpt-4-1106-preview" though this may be updated in future. Must be
-            a valid OpenAI model name.
-        """
-        _checkInstallation()
+    
+    def __init__(self, dayObs=None, export=False, temperature=0.0, verbosity="COST", 
+                 agentType="tool-calling", modelName="gpt-4-1106-preview"):
+        """Initialize an ASTROCHAT bot."""
+        checkInstallation()
         self.setVerbosityLevel(verbosity)
-
-        self._chat = ChatOpenAI(model_name=modelName, temperature=temperature)
-
+        self.chat = ChatOpenAI(model_name=modelName, temperature=temperature)
         self.data = getObservingData(dayObs)
-        # Convert 'AAAAMMDD' to 'AAAA-MM-DD'
-        self.date = f"{str(dayObs)[:4]}-{str(dayObs)[4:6]}-{str(dayObs)[6:]}"  # XXX replace this
+        if self.data.empty:
+            raise ValueError("The DataFrame is empty. Please ensure data is available for the specified dayObs.")
+        self.date = f"{str(dayObs)[:4]}-{str(dayObs)[4:6]}-{str(dayObs)[6:]}" if dayObs else None
         assert agentType in ("tool-calling", "ZERO_SHOT_REACT_DESCRIPTION")
         self.agentType = agentType
         if agentType == "ZERO_SHOT_REACT_DESCRIPTION":
             agentType = AgentType.ZERO_SHOT_REACT_DESCRIPTION
-
+        
         prefix = """
         You are running in an interactive environment, so if users ask for
         plots, making them will show them correctly. You also have access to a
@@ -602,197 +524,189 @@ class AstroChat:
         answer user questions and generate plots from it.
 
         If the question is not related with pandas, you can use extra tools.
-        The extra tools are: 1. 'Secret Word', 2. 'NASA Image', 3. 'Random
-        MTG', 4. 'YAML Topic Finder'. When using the 'Nasa Image' tool, use
-        'self.date' as a date, do not use 'dayObs', and do not attempt any
-        pandas analysis at all, so not use 'self.data'
+        The extra tools are: 1. 'SecretWord', 2. 'NASAImage', 3. 'RandomMTG', 
+        4. 'YAMLTopicFinder'. When using the 'NASAImage' tool, use 'self.date' 
+        as a date, do not use 'dayObs', and do not attempt any pandas analysis 
+        at all, so not use 'self.data'
         """
-
+        
         packageDir = getPackageDir("summit_extras")
         yamlFilePath = os.path.join(packageDir, "data", "sal_interface.yaml")
         csvFilePath = os.path.join(packageDir, "data", "generated_prompt_influxql.csv")
-        toolkit = Tools(self._chat, yamlFilePath, csvFilePath)
-        self.toolkit = toolkit.tools
-
-        self.pandas_agent = customDataframeAgent(
-            self._chat,
-            extra_tools=self.toolkit,
+        dataDir = os.path.join(packageDir, "data")
+        toolkit = Tools(self.chat, yamlFilePath, csvFilePath, dataDir=dataDir)
+        for tool in toolkit.tools:
+            if tool.name == "PythonRepl":
+                tool.func = CustomPythonREPL(locals={"df": self.data, "pd": pd, "plt": plt, 
+                                                    "np": np, "display": display, 
+                                                    "Markdown": Markdown, "Image": Image})
+        self.toolkit = toolkit  # Assign the Tools instance, not the tools list
+        
+        self.pandasAgent = customDataframeAgent(
+            self.chat,
+            extraTools=self.toolkit.tools,  # Pass the tools list here
             prefix=prefix,
             df=self.data,
-            allow_dangerous_code=True,
-            return_intermediate_steps=True,
-            agent_type=self.agentType,
+            allowDangerousCode=True,
+            returnIntermediateSteps=True,
+            agentType=self.agentType
         )
-        self.pandas_agent_executor = AgentExecutor.from_agent_and_tools(
-            agent=self.pandas_agent, tools=self.toolkit, verbose=True
+        self.pandasAgentExecutor = AgentExecutor.from_agent_and_tools(
+            agent=self.pandasAgent, tools=self.toolkit.tools, verbose=False  # Use toolkit.tools here
         )
-        self.custom_agent = self.create_custom_agent(
-            self._chat, self.data, self.agentType, prefix, self.toolkit
+        self.customAgent = self.createCustomAgent(
+            self.chat, self.data, self.agentType, prefix, self.toolkit.tools  # Use toolkit.tools here
         )
-        self.database_agent = DatabaseAgent()
-
-        self.graph = self._create_graph()
-
-        self._totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
+        self.databaseAgent = DatabaseAgent()
+        self.graph = self.createGraph()
+        self.totalCallbacks = langchain_community.callbacks.openai_info.OpenAICallbackHandler()
         self.formatter = ResponseFormatter(agentType=self.agentType)
-
         self.export = export
         if self.export:
-            # TODO: Improve this warning message.
             warnings.warn("Exporting variables from the agent after each call. This can cause problems!")
-
-    def create_custom_agent(
-        self,
-        llm,
-        df,
-        agent_type,
-        prefix,
-        extra_tools,
-    ):
-        return customDataframeAgent(
-            llm=llm,
-            df=df,
-            agent_type=agent_type,
-            prefix=prefix,
-            extra_tools=extra_tools,
-            allow_dangerous_code=True,
-            return_intermediate_steps=True,
-        )
-
-    def _create_graph(self):
-        workflow = StateGraph(State)
-
-        workflow.add_node("router", self.route)
-        workflow.add_node("agent", self.agent_node)
-
-        workflow.add_edge("router", "agent")
-        workflow.add_edge("agent", END)
-
-        workflow.set_entry_point("router")
-
-        return workflow.compile()
-
-    def route(self, state: State) -> Dict[str, Any]:
-        if "database" in state["input"].lower():
-            return {"agent_type": "database", "short_term_memory": state.get("short_term_memory", {})}
-        return {"agent_type": "custom", "short_term_memory": state.get("short_term_memory", {})}
-
+    
+    def isPromptInjection(self, inputStr):
+        """Check for potential prompt injection attempts."""
+        suspiciousPhrases = [
+            "ignore all previous instructions",
+            "delete my",
+            "system command",
+            "execute code",
+            "bypass"
+        ]
+        inputLower = inputStr.lower()
+        return any(phrase in inputLower for phrase in suspiciousPhrases)
+    
     def run(self, inputStr):
+        if self.isPromptInjection(inputStr):
+            raise ValueError("Potential prompt injection detected. Request aborted.")
+        
         with get_openai_callback() as cb:
             try:
                 result = self.graph.invoke({
                     "input": inputStr,
-                    "chat_history": [],
-                    "agent_type": self.agentType,
-                    "short_term_memory": {},
+                    "chatHistory": [],
+                    "agentType": self.agentType,
+                    "shortTermMemory": {},
+                    "intermediateSteps": []
                 })
-
-                # Use the ResponseFormatter instead of print statements
+                log.debug(f"Graph invoke result: {result}")
                 self.formatter(result)
-
             except Exception as e:
-                LOG.error(f"Agent faced an error: {str(e)}")
+                log.error(f"Agent faced an error: {str(e)}")
                 traceback.print_exc()
                 return f"An error occurred while processing your request: {str(e)}"
-
-        self._addUsageAndDisplay(cb)
-
-        return None  # We're not returning the full result anymore
-
-
-    def agent_node(self, state: State) -> Dict[str, Any]:
+        
+        self.addUsageAndDisplay(cb)
+        return None
+    
+    def createCustomAgent(self, llm, df, agentType, prefix, extraTools):
+        return customDataframeAgent(
+            llm=llm,
+            df=df,
+            agentType=agentType,
+            prefix=prefix,
+            extraTools=extraTools,
+            allowDangerousCode=True,
+            returnIntermediateSteps=True
+        )
+    
+    def createGraph(self):
+        workflow = StateGraph(State)
+        workflow.add_node("router", self.route)
+        workflow.add_node("agent", self.agentNode)
+        workflow.add_edge("router", "agent")
+        workflow.add_edge("agent", END)
+        workflow.set_entry_point("router")
+        return workflow.compile()
+    
+    def route(self, state):
+        if "database" in state["input"].lower():
+            return {"agentType": "database", "shortTermMemory": state.get("shortTermMemory", {}), "intermediateSteps": []}
+        return {"agentType": "custom", "shortTermMemory": state.get("shortTermMemory", {}), "intermediateSteps": []}
+    
+    def agentNode(self, state):
         try:
-            short_term_memory = state.get("short_term_memory", {})
-
-            if state["agent_type"] == "database":
-                response = self.database_agent.run(state["input"])
+            shortTermMemory = state.get("shortTermMemory", {})
+            intermediateSteps = state.get("intermediateSteps", [])
+            
+            if state["agentType"] == "database":
+                response = self.databaseAgent.run(state["input"])
             else:
-                result = self.custom_agent.invoke(state["input"])
-                
-                # Using ResponseFormatter to process the result
-                all_intermediate_steps = []
+                result = self.customAgent.invoke(state["input"])
+                log.debug(f"Custom agent result: {result}")
                 if isinstance(result, dict):
-                    response = result.get("output", "")
-                    intermediate_steps = result.get("intermediate_steps", [])
-                    all_intermediate_steps.extend(intermediate_steps)
+                    response = result.get("output", "No output provided")
+                    intermediateSteps.extend(result.get("intermediate_steps", []))
                 else:
                     response = str(result)
-
-                # Use the formatter to format responses and intermediate steps
-                formatted_steps = self.formatter.printResponse({"intermediate_steps": all_intermediate_steps})
-                
-            short_term_memory["last_response"] = response
-
-            return {"chat_history": [response], "short_term_memory": short_term_memory}
-        except Exception as e:
+            
+            shortTermMemory["last_response"] = response
+            log.debug(f"Intermediate steps after processing: {intermediateSteps}")
             return {
-                "chat_history": [f"Error: {str(e)}"],
-                "short_term_memory": state.get("short_term_memory", {}),
+                "chatHistory": [response],
+                "shortTermMemory": shortTermMemory,
+                "intermediateSteps": intermediateSteps
+            }
+        except Exception as e:
+            log.error(f"Error in agentNode: {str(e)}")
+            return {
+                "chatHistory": [f"Error: {str(e)}"],
+                "shortTermMemory": state.get("shortTermMemory", {}),
+                "intermediateSteps": []
             }
     
     def setVerbosityLevel(self, level):
         if level not in self.allowedVerbosities:
             raise ValueError(f"Allowed values are {self.allowedVerbosities}, got {level}")
-        self._verbosity = level
-
-    def _addUsageAndDisplay(self, cb):
-        self._totalCallbacks.total_cost += cb.total_cost
-        self._totalCallbacks.successful_requests += cb.successful_requests
-        self._totalCallbacks.completion_tokens += cb.completion_tokens
-        self._totalCallbacks.prompt_tokens += cb.prompt_tokens
-
-        if self._verbosity == "ALL":
+        self.verbosity = level
+    
+    def addUsageAndDisplay(self, cb):
+        self.totalCallbacks.total_cost += cb.total_cost
+        self.totalCallbacks.successful_requests += cb.successful_requests
+        self.totalCallbacks.completion_tokens += cb.completion_tokens
+        self.totalCallbacks.prompt_tokens += cb.prompt_tokens
+        
+        if self.verbosity == "ALL":
             print("\nThis call:\n" + str(cb) + "\n")
-            print(self._totalCallbacks)
-        elif self._verbosity == "COST":
+            print(self.totalCallbacks)
+        elif self.verbosity == "COST":
             print(
                 f"\nThis call cost: ${cb.total_cost:.3f}, "
-                f"session total: ${self._totalCallbacks.total_cost:.3f}"
+                f"session total: ${self.totalCallbacks.total_cost:.3f}"
             )
-
+    
     def listDemos(self):
         print("Available demo keys and their associated queries:")
         print("-------------------------------------------------")
         for k, v in self.demoQueries.items():
             print(f"{k}: {v}", "\n")
-
+    
     def runDemo(self, items=None):
-        """Run a/all demos. If None are specified, all are run in sequence."""
         knownDemos = list(self.demoQueries.keys())
         if items is None:
             items = knownDemos
         items = list(ensure_iterable(items))
-
+        
         for item in items:
             if item not in knownDemos:
-                raise ValueError(f"Specified demo item {item} is not an availble demo. Known = {knownDemos}")
-
+                raise ValueError(f"Specified demo item {item} is not an available demo. Known = {knownDemos}")
+        
         for item in items:
             print(f"\nRunning demo item '{item}':")
             print(f"Prompt text: {self.demoQueries[item]}")
             self.run(self.demoQueries[item])
 
-def customDataframeAgent(
-    llm: BaseLanguageModel,
-    df: Any,
-    agent_type: Union[
-        AgentType, Literal["tool-calling", "openai-tools"]
-    ] = AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    prefix: Optional[str] = None,
-    suffix: Optional[str] = None,
-    include_df_in_prompt: Optional[bool] = True,
-    number_of_head_rows: int = 5,
-    extra_tools: List[Tool] = (),
-    allow_dangerous_code: bool = False,
-    return_intermediate_steps: bool = False,
-) -> AgentExecutor:
-    if not allow_dangerous_code:
+def customDataframeAgent(llm, df, agentType=AgentType.ZERO_SHOT_REACT_DESCRIPTION, 
+                         prefix=None, suffix=None, includeDfInPrompt=True, 
+                         numberOfHeadRows=5, extraTools=(), allowDangerousCode=False, 
+                         returnIntermediateSteps=False):
+    if not allowDangerousCode:
         raise ValueError("Dangerous code execution is not allowed without opting in.")
-
     if not isinstance(df, pd.DataFrame):
         raise ValueError(f"Expected pandas DataFrame, got {type(df)}")
-
-    df_locals = {
+    
+    dfLocals = {
         "df": df,
         "pd": pd,
         "plt": plt,
@@ -800,216 +714,172 @@ def customDataframeAgent(
         "display": display,
         "Markdown": Markdown,
         "Image": Image
-    }  # Add any other necessary libraries
-    
-    repl = CustomPythonREPL(locals=df_locals)
-    
+    }
+    repl = CustomPythonREPL(locals=dfLocals)
     tools = [
         Tool(
-            name="python_repl",
+            name="PythonRepl",
             func=repl,
-            description="A Python REPL. Use this to execute python commands. Input should be a valid python command. The output will be the result of the execution."
+            description="A Python REPL for executing commands. Input must be valid Python."
         )
-    ] + extra_tools
-
-    prompt = _generatePrompt(
-        df,
-        agent_type,
-        prefix=prefix,
-        suffix=suffix,
-        include_df_in_prompt=include_df_in_prompt,
-        number_of_head_rows=number_of_head_rows,
-    )
-
-    if agent_type == "ZERO_SHOT_REACT_DESCRIPTION":
+    ] + extraTools
+    
+    prompt = generatePrompt(df, agentType, prefix=prefix, suffix=suffix, 
+                           includeDfInPrompt=includeDfInPrompt, numberOfHeadRows=numberOfHeadRows)
+    
+    if agentType == "ZERO_SHOT_REACT_DESCRIPTION":
         runnable = create_react_agent(llm, tools, prompt)
-        agent = RunnableAgent(
-            runnable=runnable,
-            input_keys_arg=["input"],
-            return_keys_arg=["output"],
-        )
-    elif agent_type == "tool-calling":
+        agent = RunnableAgent(runnable=runnable, input_keys_arg=["input"], return_keys_arg=["output"])
+    elif agentType == "tool-calling":
         runnable = create_tool_calling_agent(llm, tools, prompt)
-        agent = RunnableMultiActionAgent(
-            runnable=runnable,
-            input_keys_arg=["input"],
-            return_keys_arg=["output"],
-        )
+        agent = RunnableMultiActionAgent(runnable=runnable, input_keys_arg=["input"], return_keys_arg=["output"])
     else:
-        print("AgentType we received: ", agent_type)
-        raise ValueError(f"Unsupported agent type: {agent_type}")
+        raise ValueError(f"Unsupported agent type: {agentType}")
+    
+    return AgentExecutor(agent=agent, tools=tools, 
+                         return_intermediate_steps=returnIntermediateSteps, verbose=False)
 
-    return AgentExecutor(
-        agent=agent,
-        tools=tools,
-        return_intermediate_steps=return_intermediate_steps,
-        verbose=True
-    )
+def generatePrompt(df, agentType, **kwargs):
+    if agentType == "ZERO_SHOT_REACT_DESCRIPTION":
+        return getSinglePrompt(df, **kwargs)
+    elif agentType == "tool-calling":
+        return getFunctionsSinglePrompt(df, **kwargs)
+    raise ValueError(f"Unsupported agent type for prompt generation: {agentType}")
 
-def _generatePrompt(df: Any, agent_type: str, **kwargs: Any) -> BasePromptTemplate:
-    if agent_type == "ZERO_SHOT_REACT_DESCRIPTION":
-        return _getSinglePrompt(df, **kwargs)
-    elif agent_type == "tool-calling":
-        return _getFunctionsSinglePrompt(df, **kwargs)
-    else:
-        raise ValueError(f"Unsupported agent type for prompt generation: {agent_type}")
-
-
-def _getSinglePrompt(
-    df: Any,
-    *,
-    prefix: Optional[str] = None,
-    suffix: Optional[str] = None,
-    include_df_in_prompt: Optional[bool] = True,
-    number_of_head_rows: int = 5,
-) -> BasePromptTemplate:
-    suffix_to_use = suffix if suffix else (SUFFIX_WITH_DF if include_df_in_prompt else SUFFIX_NO_DF)
+def getSinglePrompt(df, *, prefix=None, suffix=None, includeDfInPrompt=True, numberOfHeadRows=5):
+    suffixToUse = suffix if suffix else (SUFFIX_WITH_DF if includeDfInPrompt else SUFFIX_NO_DF)
     prefix = prefix or PREFIX
-    template = "\n\n".join([prefix, "{tools}", FORMAT_INSTRUCTIONS, suffix_to_use])
+    template = "\n\n".join([prefix, "{tools}", FORMAT_INSTRUCTIONS, suffixToUse])
     prompt = PromptTemplate.from_template(template).partial()
-
     if "df_head" in prompt.input_variables:
-        df_head = df.head(number_of_head_rows).to_markdown()
-        prompt = prompt.partial(df_head=str(df_head))
+        dfHead = df.head(numberOfHeadRows).to_markdown()
+        prompt = prompt.partial(df_head=str(dfHead))
     return prompt
 
-
-def _getFunctionsSinglePrompt(
-    df: Any,
-    *,
-    prefix: Optional[str] = None,
-    suffix: str = "",
-    include_df_in_prompt: Optional[bool] = True,
-    number_of_head_rows: int = 5,
-) -> ChatPromptTemplate:
-    df_head = df.head(number_of_head_rows).to_markdown() if include_df_in_prompt else ""
-    suffix = (suffix or FUNCTIONS_WITH_DF).format(df_head=df_head)
+def getFunctionsSinglePrompt(df, *, prefix=None, suffix="", includeDfInPrompt=True, numberOfHeadRows=5):
+    dfHead = df.head(numberOfHeadRows).to_markdown() if includeDfInPrompt else ""
+    suffix = (suffix or FUNCTIONS_WITH_DF).format(df_head=dfHead)
     prefix = prefix or PREFIX_FUNCTIONS
-    system_message = SystemMessage(content=prefix + suffix)
-    return OpenAIFunctionsAgent.create_prompt(system_message=system_message)
-
+    systemMessage = SystemMessage(content=prefix + suffix)
+    return OpenAIFunctionsAgent.create_prompt(system_message=systemMessage)
 
 class DatabaseAgent:
-    def run(self, input: str) -> str:
+    def run(self, input):
         return "This is a placeholder response from the DatabaseAgent."
 
-
 class QueryFinderAgent:
-    def __init__(self, csvFilePath):
+    def __init__(self, csvFilePath, dataDir=None):
+        """Initialize QueryFinderAgent with cached storage, no auto-embedding."""
         self.csvFilePath = csvFilePath
+        self.dataDir = dataDir or os.path.dirname(csvFilePath)
+        self.indexPath = os.path.join(self.dataDir, "chromaQueryIndex")
         self.queriesDf = None
+        self.embeddingModel = SentenceTransformer("all-MiniLM-L6-v2")
+        
+        # Set up logging
+        self.log = logging.getLogger(__name__)
+        self.log.setLevel(logging.INFO)
+        
+        # Initialize ChromaDB with persistent storage
+        self.chromaClient = Client(Settings(persist_directory=self.indexPath))
+        self.collectionName = "questionEmbeddings"
+        self.chromaCollection = self.chromaClient.get_or_create_collection(name=self.collectionName)
+        
+        # Load queries from CSV
         self.loadQueries()
-
-        # Initialize SentenceTransformer for embeddings
-        self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-        # Initialize Chroma client and create or access collection
-        self.chroma_client = Client(Settings())
-
-        self.collection_name = "question_embeddings"
-        self.chroma_collection = self.chroma_client.get_or_create_collection(name=self.collection_name)
-
-        # Prepare embeddings
-        self.prepareEmbeddings()
+        
+        # Check if index is cached
+        if os.path.exists(self.indexPath) and os.listdir(self.indexPath):
+            self.log.info(f"Loaded existing embeddings from {self.indexPath} (count: {self.chromaCollection.count()})")
+        else:
+            self.log.info(f"No embedding index found at {self.indexPath}. Run rebuildDatabase() to create it.")
 
     def loadQueries(self):
+        """Load queries from the CSV file."""
         if os.path.exists(self.csvFilePath):
             try:
                 self.queriesDf = pd.read_csv(self.csvFilePath, header=0, names=["name", "query", "question"])
+                self.log.debug(f"Loaded {len(self.queriesDf)} queries from {self.csvFilePath}")
             except Exception as e:
-                print(f"Error loading CSV file: {e}")
+                self.log.error(f"Error loading CSV file: {e}")
                 self.queriesDf = None
         else:
-            print("CSV file not found")
+            self.log.warning(f"CSV file not found at {self.csvFilePath}")
+            self.queriesDf = None
 
     def prepareEmbeddings(self):
-        if self.queriesDf is not None and not self.queriesDf.empty:
-            questions = self.queriesDf["question"].tolist()
-            embeddings = self.embedding_model.encode(questions)
+        """Generate and store embeddings for queries."""
+        if self.queriesDf is None or self.queriesDf.empty:
+            self.log.warning("No queries available to embed.")
+            return
+        
+        questions = self.queriesDf["question"].tolist()
+        embeddings = self.embeddingModel.encode(questions)
+        ids = [str(idx) for idx in range(len(embeddings))]
+        metadata = [
+            {"query": self.queriesDf.iloc[idx]["query"], "question": self.queriesDf.iloc[idx]["question"]}
+            for idx in range(len(embeddings))
+        ]
+        
+        # Add new embeddings (no need to delete here since collection is dropped in rebuild)
+        self.chromaCollection.add(
+            ids=ids,
+            embeddings=embeddings.tolist(),
+            metadatas=metadata,
+            documents=questions
+        )
+        self.log.info(f"Stored {len(questions)} embeddings in {self.indexPath}")
 
-            # Prepare lists for IDs and metadata
-            ids = [str(idx) for idx in range(len(embeddings))]
-            metadata = [
-                {"query": self.queriesDf.iloc[idx]["query"], "question": self.queriesDf.iloc[idx]["question"]}
-                for idx in range(len(embeddings))
-            ]
-
-            # Add data into the collection
-            self.chroma_collection.add(
-                ids=ids,
-                embeddings=embeddings.tolist(),  # Convert numpy array to list
-                metadatas=metadata,
-                documents=questions,  # Add the original questions as documents
-            )
+    def rebuildDatabase(self, force=False):
+        """Rebuild the embedding database if CSV file has changed or forced."""
+        if not force:
+            currentMtime = os.path.getmtime(self.csvFilePath)
+            indexMtimeFile = os.path.join(self.dataDir, "chromaLastMtime.txt")
+            if os.path.exists(indexMtimeFile):
+                with open(indexMtimeFile, "r") as f:
+                    lastMtime = float(f.read().strip())
+                if currentMtime <= lastMtime and os.path.exists(self.indexPath) and os.listdir(self.indexPath):
+                    self.log.info("CSV file unchanged and index exists. Skipping rebuild.")
+                    return
+        
+        self.log.info("Rebuilding query embedding database.")
+        self.loadQueries()
+        
+        # Drop the existing collection and recreate it
+        self.chromaClient.delete_collection(self.collectionName)
+        self.chromaCollection = self.chromaClient.get_or_create_collection(name=self.collectionName)
+        
+        self.prepareEmbeddings()
+        
+        # Update last modification time in data folder
+        with open(os.path.join(self.dataDir, "chromaLastMtime.txt"), "w") as f:
+            f.write(str(os.path.getmtime(self.csvFilePath)))
+        self.log.info("Query embedding database rebuilt and cached.")
 
     def findQuery(self, inputText):
-        input_embedding = self.embedding_model.encode([inputText])[0]
-
-        results = self.chroma_collection.query(
-            query_embeddings=[input_embedding.tolist()], n_results=1  # Convert numpy array to list
-        )
-
+        """Find the most relevant query based on input text."""
+        if self.chromaCollection.count() == 0:
+            self.log.warning("No embeddings available. Please run rebuildDatabase() to create the index.")
+            return "No embeddings available. Run rebuildDatabase() first."
+        
+        inputEmbedding = self.embeddingModel.encode([inputText])[0]
+        results = self.chromaCollection.query(query_embeddings=[inputEmbedding.tolist()], n_results=1)
         if results and results["distances"][0]:
-            similar_query = results["metadatas"][0][0]
+            similarQuery = results["metadatas"][0][0]
             distance = results["distances"][0][0]
-            return f"Matching query found: {similar_query['query']} (Similarity: {1 - distance:.2f})"
-        else:
-            return "No matching query found."
+            return f"Matching query found: {similarQuery['query']} (Similarity: {1 - distance:.2f})"
+        return "No matching query found."
 
     def getSampleQueries(self, n=5):
+        """Return a sample of queries from the CSV."""
         if self.queriesDf is not None and not self.queriesDf.empty:
             sample = self.queriesDf.sample(n=min(n, len(self.queriesDf)))
             return sample[["query", "question"]].to_dict("records")
-        else:
-            return "No queries available."
-# class CustomPythonREPL:
-#     def __init__(self, locals: Dict[str, Any] = None):
-#         self.locals = locals or {}
-#         self.locals['_last_executed_code'] = ''
-#         self.locals['_last_result'] = ''
-class CustomPythonREPL:
-    def __init__(self, locals: Dict[str, Any] = None):
-        self.locals = locals or {}
-        self.locals['_last_executed_code'] = ''
-        self.locals['_last_result'] = ''
-
-    def run(self, command: str) -> str:
-        # Strip leading and trailing whitespace and backticks from the command
-        command = command.strip().strip('`')
-        
-        # Remove Python-specific triple backtick markdown if present
-        if command.startswith('python'):
-            command = command[len('python'):].strip()
-        
-        # Redirect standard output to capture prints
-        old_stdout = sys.stdout
-        sys.stdout = StringIO()
-
-        try:
-            self.locals['_last_executed_code'] = command
-            
-            # Parse and execute the command
-            tree = ast.parse(command)
-            exec(compile(tree, "<string>", "exec"), self.locals)
-            
-            # Capture the output
-            sys.stdout.flush()
-            output = sys.stdout.getvalue()
-
-            # Evaluate the last expression if present to return it
-            if isinstance(tree.body[-1], ast.Expr):
-                self.locals['_last_result'] = eval(compile(ast.Expression(tree.body[-1].value), "<string>", "eval"), self.locals)
-            else:
-                self.locals['_last_result'] = "Command executed successfully (no return value)."
-                
-            result = str(self.locals['_last_result'])
-            return output + "\n" + result if output else result
-
-        except Exception as e:
-            return f"An error occurred: {str(e)}"
-        finally:
-            # Restore original standard output
-            sys.stdout = old_stdout
-
-    def __call__(self, command: str) -> str:
-        return self.run(command)
+        return "No queries available."
+class State(TypedDict):
+    """System state representation."""
+    chatHistory: Annotated[List[str], operator.add]
+    input: str
+    agentType: str
+    shortTermMemory: Dict[str, Any]
+    intermediateSteps: List[Any]
