@@ -134,15 +134,22 @@ class ResponseFormatter:
     def __init__(self, agentType):
         self.agentType = agentType
     
-    def getThoughtFromAction(self, actionLog):
-        """Extract thought from action log."""
-        if not isinstance(actionLog, str):
+    def getThoughtFromAction(self, action):
+        """Extract thought from action, adapting to agent type."""
+        if self.agentType == "tool-calling":
+            # For tool-calling, thought might be implicit in tool selection
+            if hasattr(action, 'tool') and hasattr(action, 'tool_input'):
+                return f"Decided to use tool '{action.tool}' with input: {action.tool_input}"
+            return "No explicit thought available."
+        else:
+            # Existing logic for ReAct-style agents
+            if not hasattr(action, 'log') or not isinstance(action.log, str):
+                return "No thought available."
+            lines = action.log.split('\n')
+            for line in lines:
+                if line.startswith("Thought:"):
+                    return line.strip()
             return "No thought available."
-        lines = actionLog.split('\n')
-        for line in lines:
-            if line.startswith("Thought:"):
-                return line.strip()
-        return "No thought available."
     
     def extractCodeFromAction(self, action):
         """Extract Python code from action if applicable."""
@@ -183,12 +190,12 @@ class ResponseFormatter:
                 continue
             seenSteps.add(stepKey)
             
-            thought = self.getThoughtFromAction(action.log if hasattr(action, 'log') else str(action))
+            thought = self.getThoughtFromAction(action)
             tool = action.tool if hasattr(action, 'tool') else "Unknown"
             toolInput = action.tool_input if hasattr(action, 'tool_input') else "No input"
             
             print(f"\nStep {stepNum}:")
-            print(thought)
+            print(f"Thought: {thought}")
             print(f"Tool: {tool}")
             print(f"Tool input: {toolInput}")
             
@@ -212,7 +219,6 @@ class ResponseFormatter:
                 self.printResponse(response)
         else:
             raise ValueError(f"Unknown agent type: {self.agentType}")
-
 class CustomPythonREPL:
     def __init__(self, locals=None):
         self.locals = locals or {}
@@ -269,6 +275,16 @@ class CustomPythonREPL:
             sys.stdout = oldStdout
     def __call__(self, command):
         return self.run(command)
+    
+def convertTuplesToLists(data):
+    if isinstance(data, tuple):
+        return list(data)
+    elif isinstance(data, list):
+        return [convertTuplesToLists(item) for item in data]
+    elif isinstance(data, dict):
+        return {key: convertTuplesToLists(value) for key, value in data.items()}
+    else:
+        return data
 
 class Tools:
     def __init__(self, chatModel, yamlFilePath, csvFilePath, dataDir=None):
@@ -552,10 +568,13 @@ class AstroChat:
             agentType=self.agentType
         )
         self.pandasAgentExecutor = AgentExecutor.from_agent_and_tools(
-            agent=self.pandasAgent, tools=self.toolkit.tools, verbose=False  # Use toolkit.tools here
+            agent=self.pandasAgent, 
+            tools=self.toolkit.tools, 
+            verbose=False,
+            return_intermediate_steps=True
         )
         self.customAgent = self.createCustomAgent(
-            self.chat, self.data, self.agentType, prefix, self.toolkit.tools  # Use toolkit.tools here
+            self.chat, self.data, self.agentType, prefix, self.toolkit.tools 
         )
         self.databaseAgent = DatabaseAgent()
         self.graph = self.createGraph()
@@ -590,7 +609,6 @@ class AstroChat:
                     "shortTermMemory": {},
                     "intermediateSteps": []
                 })
-                log.debug(f"Graph invoke result: {result}")
                 self.formatter(result)
             except Exception as e:
                 log.error(f"Agent faced an error: {str(e)}")
