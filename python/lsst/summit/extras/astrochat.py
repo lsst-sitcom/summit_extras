@@ -219,40 +219,54 @@ class ResponseFormatter:
                 self.printResponse(response)
         else:
             raise ValueError(f"Unknown agent type: {self.agentType}")
-class CustomPythonREPL:
-    def __init__(self, locals=None):
+class CodeSafetyClassifier:
+    """AI-based malicious code classifier using a language model."""
+    def __init__(self, chatModel: ChatOpenAI):
+        self.chatModel = chatModel
+    
+    def analyzeCode(self, code: str) -> tuple[bool, Optional[str]]:
+        """Analyze code for malicious intent using an LLM."""
+        prompt = (
+            "You are a security expert. Analyze the following Python code and determine if it is potentially malicious. "
+            "Malicious code may attempt to delete files, access the system, execute arbitrary commands, or cause harm. "
+            "Return your response in the format: [is_malicious: true/false, reason: explanation].\n\n"
+            f"Code:\n```python\n{code}\n```"
+        )
+        response = self.chatModel.invoke([HumanMessage(content=prompt)])
+        responseText = response.content.strip()
+        
+        try:
+            # Parse response assuming it's in the expected format
+            isMalicious = "is_malicious: true" in responseText.lower()
+            reasonStart = responseText.find("reason:") + 7
+            reason = responseText[reasonStart:].strip() if reasonStart > 6 else "No reason provided"
+            return isMalicious, reason
+        except Exception as e:
+            log.error(f"Failed to parse classifier response: {e}")
+            return True, "Failed to analyze code safely"
+class CustomPythonRepl:
+    def __init__(self, locals: Optional[Dict] = None, safetyClassifier: Optional[CodeSafetyClassifier] = None):
         self.locals = locals or {}
         self.locals['_lastExecutedCode'] = ''
         self.locals['_lastResult'] = ''
+        self.safetyClassifier = safetyClassifier or CodeSafetyClassifier(ChatOpenAI(model_name="gpt-4o", temperature=0.0))
     
-    def isMaliciousCode(self, command):
-        """Check if the code contains potentially malicious operations."""
-        try:
-            tree = ast.parse(command)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
-                    for name in node.names:
-                        if name.name in ["shutil", "os", "sys"]:
-                            for parent in ast.walk(tree):
-                                if isinstance(parent, ast.Call) and isinstance(parent.func, ast.Attribute):
-                                    if parent.func.value.id in ["shutil", "os", "sys"]:
-                                        funcName = parent.func.attr
-                                        if funcName in ["rmtree", "remove", "unlink", "exec", "system"]:
-                                            return True
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-                    if node.func.id in ["exec", "eval"]:
-                        return True
-            return False
-        except SyntaxError:
-            return False
+    def checkMaliciousCode(self, command: str) -> tuple[bool, Optional[str]]:
+        """Check if the code is malicious using the AI classifier."""
+        command = command.strip().strip('`')
+        if command.startswith('python'):
+            command = command[len('python'):].strip()
+        return self.safetyClassifier.analyzeCode(command)
     
-    def run(self, command):
+    def run(self, command: str) -> str:
+        """Execute Python code after safety check."""
         command = command.strip().strip('`')
         if command.startswith('python'):
             command = command[len('python'):].strip()
         
-        if self.isMaliciousCode(command):
-            raise ValueError("Potentially malicious code detected. Execution aborted.")
+        isMalicious, reason = self.checkMaliciousCode(command)
+        if isMalicious:
+            raise ValueError(f"Potentially malicious code detected: {reason}")
         
         oldStdout = sys.stdout
         sys.stdout = StringIO()
@@ -261,21 +275,20 @@ class CustomPythonREPL:
             self.locals['_lastExecutedCode'] = command
             tree = ast.parse(command)
             exec(compile(tree, "<string>", "exec"), self.locals)
-            output = sys.stdout.getvalue().strip()  # Capture printed output
-            if output:  # If there’s output, return it
+            output = sys.stdout.getvalue().strip()
+            if output:
                 return output
-            # Check if the last statement is an expression with a return value
             if isinstance(tree.body[-1], ast.Expr):
                 self.locals['_lastResult'] = eval(compile(ast.Expression(tree.body[-1].value), "<string>", "eval"), self.locals)
                 return str(self.locals['_lastResult'])
-            return "Command executed successfully (no return value)"  # Default for no output
+            return "Command executed successfully (no return value)"
         except Exception as e:
             return f"An error occurred: {str(e)}"
         finally:
             sys.stdout = oldStdout
-    def __call__(self, command):
-        return self.run(command)
     
+    def __call__(self, command: str) -> str:
+        return self.run(command)  
 def convertTuplesToLists(data):
     if isinstance(data, tuple):
         return list(data)
@@ -551,12 +564,15 @@ class AstroChat:
         csvFilePath = os.path.join(packageDir, "data", "generated_prompt_influxql.csv")
         dataDir = os.path.join(packageDir, "data")
         toolkit = Tools(self.chat, yamlFilePath, csvFilePath, dataDir=dataDir)
+        safetyClassifier = CodeSafetyClassifier(self.chat)
         for tool in toolkit.tools:
             if tool.name == "PythonRepl":
-                tool.func = CustomPythonREPL(locals={"df": self.data, "pd": pd, "plt": plt, 
-                                                    "np": np, "display": display, 
-                                                    "Markdown": Markdown, "Image": Image})
-        self.toolkit = toolkit  # Assign the Tools instance, not the tools list
+                tool.func = CustomPythonRepl(
+                    locals={"df": self.data, "pd": pd, "plt": plt, "np": np, 
+                            "display": display, "Markdown": Markdown, "Image": Image},
+                    safetyClassifier=safetyClassifier
+                )
+        self.toolkit = toolkit
         
         self.pandasAgent = customDataframeAgent(
             self.chat,
@@ -733,7 +749,7 @@ def customDataframeAgent(llm, df, agentType=AgentType.ZERO_SHOT_REACT_DESCRIPTIO
         "Markdown": Markdown,
         "Image": Image
     }
-    repl = CustomPythonREPL(locals=dfLocals)
+    repl = CustomPythonRepl(locals=dfLocals)
     tools = [
         Tool(
             name="PythonRepl",
