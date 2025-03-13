@@ -440,7 +440,7 @@ def plotExposureTiming(
     for axisName, ax in axes.items():
         ax.set_ylabel(
             (
-                f"{axisName.title() if axisName!='aos' else 'AOS'} commands"
+                f"{axisName.title() if axisName != 'aos' else 'AOS'} commands"
                 if axisName in ["mount", "camera", "aos"]
                 else f"{axisName.title()} (deg)"
             ),
