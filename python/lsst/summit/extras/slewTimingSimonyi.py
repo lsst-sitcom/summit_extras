@@ -225,11 +225,13 @@ def plotExposureTiming(
     integrationColor = "grey"
     readoutColor = "blue"
 
-    expRecords = sorted(expRecords, key=lambda x: (x.day_obs, x.seq_num))  # ensure we're sorted
+    expRecords = expRecords.sort(key=lambda x: (x.day_obs, x.seq_num))  # ensure we're sorted
 
     startSeqNum = expRecords[0].seq_num
     endSeqNum = expRecords[-1].seq_num
     dayObs = expRecords[0].day_obs
+    if expRecords[-1].day_obs != dayObs:
+        raise ValueError("All exposures must be from the same day_obs")
     title = f"Mount command timings for {dayObsIntToString(dayObs)} seqNums {startSeqNum} - {endSeqNum}"
 
     begin = expRecords[0].timespan.begin
