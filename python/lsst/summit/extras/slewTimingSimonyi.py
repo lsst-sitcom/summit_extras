@@ -23,7 +23,6 @@ import itertools
 import warnings
 
 import matplotlib
-import matplotlib.pyplot as plt
 from astropy.time import TimeDelta
 from lsst_efd_client import EfdClient
 from matplotlib.lines import Line2D
@@ -34,6 +33,7 @@ import lsst.summit.utils.butlerUtils as butlerUtils
 from lsst.summit.utils.efdUtils import getCommands, getEfdData
 from lsst.summit.utils.simonyi.mountData import getAzElRotDataForPeriod
 from lsst.summit.utils.utils import dayObsIntToString
+from lsst.utils.plotting.figures import make_figure
 
 __all__ = ["plotExposureTiming"]
 
@@ -257,7 +257,7 @@ def plotExposureTiming(
     ]
 
     # Create figure with adjusted gridspec
-    fig = plt.figure(figsize=(18, 8))
+    fig = make_figure(figsize=(18, 8))
     gs = fig.add_gridspec(7, 2, height_ratios=[*heights, 0.15], width_ratios=[0.8, 0.2], hspace=0)
 
     # Create axes with shared x-axis
