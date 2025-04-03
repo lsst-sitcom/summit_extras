@@ -18,11 +18,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from __future__ import annotations
 
 import itertools
 import warnings
+from typing import TYPE_CHECKING
 
-import matplotlib
 from astropy.time import TimeDelta
 from lsst_efd_client import EfdClient
 from matplotlib.lines import Line2D
@@ -34,6 +35,9 @@ from lsst.summit.utils.efdUtils import getCommands, getEfdData
 from lsst.summit.utils.simonyi.mountData import getAzElRotDataForPeriod
 from lsst.summit.utils.utils import dayObsIntToString
 from lsst.utils.plotting.figures import make_figure
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
 
 __all__ = ["plotExposureTiming"]
 
@@ -190,7 +194,7 @@ def plotExposureTiming(
     prePadding: float = 1,
     postPadding: float = 3,
     narrowHeightRatio: float = 0.4,
-) -> matplotlib.figure.Figure:
+) -> Figure:
     """Plot the mount command timings for a set of exposures.
 
     This function plots the mount position data for the entire time range of
