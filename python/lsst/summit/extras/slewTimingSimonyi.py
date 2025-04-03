@@ -225,7 +225,7 @@ def plotExposureTiming(
     integrationColor = "grey"
     readoutColor = "blue"
 
-    expRecords = expRecords.sort(key=lambda x: (x.day_obs, x.seq_num))  # ensure we're sorted
+    expRecords.sort(key=lambda x: (x.day_obs, x.seq_num))  # ensure we're sorted
 
     startSeqNum = expRecords[0].seq_num
     endSeqNum = expRecords[-1].seq_num
