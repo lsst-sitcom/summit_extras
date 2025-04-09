@@ -18,12 +18,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from __future__ import annotations
 
 import itertools
 import warnings
+from typing import TYPE_CHECKING
 
-import matplotlib
-import matplotlib.pyplot as plt
 from astropy.time import TimeDelta
 from lsst_efd_client import EfdClient
 from matplotlib.lines import Line2D
@@ -34,6 +34,10 @@ import lsst.summit.utils.butlerUtils as butlerUtils
 from lsst.summit.utils.efdUtils import getCommands, getEfdData
 from lsst.summit.utils.simonyi.mountData import getAzElRotDataForPeriod
 from lsst.summit.utils.utils import dayObsIntToString
+from lsst.utils.plotting.figures import make_figure
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
 
 __all__ = ["plotExposureTiming"]
 
@@ -190,7 +194,7 @@ def plotExposureTiming(
     prePadding: float = 1,
     postPadding: float = 3,
     narrowHeightRatio: float = 0.4,
-) -> matplotlib.figure.Figure:
+) -> Figure:
     """Plot the mount command timings for a set of exposures.
 
     This function plots the mount position data for the entire time range of
@@ -225,7 +229,7 @@ def plotExposureTiming(
     integrationColor = "grey"
     readoutColor = "blue"
 
-    expRecords = expRecords.sort(key=lambda x: (x.day_obs, x.seq_num))  # ensure we're sorted
+    expRecords.sort(key=lambda x: (x.day_obs, x.seq_num))  # ensure we're sorted
 
     startSeqNum = expRecords[0].seq_num
     endSeqNum = expRecords[-1].seq_num
@@ -257,7 +261,7 @@ def plotExposureTiming(
     ]
 
     # Create figure with adjusted gridspec
-    fig = plt.figure(figsize=(18, 8))
+    fig = make_figure(figsize=(18, 8))
     gs = fig.add_gridspec(7, 2, height_ratios=[*heights, 0.15], width_ratios=[0.8, 0.2], hspace=0)
 
     # Create axes with shared x-axis
