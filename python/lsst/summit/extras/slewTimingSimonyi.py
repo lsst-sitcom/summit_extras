@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import itertools
+import logging
 import warnings
 from typing import TYPE_CHECKING
 
@@ -224,6 +225,8 @@ def plotExposureTiming(
     fig : `matplotlib.figure.Figure`
         The figure containing the plot.
     """
+    log = logging.getLogger(__name__)
+
     inPositionAlpha = 0.5
     commandAlpha = 0.5
     integrationColor = "grey"
@@ -396,16 +399,19 @@ def plotExposureTiming(
     )
 
     for topic in HEXAPOD_TOPICS:
-        hexData = getEfdData(
-            client,
-            topic,
-            begin=begin,
-            end=end,
-            prePadding=prePadding,
-            postPadding=postPadding,
-            warn=False,
-        )
-        commandTimes.update({time: topic for time, _ in hexData.iterrows()})
+        try:
+            hexData = getEfdData(
+                client,
+                topic,
+                begin=begin,
+                end=end,
+                prePadding=prePadding,
+                postPadding=postPadding,
+                warn=False,
+            )
+            commandTimes.update({time: topic for time, _ in hexData.iterrows()})
+        except ValueError:
+            log.warning(f"Failed to get data for {topic}")
 
     # Create color maps for each axis
     color_maps = {ax_name: {} for ax_name in axes.keys()}
