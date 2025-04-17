@@ -23,6 +23,7 @@ from __future__ import annotations
 
 __all__ = [
     "makeFocalPlaneFWHMPlot",
+    "getFwhmValues",
 ]
 
 
@@ -34,16 +35,50 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
 from lsst.afw.cameraGeom import FIELD_ANGLE, Camera
+from lsst.afw.table import ExposureCatalog
+from lsst.obs.lsst import LsstCam
 
 if TYPE_CHECKING:
     import numpy.typing as npt
+
+
+def getFwhmValues(visitSummary: ExposureCatalog) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Get FWHM values and detector IDs from a visit summary.
+
+    Parameters
+    ----------
+    visitSummary : `lsst.afw.table.ExposureCatalog`
+        The visit summary table containing FWHM values.
+
+    Returns
+    -------
+    fwhm_values : `numpy.ndarray`
+        The FWHM values from the visit summary.
+    detector_ids : `numpy.ndarray`
+        The detector IDs corresponding to the FWHM values.
+    """
+    camera = LsstCam().getCamera()
+    detectors = [det.getId() for det in camera]
+
+    fwhm_values = []
+    detector_ids = []
+    for detector_id in detectors:
+        row = visitSummary[visitSummary["id"] == detector_id]
+
+        if len(row) > 0:
+            psf_sigma = row["psfSigma"][0]
+            fwhm = psf_sigma * 2.355 * 0.2  # Convert to microns (0.2"/pixel)
+            fwhm_values.append(fwhm)
+            detector_ids.append(detector_id)
+
+    return np.array(fwhm_values), np.array(detector_ids)
 
 
 def makeFocalPlaneFWHMPlot(
     fig: plt.Figure,
     ax: plt.Axes,
     fwhm_values: npt.NDArray[np.float64],
-    detector_ids: npt.NDArray[np.str_],
+    detector_ids: npt.NDArray[np.float64],
     camera: Camera,
     saveAs: str = "",
 ):
