@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.table import vstack
+from matplotlib.patches import Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from lsst.afw.cameraGeom import FOCAL_PLANE
@@ -76,6 +77,31 @@ def randomRows(table: Table, maxRows: int) -> Table:
         indices = rng.choice(n, maxRows, replace=False)
         table = table[indices]
     return table
+
+
+def randomRowsPerDetector(table: Table, maxRowsPerDetector: int) -> Table:
+    """Select a random subset of rows for each detector from the given table.
+
+    Parameters
+    ----------
+    table : `astropy.table.Table`
+        The table containing the data to be plotted.
+    maxRowsPerDetector : `int`
+        The maximum number of rows to select per detector.
+
+    Returns
+    -------
+    table : `astropy.table.Table`
+        The table containing the randomly selected subset of rows.
+    """
+    keep = np.full(len(table), False)
+    for det in np.unique(table["detector"]):
+        detrows = np.nonzero(table["detector"] == det)[0]
+        if len(detrows) > maxRowsPerDetector:
+            rng = np.random.default_rng()
+            detrows = rng.choice(detrows, maxRowsPerDetector, replace=False)
+        keep[detrows] = True
+    return table[keep]
 
 
 def addColorbarToAxes(mappable: plt.Axes) -> Colorbar:
@@ -126,12 +152,14 @@ def makeTableFromSourceCatalogs(icSrcs: dict[int, SourceCatalog], visitInfo: Vis
         icSrc["detector"] = detectorNum
         tables.append(icSrc)
 
-    table = vstack(tables)
+    table = vstack(tables, metadata_conflicts="silent")
+
     # Add shape columns
     table["Ixx"] = table["slot_Shape_xx"] * (0.2) ** 2
     table["Ixy"] = table["slot_Shape_xy"] * (0.2) ** 2
     table["Iyy"] = table["slot_Shape_yy"] * (0.2) ** 2
     table["T"] = table["Ixx"] + table["Iyy"]
+    table["FWHM"] = np.sqrt(table["T"] / 2 * np.log(256))
     table["e1"] = (table["Ixx"] - table["Iyy"]) / table["T"]
     table["e2"] = 2 * table["Ixy"] / table["T"]
     table["e"] = np.hypot(table["e1"], table["e2"])
@@ -202,7 +230,7 @@ def makeFigureAndAxes() -> tuple[plt.Figure, Any]:
     axes : `numpy.ndarray`
         The created axes.
     """
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 6))
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(7, 6), sharex=True, sharey=True)
     return fig, axes
 
 
@@ -410,7 +438,7 @@ def makeAzElPlot(
     axes: np.ndarray[plt.Axes],
     table: Table,
     camera: Camera,
-    maxPoints: int = 1000,
+    maxPointsPerDetector: int = 5,
     saveAs: str = "",
 ):
     """Plot the PSFs on the focal plane, rotated to az/el coordinates.
@@ -441,10 +469,10 @@ def makeAzElPlot(
         The table containing the data to be plotted.
     camera : `list`
         The list of camera detector objects.
-    maxPoints : `int`, optional
-        The maximum number of points to plot. If the number of points in the
-        table is greater than this value, a random subset of points will be
-        plotted.
+    maxPointsPerDetector : `int`, optional
+        The maximum number of points per detector to plot. If the number of
+        points in the table is greater than this value, a random subset of
+        points will be plotted.
     saveAs : `str`, optional
         The file path to save the figure.
     """
@@ -453,29 +481,26 @@ def makeAzElPlot(
     # less border, and 4.5 looks about right by eye.
     fullCameraFactor = 4.5
     plotLimit = 90 if oneRaftOnly else 90 * fullCameraFactor
-    quiverScale = 5 if oneRaftOnly else fullCameraFactor
+    quiverScale = 5
 
-    table = randomRows(table, maxPoints)
+    table = randomRowsPerDetector(table, maxPointsPerDetector)
 
-    cbar = addColorbarToAxes(axes[0, 0].scatter(table["aa_x"], table["aa_y"], c=table["T"], s=5))
-    cbar.set_label("T [arcsec$^2$]")
+    cbar = addColorbarToAxes(axes[0, 1].scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=5))
+    cbar.set_label("FWHM [arcsec]")
 
     emax = np.quantile(np.abs(np.concatenate([table["e1"], table["e2"]])), 0.98)
-    cbar = addColorbarToAxes(
-        axes[1, 0].scatter(
-            table["aa_x"], table["aa_y"], c=table["aa_e1"], vmin=-emax, vmax=emax, cmap="bwr", s=5
-        )
-    )
-    cbar.set_label("e1")
+    axes[1, 0].scatter(table["aa_x"], table["aa_y"], c=table["aa_e1"], vmin=-emax, vmax=emax, cmap="bwr", s=5)
+    axes[1, 0].text(0.05, 0.92, "e1", transform=axes[1, 0].transAxes, fontsize=10)
 
     cbar = addColorbarToAxes(
         axes[1, 1].scatter(
             table["aa_x"], table["aa_y"], c=table["aa_e2"], vmin=-emax, vmax=emax, cmap="bwr", s=5
         )
     )
-    cbar.set_label("e2")
+    cbar.set_label("e")
+    axes[1, 1].text(0.05, 0.92, "e2", transform=axes[1, 1].transAxes, fontsize=10)
 
-    Q = axes[0, 1].quiver(
+    Q = axes[0, 0].quiver(
         table["aa_x"],
         table["aa_y"],
         table["e"] * np.cos(0.5 * np.arctan2(table["aa_e2"], table["aa_e1"])),
@@ -488,14 +513,15 @@ def makeAzElPlot(
     axes[0, 1].quiverkey(Q, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
 
     for ax in axes.ravel():
-        ax.set_xlabel("Az")
-        ax.set_ylabel("Alt")
         ax.set_aspect("equal")
         ax.set_xlim(-plotLimit, plotLimit)
         ax.set_ylim(-plotLimit, plotLimit)
+    for ax in axes[1, :]:
+        ax.set_xlabel("Az")
+    for ax in axes[:, 0]:
+        ax.set_ylabel("El")
 
-    # Plot camera detector outlines - only plot labels on single-raft cameras;
-    # otherwise it is overwhelming
+    # Plot camera detector outlines for single-raft cameras
     if oneRaftOnly:
         aaRot = table.meta["aaRot"]
         for det in camera:
@@ -530,7 +556,32 @@ def makeAzElPlot(
                     fontsize=6,
                     zorder=20,
                 )
+    else:
+        # For multi-raft, shade outlines of rafts
+        aaRot = table.meta["aaRot"]
+        for i in range(5):
+            for j in range(5):
+                if i in (0, 4) and j in (0, 4):  # No corners
+                    continue
+                raft = f"R{i}{j}"
+                detector_type = camera[raft + "_S00"].getPhysicalType()
+                c0 = camera[raft + "_S00"].getCorners(FOCAL_PLANE)[0]
+                c1 = camera[raft + "_S02"].getCorners(FOCAL_PLANE)[1]
+                c2 = camera[raft + "_S22"].getCorners(FOCAL_PLANE)[2]
+                c3 = camera[raft + "_S20"].getCorners(FOCAL_PLANE)[3]
+                xs = [c0.x, c1.x, c2.x, c3.x, c0.x]
+                ys = [c0.y, c1.y, c2.y, c3.y, c0.y]
+                xs = np.array(xs)
+                ys = np.array(ys)
+                rxs = aaRot[0, 0] * xs + aaRot[0, 1] * ys
+                rys = aaRot[1, 0] * xs + aaRot[1, 1] * ys
+                for ax in axes.ravel():
+                    c = "#999999" if detector_type == "E2V" else "#DDDDDD"
+                    polygon = Polygon(
+                        list(zip(rxs, rys)), closed=True, fill=True, edgecolor="none", facecolor=c, alpha=0.2
+                    )
+                    ax.add_patch(polygon)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=0, h_pad=0, w_pad=0)
     if saveAs:
         fig.savefig(saveAs)
