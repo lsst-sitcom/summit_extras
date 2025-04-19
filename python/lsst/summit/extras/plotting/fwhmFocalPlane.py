@@ -60,25 +60,25 @@ def getFwhmValues(visitSummary: ExposureCatalog) -> tuple[npt.NDArray[np.float64
     camera = LsstCam().getCamera()
     detectors = [det.getId() for det in camera]
 
-    fwhm_values = []
-    detector_ids = []
-    for detector_id in detectors:
-        row = visitSummary[visitSummary["id"] == detector_id]
+    fwhmValues = []
+    detectorIds = []
+    for detectorId in detectors:
+        row = visitSummary[visitSummary["id"] == detectorId]
 
         if len(row) > 0:
-            psf_sigma = row["psfSigma"][0]
-            fwhm = psf_sigma * 2.355 * 0.2  # Convert to microns (0.2"/pixel)
-            fwhm_values.append(fwhm)
-            detector_ids.append(detector_id)
+            psfSigma = row["psfSigma"][0]
+            fwhm = psfSigma * 2.355 * 0.2  # Convert to microns (0.2"/pixel)
+            fwhmValues.append(fwhm)
+            detectorIds.append(detectorId)
 
-    return np.array(fwhm_values), np.array(detector_ids)
+    return np.array(fwhmValues), np.array(detectorIds)
 
 
 def makeFocalPlaneFWHMPlot(
     fig: plt.Figure,
     ax: plt.Axes,
-    fwhm_values: npt.NDArray[np.float64],
-    detector_ids: npt.NDArray[np.float64],
+    fwhmValues: npt.NDArray[np.float64],
+    detectorIds: npt.NDArray[np.float64],
     camera: Camera,
     saveAs: str = "",
 ):
@@ -106,42 +106,41 @@ def makeFocalPlaneFWHMPlot(
     saveAs : `str`, optional
         The file path to save the figure.
     """
-    norm = Normalize(vmin=min(fwhm_values), vmax=max(fwhm_values))
+    norm = Normalize(vmin=min(fwhmValues), vmax=max(fwhmValues))
     cmap = plt.cm.viridis
 
-    for i, name in enumerate(detector_ids):
-        detector = camera.get(name)
+    for i, detectorId in enumerate(detectorIds):
+        detector = camera.get(detectorId)
         corners = detector.getCorners(FIELD_ANGLE)
-        corners_deg = np.rad2deg(corners)
+        cornersDeg = np.rad2deg(corners)
 
-        x = corners_deg[:, 0]
-        y = corners_deg[:, 1]
+        x = cornersDeg[:, 0]
+        y = cornersDeg[:, 1]
 
         x = np.append(x, x[0])
         y = np.append(y, y[0])
 
-        color = cmap(norm(fwhm_values[i]))
+        color = cmap(norm(fwhmValues[i]))
         ax.fill(x, y, color=color, edgecolor="gray", linewidth=0.5)
 
         # Compute center of detector for label
-        x_center = np.mean(corners_deg[:, 0])
-        y_center = np.mean(corners_deg[:, 1])
+        xCenter = np.mean(cornersDeg[:, 0])
+        yCenter = np.mean(cornersDeg[:, 1])
 
-        # Add FWHM text in the center
         ax.text(
-            x_center, y_center, f"{fwhm_values[i]:.2f}", color="white", fontsize=10, ha="center", va="center"
+            xCenter, yCenter, f"{fwhmValues[i]:.2f}", color="white", fontsize=10, ha="center", va="center"
         )
 
     # Calculate statistics
-    mean_fwhm = np.nanmean(fwhm_values)
-    median_fwhm = np.nanmedian(fwhm_values)
-    std_fwhm = np.nanstd(fwhm_values)
+    meanFwhm = np.nanmean(fwhmValues)
+    medianFwhm = np.nanmedian(fwhmValues)
+    stdFwhm = np.nanstd(fwhmValues)
 
-    stats_text = f"Mean: {mean_fwhm:.2f}''\n" f"Median: {median_fwhm:.2f}''\n" f"Std: {std_fwhm:.2f}''"
+    statsText = f"Mean: {meanFwhm:.2f}''\nMedian: {medianFwhm:.2f}''\nStd: {stdFwhm:.2f}''"
     ax.text(
         0.98,
         0.98,
-        stats_text,
+        statsText,
         transform=ax.transAxes,
         fontsize=10,
         va="top",
