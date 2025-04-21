@@ -80,8 +80,8 @@ def makeFocalPlaneFWHMPlot(
     fwhmValues: npt.NDArray[np.float64],
     detectorIds: npt.NDArray[np.float64],
     camera: Camera,
-    vMin: float = 0.5,
-    vMax: float = 1.2,
+    vmin: float | None = None,
+    vmax: float | None = None,
     saveAs: str = "",
 ):
     """Plot the FWHM across the Focal Plane, from the fwhm_values
@@ -105,14 +105,14 @@ def makeFocalPlaneFWHMPlot(
         The IDs of the detectors corresponding to the FWHM values.
     camera : `list`
         The list of camera detector objects.
-    vMin : `float`, optional
-        The minimum value for the color map. Default is 0.5.
-    vMax : `float`, optional
-        The maximum value for the color map. Default is 1.2.
+    vmin : `float`, optional
+        The minimum value for the color map
+    vmax : `float`, optional
+        The maximum value for the color map
     saveAs : `str`, optional
         The file path to save the figure.
     """
-    norm = Normalize(vmin=vMin, vmax=vMax)
+    norm = Normalize(vmin=vmin, vmax=vmax)
     cmap = plt.cm.viridis
 
     for i, detectorId in enumerate(detectorIds):
