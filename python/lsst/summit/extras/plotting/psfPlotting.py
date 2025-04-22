@@ -34,10 +34,8 @@ __all__ = [
 
 from typing import TYPE_CHECKING
 
-import matplotlib.pyplot as plt
 import numpy as np
 from astropy.table import Table, vstack
-from astropy.table import vstack
 from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -52,6 +50,7 @@ if TYPE_CHECKING:
 
     import numpy.typing as npt
     from matplotlib.colorbar import Colorbar
+    from matplotlib.pyplot import Axes, Figure
 
     from lsst.afw.cameraGeom import Camera
     from lsst.afw.image import VisitInfo
@@ -106,7 +105,7 @@ def randomRowsPerDetector(table: Table, maxRowsPerDetector: int) -> Table:
     return table[keep]
 
 
-def addColorbarToAxes(mappable: plt.Axes) -> Colorbar:
+def addColorbarToAxes(mappable: Axes) -> Colorbar:
     """Add a colorbar to the given axes.
 
     Parameters
@@ -224,7 +223,7 @@ def extendTable(table: Table, rot: npt.NDArray[np.float64], prefix: str) -> Tabl
     return table
 
 
-def makeFigureAndAxes() -> tuple[plt.Figure, Any]:
+def makeFigureAndAxes() -> tuple[Figure, Any]:
     """Create a figure and axes for plotting.
 
     Returns
@@ -248,8 +247,8 @@ def makeFigureAndAxes() -> tuple[plt.Figure, Any]:
 
 
 def makeFocalPlanePlot(
-    fig: plt.Figure,
-    axes: np.ndarray[plt.Axes],
+    fig: Figure,
+    axes: np.ndarray[Axes],
     table: Table,
     camera: Camera,
     maxPoints: int = 1000,
@@ -345,8 +344,8 @@ def makeFocalPlanePlot(
 
 
 def makeEquatorialPlot(
-    fig: plt.Figure,
-    axes: np.ndarray[plt.Axes],
+    fig: Figure,
+    axes: np.ndarray[Axes],
     table: Table,
     camera: Camera,
     maxPoints: int = 1000,
@@ -451,8 +450,8 @@ def makeEquatorialPlot(
 
 
 def makeAzElPlot(
-    fig: plt.Figure,
-    axes: np.ndarray[plt.Axes],
+    fig: Figure,
+    axes: np.ndarray[Axes],
     table: Table,
     camera: Camera,
     maxPointsPerDetector: int = 5,
