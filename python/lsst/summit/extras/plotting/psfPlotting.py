@@ -242,7 +242,7 @@ def makeFocalPlanePlot(
     camera: Camera,
     maxPoints: int = 1000,
     saveAs: str = "",
-):
+) -> None:
     """Plot the PSFs in focal plane (detector) coordinates i.e. the raw shapes.
 
     Top left:
@@ -339,7 +339,7 @@ def makeEquatorialPlot(
     camera: Camera,
     maxPoints: int = 1000,
     saveAs: str = "",
-):
+) -> None:
     """Plot the PSFs on the focal plane, rotated to equatorial coordinates.
 
     Top left:
@@ -445,7 +445,7 @@ def makeAzElPlot(
     camera: Camera,
     maxPointsPerDetector: int = 5,
     saveAs: str = "",
-):
+) -> None:
     """Plot the PSFs on the focal plane, rotated to az/el coordinates.
 
     Top left:
