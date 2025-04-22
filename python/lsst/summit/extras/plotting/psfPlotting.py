@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.table import vstack
+from astropy.table import Table, vstack
 from matplotlib.patches import Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -48,7 +48,6 @@ if TYPE_CHECKING:
     from typing import Any
 
     import numpy.typing as npt
-    from astropy.table import Table
     from matplotlib.colorbar import Colorbar
 
     from lsst.afw.cameraGeom import Camera
@@ -144,6 +143,8 @@ def makeTableFromSourceCatalogs(icSrcs: dict[int, SourceCatalog], visitInfo: Vis
     table : `astropy.table.Table`
         The table containing the data from the source catalogs.
     """
+    if len(icSrcs) == 0:
+        return Table()
     tables = []
 
     for detectorNum, icSrc in icSrcs.items():
@@ -241,7 +242,7 @@ def makeFocalPlanePlot(
     camera: Camera,
     maxPoints: int = 1000,
     saveAs: str = "",
-):
+) -> None:
     """Plot the PSFs in focal plane (detector) coordinates i.e. the raw shapes.
 
     Top left:
@@ -277,6 +278,8 @@ def makeFocalPlanePlot(
     saveAs : `str`, optional
         The file path to save the figure.
     """
+    if len(table) == 0:
+        return
     table = randomRows(table, maxPoints)
 
     cbar = addColorbarToAxes(axes[0, 0].scatter(table["x"], table["y"], c=table["T"], s=5))
@@ -336,7 +339,7 @@ def makeEquatorialPlot(
     camera: Camera,
     maxPoints: int = 1000,
     saveAs: str = "",
-):
+) -> None:
     """Plot the PSFs on the focal plane, rotated to equatorial coordinates.
 
     Top left:
@@ -372,6 +375,8 @@ def makeEquatorialPlot(
     saveAs : `str`, optional
         The file path to save the figure.
     """
+    if len(table) == 0:
+        return
     table = randomRows(table, maxPoints)
 
     cbar = addColorbarToAxes(axes[0, 0].scatter(table["nw_x"], table["nw_y"], c=table["T"], s=5))
@@ -440,7 +445,7 @@ def makeAzElPlot(
     camera: Camera,
     maxPointsPerDetector: int = 5,
     saveAs: str = "",
-):
+) -> None:
     """Plot the PSFs on the focal plane, rotated to az/el coordinates.
 
     Top left:
@@ -476,6 +481,8 @@ def makeAzElPlot(
     saveAs : `str`, optional
         The file path to save the figure.
     """
+    if len(table) == 0:
+        return
     oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
     # I think this is roughly right for plotting - diameter is 5x but we need
     # less border, and 4.5 looks about right by eye.
