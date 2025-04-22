@@ -45,6 +45,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from lsst.afw.cameraGeom import FIELD_ANGLE, FOCAL_PLANE
 from lsst.afw.geom.ellipses import Quadrupole
 from lsst.geom import LinearTransform, radians
+from lsst.utils.plotting.figures import make_figure
 
 if TYPE_CHECKING:
     from typing import Any
@@ -233,7 +234,7 @@ def makeFigureAndAxes() -> tuple[plt.Figure, Any]:
     axes : `numpy.ndarray`
         The created axes.
     """
-    fig = plt.figure(figsize=(10, 6))
+    fig = make_figure(figsize=(10, 6))
     gs = GridSpec(2, 3, figure=fig)
 
     axes = np.empty((2, 3), dtype=object)
