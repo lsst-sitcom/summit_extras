@@ -21,175 +21,324 @@
 
 from __future__ import annotations
 
-import io
 import logging
-import os
-import re
-import time
-import traceback
 from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
-import requests
-import tables  # noqa: F401 required for HDFStore append mode
 from astropy.time import Time, TimeDelta
 from matplotlib.dates import DateFormatter, num2date
-from packaging import version
 
-# Check Pillow version to determine the correct resampling filter
-from PIL import Image, ImageEnhance
-from PIL import __version__ as PILLOW_VERSION
-from requests.exceptions import HTTPError
+from lsst.summit.utils.efdUtils import (
+    getDayObsEndTime,
+    getDayObsStartTime,
+    getEfdData,
+    getMostRecentRowWithDataBefore,
+)
+from lsst.utils.plotting.figures import make_figure
 
-from lsst.summit.utils.efdUtils import getDayObsEndTime, getDayObsStartTime
-from lsst.summit.utils.utils import getSite, getSunAngle
-
-if version.parse(PILLOW_VERSION) >= version.parse("9.1.0"):
-    resample_filter = Image.LANCZOS
-else:
-    resample_filter = Image.ANTIALIAS
+HAS_EFD_CLIENT = True
+try:
+    from lsst_efd_client import EfdClient
+except ImportError:
+    HAS_EFD_CLIENT = False
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
-    from pandas import DataFrame
+    from pandas import DataFrame, Series
 
     from lsst.daf.butler import Butler, DataCoordinate, DimensionRecord
 
-# coordinates as (x0, y0), (x1, y1) for cropping the various image parts
-USER_COORDINATES = {
-    "dateImage": ((42, 164), (222, 186)),
-    "seeingImage": ((180, 128), (233, 154)),
-    "freeAtmSeeingImage": ((180, 103), (233, 128)),
-    "groundLayerImage": ((180, 80), (233, 103)),
-}
-
-SOAR_IMAGE_URL = "http://www.ctio.noirlab.edu/~soarsitemon/soar_seeing_monitor.png"
-
-STORE_FILE = {
-    "rubin-devl": "/sdf/scratch/rubin/rapid-analysis/SOAR_seeing/seeing_conditions.h5",
-    "summit": "/project/rubintv/SOAR_seeing/seeing_conditions.h5",
-}
-ERROR_FILE = {
-    "rubin-devl": "/sdf/scratch/rubin/rapid-analysis/SOAR_seeing/seeing_errors.log",
-    "summit": "/project/rubintv/SOAR_seeing/seeing_errors.log",
-}
-FAILED_FILES_DIR = {
-    "rubin-devl": "/sdf/scratch/rubin/rapid-analysis/SOAR_seeing/failed_files",
-    "summit": "/project/rubintv/SOAR_seeing/failed_files",
-}
+RINGSS_TOPIC = "lsst.sal.ESS.logevent_ringssMeasurement"
 
 
 @dataclass
 class SeeingConditions:
+    """Class to hold the seeing conditions from the RINGSS instrument.
+
+    Attributes
+    ----------
+    timestamp : `Time`
+        The time of the seeing conditions.
+    XXX : `timeDelta`
+        Distance to the nearest actual reading, given to give a guide for
+        how accurate the data is likely to be.
+    seeing : `float`
+        XXX fill this in
+    freeAtmSeeing : `float`
+        XXX fill this in
+    groundLayer : `float`
+        XXX fill this in
+    eRMS : `float`
+        XXX fill this in
+    flux : `float`
+        XXX fill this in
+    fwhmFree : `float`
+        XXX fill this in
+    fwhmScintillation : `float`
+        XXX fill this in
+    fwhmSector : `float`
+        XXX fill this in
+    hrNum : `float`
+        XXX fill this in
+    tau0 : `float`
+        XXX fill this in
+    theta0 : `float`
+        XXX fill this in
+    totalVariance : `float`
+        XXX fill this in
+    turbulenceProfiles0 : `float`
+        XXX fill this in
+    turbulenceProfiles1 : `float`
+        XXX fill this in
+    turbulenceProfiles2 : `float`
+        XXX fill this in
+    turbulenceProfiles3 : `float`
+        XXX fill this in
+    turbulenceProfiles4 : `float`
+        XXX fill this in
+    turbulenceProfiles5 : `float`
+        XXX fill this in
+    turbulenceProfiles6 : `float`
+        XXX fill this in
+    turbulenceProfiles7 : `float`
+        XXX fill this in
+    wind : `float`
+        XXX fill this in
+    zenithDistance : `float`
+        XXX fill this in
+    """
+
     timestamp: Time
-    seeing: float
-    freeAtmSeeing: float
-    groundLayer: float
+
+    eRMS: float = float("nan")
+    flux: float = float("nan")
+    fwhmFree: float = float("nan")
+    fwhmScintillation: float = float("nan")
+    fwhmSector: float = float("nan")
+    hrNum: float = float("nan")
+    tau0: float = float("nan")
+    theta0: float = float("nan")
+    totalVariance: float = float("nan")
+    profile0m: float = float("nan")
+    profile250m: float = float("nan")
+    profile500m: float = float("nan")
+    profile1000m: float = float("nan")
+    profile2000m: float = float("nan")
+    profile4000m: float = float("nan")
+    profile8000m: float = float("nan")
+    profile16000m: float = float("nan")
+    windSpeed: float = float("nan")
+    zenithDistance: float = float("nan")
+
+    @property
+    def isoparalacticAngle(self) -> float:
+        """Alias for isoparalacticAngle."""
+        return self.isoparalacticAngle
+
+    @property
+    def starName(self) -> str:
+        """Alias for starName including the HR part."""
+        return f"HD{self.starName}"
+
+    @property
+    def seeing(self) -> str:
+        """Alias for fwhmScintillation - the seeing in arcsec."""
+        return self.fwhmScintillation
+
+    @property
+    def seeing2(self) -> float:
+        """The seeing profile adjusted weight in arcsec."""
+        return self.fwhmSector
+
+    @property
+    def freeAtmosphericSeeing(self) -> float:
+        """Alias for fwhmFree - the free atmospheric seeing in arcsec."""
+        return self.fwhmFree
+
+    @property
+    def groundLayerSeeing(self) -> float:
+        """The transformation of turbulenceProfiles0 to the ground layer seeing
+        in arcsec.
+        """
+        raise NotImplementedError("I need the transormation to get this value in arcsec")
+
+    def __init__(self, rows: list[Series]) -> None:
+        # Ensure we have valid data
+        assert len(rows) >= 1, "Must provide some data!"
+        assert len(rows) <= 2, "Provided data must be either or two rows."
+
+        # Extract timestamp from index
+        timestamps = [row.name for row in rows]
+        self.timestamp = Time(timestamps[0])  # Use the first timestamp as default
+
+        if len(rows) == 1:
+            # If only one row, use its values directly
+            row = rows[0]
+
+            self.eRMS = row.get("eRMS", float("nan"))
+            self.flux = row.get("flux", float("nan"))
+            self.fwhmFree = row.get("fwhmFree", float("nan"))
+            self.fwhmScintillation = row.get("fwhmScintillation", float("nan"))
+            self.fwhmSector = row.get("fwhmSector", float("nan"))
+            self.hrNum = row.get("hrNum", float("nan"))
+            self.tau0 = row.get("tau0", float("nan"))
+            self.theta0 = row.get("theta0", float("nan"))
+            self.totalVariance = row.get("totalVariance", float("nan"))
+            self.profile0m = row.get("turbulenceProfiles0", float("nan"))
+            self.profile250m = row.get("turbulenceProfiles1", float("nan"))
+            self.profile500m = row.get("turbulenceProfiles2", float("nan"))
+            self.profile1000m = row.get("turbulenceProfiles3", float("nan"))
+            self.profile2000m = row.get("turbulenceProfiles4", float("nan"))
+            self.profile4000m = row.get("turbulenceProfiles5", float("nan"))
+            self.profile8000m = row.get("turbulenceProfiles6", float("nan"))
+            self.profile16000m = row.get("turbulenceProfiles7", float("nan"))
+            self.windSpeed = row.get("wind", float("nan"))
+            self.zenithDistance = row.get("zenithDistance", float("nan"))
+        else:
+            # Interpolate between two rows
+            t1, t2 = timestamps
+            # Calculate the midpoint timestamp for interpolation
+            t = t1 + (t2 - t1) / 2
+            self.timestamp = Time(t)
+
+            # Weight for interpolation (0 to 1)
+            w = (t - t1) / (t2 - t1)
+
+            row1, row2 = rows[0], rows[1]
+
+            # Helper function for interpolation
+            def interpolate(col):
+                if col in row1 and col in row2:
+                    v1, v2 = row1.get(col, float("nan")), row2.get(col, float("nan"))
+                    return v1 + (v2 - v1) * w
+                return float("nan")
+
+            self.eRMS = interpolate("eRMS")
+            self.flux = interpolate("flux")
+            self.fwhmFree = interpolate("fwhmFree")
+            self.fwhmScintillation = interpolate("fwhmScintillation")
+            self.fwhmSector = interpolate("fwhmSector")
+            self.hrNum = interpolate("hrNum")
+            self.tau0 = interpolate("tau0")
+            self.theta0 = interpolate("theta0")
+            self.totalVariance = interpolate("totalVariance")
+            self.profile0m = interpolate("turbulenceProfiles0")
+            self.profile250m = interpolate("turbulenceProfiles1")
+            self.profile500m = interpolate("turbulenceProfiles2")
+            self.profile1000m = interpolate("turbulenceProfiles3")
+            self.profile2000m = interpolate("turbulenceProfiles4")
+            self.profile4000m = interpolate("turbulenceProfiles5")
+            self.profile8000m = interpolate("turbulenceProfiles6")
+            self.profile16000m = interpolate("turbulenceProfiles7")
+            self.windSpeed = interpolate("wind")
+            self.zenithDistance = interpolate("zenithDistance")
 
     def __repr__(self):
         return (
             f"SeeingConditions @ {self.timestamp.isot}\n"
-            f"  Seeing          = {self.seeing}\n"
-            f"  Free Atm Seeing = {self.freeAtmSeeing}\n"
-            f"  Ground layer    = {self.groundLayer}\n"
+            f"  Seeing          = XXX define me!\n"
+            f'  Free Atm Seeing = {self.fwhmFree:.2f}"\n'
+            # XXX replace this with self.groundLayerSeeing
+            f"  Ground layer    = {self.profile0m}\n"
+            f"  Wind speed    = {self.windSpeed:.2f}m/s\n"
         )
 
 
 class SoarSeeingMonitor:
-    def __init__(self, warningThreshold: float = 300, errorThreshold: float = 600):
-        site = getSite()
-        self.STORE_FILE = STORE_FILE[site]
+    def __init__(
+        self, efdClient: EfdClient, warningThreshold: float = 300, errorThreshold: float = 600
+    ) -> None:
         self.warningThreshold = warningThreshold
         self.errorThreshold = errorThreshold
         self.log = logging.getLogger(__name__)
-        self.fig = plt.figure(figsize=(18, 10))
-        self._reload()
-
-    def _reload(self):
-        self.df = pd.read_hdf(self.STORE_FILE, key="data")
-        # Convert the index from datetime.datetime to astropy.time.Time
-        self.df.index = Time(self.df.index)
+        self.client = efdClient
 
     def getSeeingAtTime(self, time: Time) -> SeeingConditions:
-        self._reload()
-        if self.df is None or self.df.empty:
-            raise ValueError("Database is empty. No seeing data available.")
-
-        # Ensure the timestamp is sorted
-        self.df.sort_index(inplace=True)
-
-        # Check if the exact time exists in the database
-        if time in self.df.index:
-            row = self.df.loc[time]
-            return SeeingConditions(
-                timestamp=time,
-                seeing=row["seeing"],
-                freeAtmSeeing=row["freeAtmSeeing"],
-                groundLayer=row["groundLayer"],
+        begin = time - TimeDelta(self.errorThreshold, format="sec")
+        end = time + TimeDelta(self.errorThreshold, format="sec")
+        data = getEfdData(self.client, RINGSS_TOPIC, begin=begin, end=end, warn=False)
+        if data.empty:
+            raise ValueError(
+                f"Failed to find a RINGSS seeing measurement within"
+                f" {self.errorThreshold / 60:.1f} minutes of {time.isot}"
             )
 
-        # Find the closest timestamps around the requested time
-        earlier = self.df[self.df.index < time].iloc[-1] if not self.df[self.df.index < time].empty else None
-        later = self.df[self.df.index > time].iloc[0] if not self.df[self.df.index > time].empty else None
+        # Ensure the timestamp is sorted
+        data.sort_index(inplace=True)
 
-        if later is None and (time - earlier.name).sec < self.errorThreshold:
+        # Check if the *exact* time exists - seems unlikely, but need to check
+        if time in data.index:
+            row = data.loc[time]
+            return SeeingConditions(
+                rows=[row],
+            )
+
+        # Convert the astropy Time object to a timezone-aware pandas Timestamp
+        time_datetime = pd.Timestamp(time.datetime).tz_localize("UTC")
+
+        # Use the timezone-aware timestamp for comparison
+        earlier = (
+            data[data.index < time_datetime].iloc[-1] if not data[data.index < time_datetime].empty else None
+        )
+        later = (
+            data[data.index > time_datetime].iloc[0] if not data[data.index > time_datetime].empty else None
+        )
+
+        if later is None and earlier is not None and (time - earlier.name).sec < self.errorThreshold:
             self.log.info("Returning the last available value.")
-            return self.rowToSeeingConditions(earlier)
+            return SeeingConditions(
+                rows=[earlier],
+            )
 
         if earlier is None or later is None:
             raise ValueError("Cannot interpolate: insufficient data before or after the requested time.")
 
-        # Check time difference to log warnings/raise as necessary
+        # Check time difference: to log warnings/raise as necessary
         earlierTime = earlier.name
         laterTime = later.name
-        interval = (laterTime - earlierTime).sec
+        interval = (laterTime - earlierTime).seconds
 
-        if interval > self.warningThreshold:
-            self.log.warning(
-                f"Interpolating between values more than {self.warningThreshold / 60:.1f} mins apart."
-            )
         if interval > self.errorThreshold:
             raise ValueError(
                 f"Requested time {time.isot} would require interpolating between values more "
                 f"than {self.errorThreshold} apart: {interval:.2f} seconds."
             )
-
-        # Perform linear interpolation
-        t1 = earlierTime.mjd
-        t2 = laterTime.mjd
-        t = time.mjd
-
-        def interpolate(value1: float, value2: float) -> float:
-            return value1 + (value2 - value1) * ((t - t1) / (t2 - t1))
-
-        seeing = interpolate(earlier["seeing"], later["seeing"])
-        freeAtmSeeing = interpolate(earlier["freeAtmSeeing"], later["freeAtmSeeing"])
-        groundLayer = interpolate(earlier["groundLayer"], later["groundLayer"])
+        if interval > self.warningThreshold:
+            self.log.warning(
+                f"Interpolating between values more than {self.warningThreshold / 60:.1f} mins apart."
+            )
 
         return SeeingConditions(
-            timestamp=time, seeing=seeing, freeAtmSeeing=freeAtmSeeing, groundLayer=groundLayer
-        )
-
-    def rowToSeeingConditions(self, row: pd.Series) -> SeeingConditions:
-        return SeeingConditions(
-            timestamp=row.name,
-            seeing=row["seeing"],
-            freeAtmSeeing=row["freeAtmSeeing"],
-            groundLayer=row["groundLayer"],
+            rows=[earlier, later],
         )
 
     def getMostRecentTimestamp(self) -> Time:
-        self._reload()
-        return Time(self.df.index[-1])
+        now = Time.now() + TimeDelta(10, format="sec")
+        row = getMostRecentRowWithDataBefore(
+            self.client,
+            RINGSS_TOPIC,
+            now,
+            maxSearchNMinutes=self.errorThreshold / 60,
+        )
+        return Time(row.name)
 
     def getMostRecentSeeing(self) -> SeeingConditions:
-        self._reload()
-        return self.rowToSeeingConditions(self.df.iloc[-1])
+        now = Time.now() + TimeDelta(10, format="sec")
+        try:
+            row = getMostRecentRowWithDataBefore(
+                self.client,
+                RINGSS_TOPIC,
+                now,
+                maxSearchNMinutes=self.errorThreshold / 60,
+            )
+        except ValueError as e:
+            raise ValueError("Could not get SeeingConditions - no data available in the EFD.") from e
+
+        # XXX add validity checks here
+
+        return SeeingConditions([row])
 
     def getSeeingForDataId(self, butler: Butler, dataId: DataCoordinate) -> SeeingConditions:
         (expRecord,) = butler.registry.queryDimensionRecords("exposure", dataId=dataId)
@@ -202,12 +351,10 @@ class SoarSeeingMonitor:
     def plotSeeingForDayObs(
         self, dayObs: int, addMostRecentBox: bool = True, fig: Figure | None = None
     ) -> Figure:
-        self._reload()
         startTime = getDayObsStartTime(dayObs)
         endTime = getDayObsEndTime(dayObs)
-        mask = (self.df.index >= startTime) & (self.df.index <= endTime)
-        maskedDf = self.df.loc[mask].copy()
-        fig = self.plotSeeing(maskedDf, addMostRecentBox=addMostRecentBox, fig=fig)
+        data = getEfdData(self.client, RINGSS_TOPIC, begin=startTime, end=endTime, warn=False)
+        fig = self.plotSeeing(data, addMostRecentBox=addMostRecentBox, fig=fig)
         return fig
 
     def plotSeeing(
@@ -220,8 +367,11 @@ class SoarSeeingMonitor:
         if df.empty:
             raise ValueError("No data to plot for the given time range.")
 
+        seeings = [SeeingConditions([row]) for _, row in df.iterrows()]
+
         if fig is None:
-            fig, ax1 = plt.subplots(figsize=(18, 10))
+            fig = make_figure(figsize=(18, 10))
+            ax1 = fig.add_subplot(111)
         else:
             fig = self.fig
             fig.clear()
@@ -237,11 +387,13 @@ class SoarSeeingMonitor:
                 utc_time = utc.localize(utc_time)
             return utc_time.astimezone(chile_tz)
 
-        df.index = pd.DatetimeIndex([t.to_datetime() for t in df.index])
+        df.index = pd.DatetimeIndex([t for t in df.index])
 
-        ax1.plot(df["seeing"], "g", label="Seeing", ls=ls, marker=ms)
-        ax1.plot(df["freeAtmSeeing"], "b", label="Free atmos. seeing", ls=ls, marker=ms)
-        ax1.plot(df["groundLayer"], "r", label="Ground layer", ls=ls, marker=ms)
+        ax1.plot([seeing.fwhmFree for seeing in seeings], "b", label='Free atmos. seeing"', ls=ls, marker=ms)
+        ax1.plot([seeing.seeing for seeing in seeings], "r", label='Seeing "', ls=ls, marker=ms)
+        ax1.plot(
+            [seeing.seeing2 for seeing in seeings], "g", label='Profile adjusted seeing "', ls=ls, marker=ms
+        )
 
         ax2 = ax1.twiny()
         ax2.set_xlim(ax1.get_xlim())
@@ -255,7 +407,7 @@ class SoarSeeingMonitor:
         offset_ticks = [offset_time_aware(num2date(tick)) for tick in ax1.get_xticks()]
         ax2.set_xticklabels([tick.strftime("%H:%M:%S") for tick in offset_ticks])
 
-        ax1.set_ylim(0, 1.1 * max(df["seeing"]))
+        ax1.set_ylim(0, 1.1 * max([s.seeing2 for s in seeings]))
         ax1.set_xlabel("Time (UTC)")
         ax2.set_xlabel("Time (Chilean Time)")
         ax1.set_ylabel("Seeing (arcsec)")
@@ -267,11 +419,10 @@ class SoarSeeingMonitor:
 
         # Calculate current seeing and age of data
         if addMostRecentBox:
-            lastTime = Time(df.index[-1])
-            currentSeeing = df["seeing"].iloc[-1]
-            justTime = lastTime.isot.split("T")[1].split(".")[0]
+            currentSeeing = seeings[-1]
+            justTime = currentSeeing.timestamp.isot.split("T")[1].split(".")[0]
 
-            text = f'Current Seeing: {currentSeeing:.2f}"\n' f"Last updated @ {justTime} UTC"
+            text = f'Current Seeing: {currentSeeing.seeing:.2f}"\n' f"Last updated @ {justTime} UTC"
             ax1.text(
                 0.05,
                 0.95,
@@ -284,230 +435,3 @@ class SoarSeeingMonitor:
             )
 
         return fig
-
-
-class SoarDatabaseBuiler:
-    def __init__(self):
-        try:
-            import easyocr
-        except ImportError:
-            raise ImportError(
-                "The 'easyocr' package is required to do the scraping."
-                "Either `pip install easyocr` or file an RFC!"
-            )
-        site = getSite()
-        self.STORE_FILE = STORE_FILE[site]
-        self.ERROR_FILE = ERROR_FILE[site]
-        self.FAILED_FILES_DIR = FAILED_FILES_DIR[site]
-
-        logging.getLogger("easyocr").setLevel(logging.ERROR)
-        self.reader = easyocr.Reader(["en"])  # type: ignore
-
-        # Ensure the HDFStore file exists
-        if not os.path.exists(self.STORE_FILE):
-            with pd.HDFStore(self.STORE_FILE, mode="w") as store:  # noqa: F841
-                pass  # Create an empty store
-
-        print(f"Writing to database at {self.STORE_FILE}")
-
-        self.last_etag = None
-        self.lastModified = None
-
-    def getCurrentSeeingFromWebsite(self) -> SeeingConditions | None:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; SoarSeeingMonitor/1.0; +http://tellmeyourseeing.com/bot)"
-        }
-
-        # Add conditional headers if we have previous values
-        if self.last_etag:
-            headers["If-None-Match"] = self.last_etag
-        if self.lastModified:
-            headers["If-Modified-Since"] = self.lastModified
-
-        try:
-            with requests.get(SOAR_IMAGE_URL, stream=True) as response:
-                if response.status_code == 304:
-                    # Resource has not changed; no need to process
-                    print("Image has not changed since the last check.")
-                    return None
-
-                response.raise_for_status()
-
-                self.last_etag = response.headers.get("ETag")
-                self.lastModified = response.headers.get("Last-Modified")
-
-                if "image" not in response.headers.get("Content-Type", ""):
-                    raise ValueError("URL did not return an image.")
-
-                imageData = response.content
-                seeingConditions = self.getSeeingConditionsFromBytes(imageData)
-
-                return seeingConditions
-
-        except HTTPError as httpErr:
-            print(f"HTTP error occurred: {httpErr}")
-            # Handle HTTP errors (e.g., 403 Forbidden)
-            # You can implement backoff strategies or logging here
-            return None
-        except Exception as e:
-            # Log the exception
-            print(f"An error occurred: {e}")
-            with open(self.ERROR_FILE, "a") as f:
-                f.write(f"Exception at {datetime.now()}:\n")
-                traceback.print_exc(file=f)
-                if "imageData" in locals():
-                    filename = datetime.now().strftime("%Y-%m-%d_%H:%M:%S") + ".png"
-                    failedImagePath = os.path.join(self.FAILED_FILES_DIR, filename)
-                    with open(failedImagePath, "wb") as f:
-                        f.write(imageData)
-        return None
-
-    @staticmethod
-    def adjustCoords(coords, height):
-        (x0, y0), (x1, y1) = coords
-        # Adjust y coordinates
-        y0_new = height - y0
-        y1_new = height - y1
-        # Ensure that upper < lower for the crop function
-        upper = min(y0_new, y1_new)
-        lower = max(y0_new, y1_new)
-        return (x0, upper, x1, lower)
-
-    def getSeeingConditionsFromBytes(self, imageData):
-        inputImage = Image.open(io.BytesIO(imageData))
-        _, height = inputImage.size  # Get image dimensions
-        coordinates = {name: self.adjustCoords(coords, height) for name, coords in USER_COORDINATES.items()}
-
-        # Crop and store sub-images in variables
-        dateImage = inputImage.crop(coordinates["dateImage"])
-        seeingImage = inputImage.crop(coordinates["seeingImage"])
-        freeAtmSeeingImage = inputImage.crop(coordinates["freeAtmSeeingImage"])
-        groundLayerImage = inputImage.crop(coordinates["groundLayerImage"])
-
-        date = self._getDateTime(dateImage)
-        seeing = self._getSeeingNumber(seeingImage)
-        freeAtmSeeing = self._getSeeingNumber(freeAtmSeeingImage)
-        groundLayer = self._getSeeingNumber(groundLayerImage)
-
-        return SeeingConditions(date, seeing, freeAtmSeeing, groundLayer)
-
-    def getLastTimestamp(self) -> Time | None:
-        """Retrieve the last timestamp from the HDFStore."""
-        with pd.HDFStore(self.STORE_FILE, mode="r") as store:
-            if "/data" in store.keys():
-                last_row = store.select("data", start=-1)
-                if not last_row.empty:
-                    return last_row.index[-1]
-        return None
-
-    def run(self):
-        lastTimestamp = self.getLastTimestamp()
-        while True:
-            if getSunAngle() > -2:
-                print("Sun is too high, waiting for the SOAR seeing monitor to have a chance...")
-                time.sleep(60)
-                continue
-
-            print("Fetching the current seeing conditions... ", end="")
-            seeing = self.getCurrentSeeingFromWebsite()
-            if seeing is None:
-                print("Something went wrong in the data scraping - check the error logs.")
-                time.sleep(30)
-                continue
-            newTimestamp = seeing.timestamp
-
-            # Check if the new timestamp is newer than the last recorded one
-            if lastTimestamp is None or newTimestamp > lastTimestamp:
-                # Create a DataFrame for the new data
-                print(f'seeing = {seeing.seeing}" @ {newTimestamp} UTC')
-                df = pd.DataFrame(
-                    {
-                        "seeing": [seeing.seeing],
-                        "freeAtmSeeing": [seeing.freeAtmSeeing],
-                        "groundLayer": [seeing.groundLayer],
-                    },
-                    index=[seeing.timestamp.to_datetime()],
-                )
-
-                # Append the new data to the HDFStore
-                with pd.HDFStore(self.STORE_FILE, mode="a") as store:
-                    store.append("data", df, format="table", data_columns=True)
-
-                lastTimestamp = newTimestamp
-            else:
-                print("no updates since last time.")
-
-            time.sleep(30)
-
-    @staticmethod
-    def fixMissingColon(dateString):
-        # Match the format "YYYY-MM-DD HHMM:SS"
-        match = re.match(r"^\d{4}-\d{2}-\d{2} \d{4}:\d{2}$", dateString)
-        if match:
-            # Add the colon in the HHMM part
-            return dateString[:11] + dateString[11:13] + ":" + dateString[13:]
-        return dateString  # Return unmodified if the format doesn't match
-
-    def _getDateTime(self, dateImage) -> Time:
-        dateImage = self._preprocessImage(dateImage)
-        # dateImage_np = np.array(dateImage)
-        results = self.reader.readtext(dateImage, detail=0)
-        dateString = " ".join(results).strip()
-        # replace common OCR errors
-        dateString = dateString.replace(".", ":")
-        dateString = dateString.replace(",", ":")
-        dateString = dateString.replace(";", ":")
-        dateString = dateString.replace("o", "0")
-        dateString = dateString.replace("O", "0")
-        dateString = dateString.replace("i", "1")
-        dateString = dateString.replace("l", "1")
-        dateString = dateString.replace("I", "1")
-        dateString = dateString.replace("::", ":")
-        dateString = dateString.replace("*", ":")
-        dateString = dateString.replace(" :", ":")
-        dateString = self.fixMissingColon(dateString)
-
-        try:
-            date = datetime.strptime(dateString, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            # If the format doesn't match, try alternative formats
-            # For example, if there's an underscore instead of a space
-            date = datetime.strptime(dateString, "%Y-%m-%d_%H:%M:%S")
-
-        astopyTime = Time(val=date.isoformat(), format="isot")
-
-        return astopyTime
-
-    @staticmethod
-    def thresholdImage(image, threshold):
-        return image.point(lambda x: 0 if x < threshold else 255, "L")
-
-    def _preprocessImage(self, image):
-        scaleFactor = 4  # You can adjust this factor as needed
-        newSize = (image.width * scaleFactor, image.height * scaleFactor)
-        image = image.resize(newSize, resample=resample_filter)
-
-        imageGrayscale = image.convert("L")
-
-        enhancer = ImageEnhance.Contrast(imageGrayscale)
-        imageGrayContrastEnhanced = enhancer.enhance(2.0)  # Increase contrast by a factor of 2
-
-        threshold = 128
-
-        imageBw = self.thresholdImage(imageGrayContrastEnhanced, threshold)
-        imageBwNumpy = np.array(imageBw).astype(np.uint8)
-        return imageBwNumpy
-
-    def _getSeeingNumber(self, image) -> float:
-        image = self._preprocessImage(image)
-
-        results = self.reader.readtext(image, detail=0, contrast_ths=0.1, adjust_contrast=0.5)
-        seeing_text = " ".join(results).strip()
-
-        match = re.search(r"[-+]?\d*\.\d+|\d+", seeing_text)
-        if match:
-            seeing_value = float(match.group())
-            return seeing_value
-        else:
-            print("No numerical value found in the OCR result.")
-            return float("nan")
