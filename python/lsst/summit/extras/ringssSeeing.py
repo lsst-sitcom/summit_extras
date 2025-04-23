@@ -246,7 +246,7 @@ class SeeingConditions:
         )
 
 
-class SoarSeeingMonitor:
+class RingssSeeingMonitor:
     def __init__(
         self, efdClient: EfdClient, warningThreshold: float = 300, errorThreshold: float = 600
     ) -> None:
