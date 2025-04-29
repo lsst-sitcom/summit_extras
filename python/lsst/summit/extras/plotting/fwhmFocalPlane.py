@@ -112,6 +112,12 @@ def makeFocalPlaneFWHMPlot(
     saveAs : `str`, optional
         The file path to save the figure.
     """
+    # If vmin and vmax are None, use the min and max of the FWHM values
+    if vmin is None:
+        vmin = np.nanmin(fwhmValues)
+    if vmax is None:
+        vmax = np.nanmax(fwhmValues)
+
     norm = Normalize(vmin=vmin, vmax=vmax)
     cmap = plt.cm.viridis
 
