@@ -25,6 +25,7 @@ import glob
 import json
 import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import astropy.units as u
@@ -138,8 +139,8 @@ class AllSkyDatabase:
     def __init__(
         self, dataPath: str = "/sdf/data/rubin/offline/allsky/storage", warningThreshold: float = 5 * 60
     ) -> None:
-        self._data = {}
-        self.dataPath = dataPath
+        self._data: dict[str, datetime.datetime] = {}
+        self.rawDataPath = Path(dataPath)
         self.warningThreshold = warningThreshold  # Threshold in seconds
         self.log = logging.getLogger(__name__)
         logging.basicConfig(level=logging.WARNING)  # Set the default logging level to WARNING
@@ -178,7 +179,8 @@ class AllSkyDatabase:
     def update(self) -> None:
         """Crawl the directories and update the database with any new files."""
         scannedFiles = set(self._data.values())
-        dirs = glob.glob(os.path.join(self.dataPath, "/ut2*"))
+        dirs = self.rawDataPath.glob("ut2*")
+        dirs = [d for d in dirs if d.is_dir()]
         nNewFiles = 0
         self.log.info(f"Updating database with files from {len(dirs)} directories")
         for dirName in dirs:
