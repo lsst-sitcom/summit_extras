@@ -18,12 +18,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from __future__ import annotations
 
 import datetime
 import glob
 import json
 import logging
 import os
+from typing import TYPE_CHECKING
 
 import astropy.units as u
 import matplotlib.pylab as plt
@@ -32,8 +34,13 @@ from astropy import wcs
 from astropy.coordinates import EarthLocation, SkyCoord, get_body
 from PIL import Image
 
+if TYPE_CHECKING:
+    from lsst.daf.butler import DimensionRecord
 
-def getDirName(dataRoot, date):
+FOVS = {"LSSTCam": 3.5 * u.deg, "LSSTComCam": 0.7 * u.deg, "LATISS": 6.7 * u.arcmin}
+
+
+def getDirName(dataRoot: str, date: datetime.datetime) -> str:
     """
     Returns the directory name for a given date in the format 'utYYMMDD'.
 
@@ -53,7 +60,7 @@ def getDirName(dataRoot, date):
     return os.path.join(dataRoot, dirName)
 
 
-def getDayObsFromDirName(dirName):
+def getDayObsFromDirName(dirName: str) -> int:
     """
     Return the dayObs integer for the directory name.
 
@@ -79,7 +86,7 @@ def getDayObsFromDirName(dirName):
     return int(f"20{baseDir[2:]}")
 
 
-def getJpgCreatedDatetime(filename):
+def getJpgCreatedDatetime(filename: str) -> datetime.datetime | None:
     """Get the creation datetime of a JPG image file from its Exif metadata.
 
     Parameters
@@ -128,14 +135,16 @@ class AllSkyDatabase:
         is more than this number of seconds away from the specified datetime.
     """
 
-    def __init__(self, dataPath="/sdf/data/rubin/offline/allsky/storage", warningThreshold=5 * 60):
+    def __init__(
+        self, dataPath: str = "/sdf/data/rubin/offline/allsky/storage", warningThreshold: float = 5 * 60
+    ) -> None:
         self._data = {}
         self.dataPath = dataPath
         self.warningThreshold = warningThreshold  # Threshold in seconds
         self.log = logging.getLogger(__name__)
         logging.basicConfig(level=logging.WARNING)  # Set the default logging level to WARNING
 
-    def findClosest(self, targetDatetime, failDistance=10 * 60):
+    def findClosest(self, targetDatetime: datetime.datetime, failDistance: float = 10 * 60) -> str | None:
         """Find the filen taken most closely in time to the specified datetime.
 
         Parameters
@@ -166,7 +175,7 @@ class AllSkyDatabase:
 
         return self._data[closestDt]
 
-    def update(self):
+    def update(self) -> None:
         """Crawl the directories and update the database with any new files."""
         scannedFiles = set(self._data.values())
         dirs = glob.glob(os.path.join(self.dataPath, "/ut2*"))
@@ -182,7 +191,7 @@ class AllSkyDatabase:
                 nNewFiles += 1
         self.log.info(f"Found {nNewFiles} new files")
 
-    def save(self, filepath):
+    def save(self, filepath: str) -> None:
         """Save the database to a file.
 
         Parameters
@@ -197,7 +206,7 @@ class AllSkyDatabase:
             json.dump(serializedData, f)
 
     @classmethod
-    def load(cls, filepath):
+    def load(cls, filepath: str) -> AllSkyDatabase:
         """Load the database from a file and return an instance of the class.
 
         Parameters
@@ -215,7 +224,7 @@ class AllSkyDatabase:
             return instance
 
 
-def getAllSkyWcs():
+def getAllSkyWcs() -> wcs.WCS:
     # Solution from Peter
     w = wcs.WCS(naxis=2)
     x0 = np.array(
@@ -241,7 +250,9 @@ def getAllSkyWcs():
     return w
 
 
-def makeCircle(az, alt, radius, points=100):
+def makeCircle(
+    az: u.quantity.Quantity, alt: u.quantity.Quantity, radius: u.quantity.Quantity, points: int = 100
+) -> tuple[u.quantity.Quantity, u.quantity.Quantity]:
     """Generate a circle on a unit sphere centered at az,alt and with specified
     radius."""
     # 3d vector along altaz
@@ -270,7 +281,7 @@ def makeCircle(az, alt, radius, points=100):
     return az.to(u.deg), alt.to(u.deg)
 
 
-def getBrightObjects():
+def getBrightObjects() -> tuple[list[SkyCoord], list[str]]:
     # Objects of possible interest
     lmc = SkyCoord.from_name("LMC")
     smc = SkyCoord.from_name("SMC")
@@ -287,10 +298,9 @@ def getBrightObjects():
     return objs, names
 
 
-FOVS = {"LSSTCam": 3.5 * u.deg, "LSSTComCam": 0.7 * u.deg, "LATISS": 6.7 * u.arcmin}
-
-
-def plotAllSkyProjection(expRecords, allSkyDatabase):
+def plotAllSkyProjection(
+    expRecords: list[DimensionRecord], allSkyDatabase: AllSkyDatabase
+) -> plt.Figure | None:
 
     try:
         iter(expRecords)
