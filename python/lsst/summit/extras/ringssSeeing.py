@@ -139,7 +139,7 @@ class SeeingConditions:
 
     @property
     def starName(self) -> str:
-        """Alias for starName including the HR part."""
+        """Alias for starName including the HD part."""
         return f"HD{self.starName}"
 
     @property
@@ -256,6 +256,18 @@ class RingssSeeingMonitor:
         self.client = efdClient
 
     def getSeeingAtTime(self, time: Time) -> SeeingConditions:
+        """Get the seeing conditions at a specific time.
+
+        Parameters
+        ----------
+        time : `Time`
+            The time at which to get the seeing conditions.
+
+        Returns
+        -------
+        seeing : `SeeingConditions`
+            The seeing conditions at the specified time.
+        """
         begin = time - TimeDelta(self.errorThreshold, format="sec")
         end = time + TimeDelta(self.errorThreshold, format="sec")
         data = getEfdData(self.client, RINGSS_TOPIC, begin=begin, end=end, warn=False)
@@ -315,6 +327,13 @@ class RingssSeeingMonitor:
         )
 
     def getMostRecentTimestamp(self) -> Time:
+        """Get the most recent timestamp for which seeing data is available.
+
+        Returns
+        -------
+        time : `Time`
+            The most recent timestamp with seeing data.
+        """
         now = Time.now() + TimeDelta(10, format="sec")
         row = getMostRecentRowWithDataBefore(
             self.client,
@@ -325,6 +344,18 @@ class RingssSeeingMonitor:
         return Time(row.name)
 
     def getMostRecentSeeing(self) -> SeeingConditions:
+        """Get the most recent seeing conditions.
+
+        Returns
+        -------
+        seeing : `SeeingConditions`
+            The most recent seeing conditions.
+
+        Raises
+        ------
+        ValueError
+            If no data is available in the EFD within the error threshold.
+        """
         now = Time.now() + TimeDelta(10, format="sec")
         try:
             row = getMostRecentRowWithDataBefore(
@@ -341,16 +372,58 @@ class RingssSeeingMonitor:
         return SeeingConditions([row])
 
     def getSeeingForDataId(self, butler: Butler, dataId: DataCoordinate) -> SeeingConditions:
+        """Get the seeing conditions for a specific data ID.
+
+        Parameters
+        ----------
+        butler : `Butler`
+            The Butler instance to query.
+        dataId : `DataCoordinate`
+            The data ID for which to get the seeing conditions.
+
+        Returns
+        -------
+        seeing : `SeeingConditions`
+            The seeing conditions for the specified data ID.
+        """
         (expRecord,) = butler.registry.queryDimensionRecords("exposure", dataId=dataId)
         return self.getSeeingForExpRecord(expRecord)
 
     def getSeeingForExpRecord(self, expRecord: DimensionRecord) -> SeeingConditions:
+        """Get the seeing conditions for a specific exposure record.
+
+        Parameters
+        ----------
+        expRecord : `DimensionRecord`
+            The exposure record for which to get the seeing conditions.
+
+        Returns
+        -------
+        seeing : `SeeingConditions`
+            The seeing conditions for the specified exposure record.
+        """
         midPoint = expRecord.timespan.begin + TimeDelta(expRecord.exposure_time / 2, format="sec")
         return self.getSeeingAtTime(midPoint)
 
     def plotSeeingForDayObs(
         self, dayObs: int, addMostRecentBox: bool = True, fig: Figure | None = None
     ) -> Figure:
+        """Plot the seeing conditions for a specific day observation.
+
+        Parameters
+        ----------
+        dayObs : `int`
+            The dayObs to plot the seeing for, in YYYYMMDD format.
+        addMostRecentBox : `bool`, optional
+            Whether to add a box with the most recent seeing conditions.
+        fig : `Figure`, optional
+            The figure to plot on. If None, a new figure will be created.
+
+        Returns
+        -------
+        fig : `Figure`
+            The figure with the plotted seeing conditions.
+        """
         startTime = getDayObsStartTime(dayObs)
         endTime = getDayObsEndTime(dayObs)
         data = getEfdData(self.client, RINGSS_TOPIC, begin=startTime, end=endTime, warn=False)
@@ -360,6 +433,22 @@ class RingssSeeingMonitor:
     def plotSeeing(
         self, dataframe: DataFrame, addMostRecentBox: bool = True, fig: Figure | None = None
     ) -> Figure:
+        """Plot the seeing conditions from a DataFrame.
+
+        Parameters
+        ----------
+        dataframe : `DataFrame`
+            The DataFrame containing the seeing conditions data.
+        addMostRecentBox : `bool`, optional
+            Whether to add a box with the most recent seeing conditions.
+        fig : `Figure`, optional
+            The figure to plot on. If None, a new figure will be created.
+
+        Returns
+        -------
+        fig : `Figure`
+            The figure with the plotted seeing conditions.
+        """
         ls = "-"
         ms = "o"
         df = dataframe
