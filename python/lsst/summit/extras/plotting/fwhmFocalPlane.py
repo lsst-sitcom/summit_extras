@@ -83,6 +83,7 @@ def makeFocalPlaneFWHMPlot(
     vmin: float | None = None,
     vmax: float | None = None,
     saveAs: str = "",
+    title: str = "",
 ):
     """Plot the FWHM across the Focal Plane, from the fwhm_values
     and detector_ids. The FWHM values are plotted per detector on
@@ -111,6 +112,8 @@ def makeFocalPlaneFWHMPlot(
         The maximum value for the color map
     saveAs : `str`, optional
         The file path to save the figure.
+    title : `str`, optional
+        The title of the plot. If not provided, no title is set.
     """
     # If vmin and vmax are None, use the min and max of the FWHM values
     if vmin is None:
@@ -170,6 +173,8 @@ def makeFocalPlaneFWHMPlot(
     plt.ylabel("Field Angle X [deg]")
     plt.axis("equal")
     plt.grid(True, alpha=0.3)
+    if title:
+        fig.suptitle(title, fontsize=18)
 
     fig.tight_layout()
     if saveAs:
