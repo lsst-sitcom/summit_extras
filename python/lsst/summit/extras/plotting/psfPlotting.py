@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from astropy.table import Table, vstack
 from matplotlib.gridspec import GridSpec
-from matplotlib.patches import Polygon
+from matplotlib.patches import FancyArrowPatch, Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from lsst.afw.cameraGeom import FIELD_ANGLE, FOCAL_PLANE, DetectorType
@@ -62,6 +62,109 @@ if TYPE_CHECKING:
 FULL_CAMERA_FACTOR = 4.5
 QUIVER_SCALE = 5.0
 MM_TO_DEG = 100 * 0.2 / 3600  # Close enough
+
+
+def add_roses(
+    fig: Figure,
+    azel_th: float,
+    xy_th: float,
+    nw_th: float,
+) -> None:
+    """Add compass roses to the figure.
+
+    Parameters
+    ----------
+    fig : `matplotlib.figure.Figure`
+        The figure to which the compass roses will be added.
+    azel_th : `float`
+        The angle in radians for the azimuth/elevation compass rose.
+    xy_th : `float`
+        The angle in radians for the x/y compass rose.
+    nw_th : `float`
+        The angle in radians for the north/west compass rose.
+    """
+    # Az/El
+    add_rose_petal(
+        fig,
+        "az",
+        np.r_[-np.sin(azel_th), np.cos(azel_th)],
+        "g",
+    )
+    add_rose_petal(
+        fig,
+        "el",
+        -np.r_[np.cos(azel_th), np.sin(azel_th)],
+        "g",
+    )
+    # N/W
+    add_rose_petal(
+        fig,
+        "N",
+        np.r_[np.sin(nw_th), np.cos(nw_th)],
+        "r",
+    )
+    add_rose_petal(
+        fig,
+        "W",
+        np.r_[np.cos(nw_th), -np.sin(nw_th)],
+        "r",
+    )
+    # x/y
+    add_rose_petal(
+        fig,
+        "x",
+        np.r_[np.cos(xy_th), np.sin(xy_th)],
+        "k",
+    )
+    add_rose_petal(
+        fig,
+        "y",
+        np.r_[-np.sin(xy_th), np.cos(xy_th)],
+        "k",
+    )
+
+
+def add_rose_petal(
+    fig: Figure,
+    key: str,
+    vec: npt.NDArray[np.float64],
+    color: str,
+) -> None:
+    """Add a rose petal to the figure.
+
+    Parameters
+    ----------
+    fig : `matplotlib.figure.Figure`
+        The figure to which the rose petal will be added.
+    key : `str`
+        The key for the rose petal, used for labeling.
+    vec : `numpy.ndarray`
+        The vector representing the direction of the rose petal.
+    color : `str`
+        The color of the rose petal.
+    """
+    size = fig.get_size_inches()
+    ratio = size[0] / size[1]
+
+    dp = 0.025 * vec[0], 0.025 * ratio * vec[1]
+    p0 = (0.085, 0.1)
+    p1 = p0[0] + dp[0], p0[1] + dp[1]
+
+    fig.patches.append(
+        FancyArrowPatch(
+            p0,
+            p1,
+            transform=fig.transFigure,
+            color=color,
+            arrowstyle="-|>",
+            mutation_scale=7,
+            lw=0.5,
+        )
+    )
+
+    dp = 1.2 * 0.025 * vec[0], 1.2 * 0.025 * ratio * vec[1]
+    p1 = p0[0] + dp[0], p0[1] + dp[1]
+    fig.text(p1[0], p1[1], key, color=color, ha="center", va="center", fontsize=7)
 
 
 class CapturePrintToAxis:
@@ -611,6 +714,8 @@ def makeFocalPlanePlot(
             rot,
         )
 
+    add_roses(fig, table.meta["rotTelPos"], 0.0, table.meta["rotSkyPos"])
+
     if saveAs:
         fig.savefig(saveAs)
 
@@ -704,6 +809,8 @@ def makeEquatorialPlot(
             xy_factor=MM_TO_DEG,
         )
 
+    add_roses(fig, table.meta["rotTelPos"] + table.meta["rotSkyPos"], table.meta["rotSkyPos"], 0.0)
+
     if saveAs:
         fig.savefig(saveAs)
 
@@ -796,6 +903,8 @@ def makeAzElPlot(
             rot,
             xy_factor=MM_TO_DEG,
         )
+
+    add_roses(fig, -np.pi / 2, -np.pi / 2 - table.meta["rotTelPos"], -table.meta["rotSkyPos"])
 
     if saveAs:
         fig.savefig(saveAs)
