@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from astropy.table import Table, vstack
 from matplotlib.gridspec import GridSpec
-from matplotlib.patches import FancyArrowPatch, Polygon
+from matplotlib.patches import Ellipse, FancyArrowPatch, Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from lsst.afw.cameraGeom import FIELD_ANGLE, FOCAL_PLANE, DetectorType
@@ -122,6 +122,20 @@ def add_roses(
         np.r_[-np.sin(xy_th), np.cos(xy_th)],
         "k",
     )
+    size = fig.get_size_inches()
+    ratio = size[0] / size[1]
+    fig.patches.append(
+        Ellipse(
+            (0.297, 0.475),
+            width=0.12,
+            height=0.12 * ratio,
+            transform=fig.transFigure,
+            color="w",
+            ec="k",
+            lw=0.75,
+            zorder=10,
+        )
+    )
 
 
 def add_rose_petal(
@@ -145,9 +159,11 @@ def add_rose_petal(
     """
     size = fig.get_size_inches()
     ratio = size[0] / size[1]
+    length = 0.04
 
-    dp = 0.025 * vec[0], 0.025 * ratio * vec[1]
-    p0 = (0.085, 0.1)
+    dp = length * vec[0], length * ratio * vec[1]
+    # p0 = (0.085, 0.1)
+    p0 = (0.297, 0.475)
     p1 = p0[0] + dp[0], p0[1] + dp[1]
 
     fig.patches.append(
@@ -157,14 +173,15 @@ def add_rose_petal(
             transform=fig.transFigure,
             color=color,
             arrowstyle="-|>",
-            mutation_scale=7,
-            lw=0.5,
+            mutation_scale=10,
+            lw=1.5,
+            zorder=20,
         )
     )
 
-    dp = 1.2 * 0.025 * vec[0], 1.2 * 0.025 * ratio * vec[1]
+    dp = 1.2 * length * vec[0], 1.2 * length * ratio * vec[1]
     p1 = p0[0] + dp[0], p0[1] + dp[1]
-    fig.text(p1[0], p1[1], key, color=color, ha="center", va="center", fontsize=7)
+    fig.text(p1[0], p1[1], key, color=color, ha="center", va="center", fontsize=10, zorder=20)
 
 
 class CapturePrintToAxis:
@@ -495,7 +512,7 @@ def plotData(
 
     cbar = addColorbarToAxes(axs[1, 1].scatter(x, y, c=e2, vmin=-emax, vmax=emax, cmap="bwr", s=5))
     cbar.set_label("e")
-    axs[1, 1].text(0.05, 0.92, "e2", transform=axs[1, 1].transAxes, fontsize=10)
+    axs[1, 1].text(0.89, 0.92, "e2", transform=axs[1, 1].transAxes, fontsize=10)
 
     # FWHM hist
     axs[0, 2].hist(fwhm, bins=int(np.sqrt(len(table))), color="C0")
