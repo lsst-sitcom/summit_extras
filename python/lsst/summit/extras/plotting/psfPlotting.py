@@ -444,7 +444,7 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
 
 def plotData(
     fig: Figure,
-    axs: np.ndarray[Axes],
+    axs: npt.NDArray[np.object_],
     table: Table,
     camera: Camera,
     prefix: str = "",
@@ -523,9 +523,9 @@ def plotData(
 
 def outlineDetectors(
     fig: Figure,
-    axs: np.ndarray[Axes],
+    axs: npt.NDArray[np.object_],
     camera: Camera,
-    rot: np.ndarray[float],
+    rot: npt.NDArray[np.float64],
     rotAngle: float,
     xy_factor: float = 1.0,
 ):
@@ -584,9 +584,9 @@ def outlineDetectors(
 
 def shadeRafts(
     fig: Figure,
-    axs: np.ndarray[Axes],
+    axs: npt.NDArray[np.object_],
     camera: Camera,
-    rot: np.ndarray[float],
+    rot: npt.NDArray[np.float64],
     xy_factor: float = 1.0,
 ):
     """Shade the rafts in the focal plane plot.
@@ -629,7 +629,7 @@ def shadeRafts(
 
 def makeFocalPlanePlot(
     fig: Figure,
-    axs: np.ndarray[Axes],
+    axs: npt.NDArray[np.object_],
     table: Table,
     camera: Camera,
     maxPointsPerDetector: int = 5,
@@ -722,7 +722,7 @@ def makeFocalPlanePlot(
 
 def makeEquatorialPlot(
     fig: Figure,
-    axs: np.ndarray[Axes],
+    axs: npt.NDArray[np.object_],
     table: Table,
     camera: Camera,
     maxPointsPerDetector: int = 5,
@@ -817,7 +817,7 @@ def makeEquatorialPlot(
 
 def makeAzElPlot(
     fig: Figure,
-    axs: np.ndarray[Axes],
+    axs: npt.NDArray[np.object_],
     table: Table,
     camera: Camera,
     maxPointsPerDetector: int = 5,
