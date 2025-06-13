@@ -41,7 +41,7 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Ellipse, FancyArrowPatch, Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from lsst.afw.cameraGeom import FIELD_ANGLE, FOCAL_PLANE, DetectorType
+from lsst.afw.cameraGeom import FOCAL_PLANE, DetectorType
 from lsst.afw.geom.ellipses import Quadrupole
 from lsst.geom import LinearTransform, radians
 from lsst.utils.plotting.figures import make_figure
@@ -379,8 +379,8 @@ def extendTable(
     prefix : `str`
         The prefix to be added to the column names of the rotated shapes.
     xy_factor: float, optional
-        A factor to scale the x and y coordinates. Default is 1.0, which means no
-        scaling.
+        A factor to scale the x and y coordinates. Default is 1.0, which means
+        no scaling.
 
     Returns
     -------
@@ -561,8 +561,8 @@ def outlineDetectors(
     rotAngle : `float`, optional
         The rotation angle in radians to apply to the detector labels.
     xy_factor : `float`, optional
-        A factor to scale the x and y coordinates. Default is 1.0, which means no
-        scaling.
+        A factor to scale the x and y coordinates. Default is 1.0, which means
+        no scaling.
     """
     for det in camera:
         if det.getType() != DetectorType.SCIENCE:
@@ -619,8 +619,8 @@ def shadeRafts(
     rot : `numpy.ndarray`
         The rotation matrix used to rotate the raft outlines.
     xy_factor : `float`, optional
-        A factor to scale the x and y coordinates. Default is 1.0, which means no
-        scaling.
+        A factor to scale the x and y coordinates. Default is 1.0, which means
+        no scaling.
     """
     for i in range(5):
         for j in range(5):
