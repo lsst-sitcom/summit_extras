@@ -35,14 +35,13 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
 from lsst.afw.cameraGeom import FIELD_ANGLE, Camera
-from lsst.afw.table import ExposureCatalog
 from lsst.obs.lsst import LsstCam
 
 if TYPE_CHECKING:
-    import numpy.typing as npt
+    from lsst.afw.table import ExposureCatalog
 
 
-def getFwhmValues(visitSummary: ExposureCatalog) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+def getFwhmValues(visitSummary: ExposureCatalog) -> dict[int, float]:
     """Get FWHM values and detector IDs from a visit summary.
 
     Parameters
@@ -52,37 +51,34 @@ def getFwhmValues(visitSummary: ExposureCatalog) -> tuple[npt.NDArray[np.float64
 
     Returns
     -------
-    fwhm_values : `numpy.ndarray`
-        The FWHM values from the visit summary.
-    detector_ids : `numpy.ndarray`
-        The detector IDs corresponding to the FWHM values.
+    fwhmValues : `dict[int, float]`
+        A dictionary mapping detector IDs to their corresponding FWHM values in
+        arcseconds.
     """
     camera = LsstCam().getCamera()
-    detectors = [det.getId() for det in camera]
+    detectors: list[int] = [det.getId() for det in camera]
 
-    fwhmValues = []
-    detectorIds = []
+    fwhmValues: dict[int, float] = {}
     for detectorId in detectors:
         row = visitSummary[visitSummary["id"] == detectorId]
 
         if len(row) > 0:
             psfSigma = row["psfSigma"][0]
             fwhm = psfSigma * 2.355 * 0.2  # Convert to microns (0.2"/pixel)
-            fwhmValues.append(fwhm)
-            detectorIds.append(detectorId)
+            fwhmValues[detectorId] = float(fwhm)
 
-    return np.array(fwhmValues), np.array(detectorIds)
+    return fwhmValues
 
 
 def makeFocalPlaneFWHMPlot(
     fig: plt.Figure,
     ax: plt.Axes,
-    fwhmValues: npt.NDArray[np.float64],
-    detectorIds: npt.NDArray[np.float64],
+    fwhmValues: dict[int, float],
     camera: Camera,
-    vMin: float = 0.5,
-    vMax: float = 1.2,
+    vmin: float | None = None,
+    vmax: float | None = None,
     saveAs: str = "",
+    title: str = "",
 ):
     """Plot the FWHM across the Focal Plane, from the fwhm_values
     and detector_ids. The FWHM values are plotted per detector on
@@ -99,23 +95,30 @@ def makeFocalPlaneFWHMPlot(
         The figure object to plot on.
     axes : `numpy.ndarray`
         The array of axes objects to plot on.
-    fwhm_values : `numpy.ndarray`
-        The FWHM values to plot.
-    detector_ids : `numpy.ndarray`
-        The IDs of the detectors corresponding to the FWHM values.
+    fwhmValues : `dict[int, float]`
+        A dictionary mapping detector IDs to their corresponding FWHM values
+        in arcseconds.
     camera : `list`
         The list of camera detector objects.
-    vMin : `float`, optional
-        The minimum value for the color map. Default is 0.5.
-    vMax : `float`, optional
-        The maximum value for the color map. Default is 1.2.
+    vmin : `float`, optional
+        The minimum value for the color map
+    vmax : `float`, optional
+        The maximum value for the color map
     saveAs : `str`, optional
         The file path to save the figure.
+    title : `str`, optional
+        The title of the plot. If not provided, no title is set.
     """
-    norm = Normalize(vmin=vMin, vmax=vMax)
+    # If vmin and vmax are None, use the min and max of the FWHM values
+    if vmin is None:
+        vmin = np.nanmin(list(fwhmValues.values()))
+    if vmax is None:
+        vmax = np.nanmax(list(fwhmValues.values()))
+
+    norm = Normalize(vmin=vmin, vmax=vmax)
     cmap = plt.cm.viridis
 
-    for i, detectorId in enumerate(detectorIds):
+    for detectorId, fwhm in fwhmValues.items():
         detector = camera.get(detectorId)
         corners = detector.getCorners(FIELD_ANGLE)
         cornersDeg = np.rad2deg(corners)
@@ -126,21 +129,20 @@ def makeFocalPlaneFWHMPlot(
         x = np.append(x, x[0])
         y = np.append(y, y[0])
 
-        color = cmap(norm(fwhmValues[i]))
+        color = cmap(norm(fwhm))
         ax.fill(x, y, color=color, edgecolor="gray", linewidth=0.5)
 
         # Compute center of detector for label
         xCenter = np.mean(cornersDeg[:, 0])
         yCenter = np.mean(cornersDeg[:, 1])
 
-        ax.text(
-            xCenter, yCenter, f"{fwhmValues[i]:.2f}", color="white", fontsize=10, ha="center", va="center"
-        )
+        ax.text(xCenter, yCenter, f"{fwhm:.2f}", color="white", fontsize=10, ha="center", va="center")
 
     # Calculate statistics
-    meanFwhm = np.nanmean(fwhmValues)
-    medianFwhm = np.nanmedian(fwhmValues)
-    stdFwhm = np.nanstd(fwhmValues)
+    fwhmValuesList = list(fwhmValues.values())
+    meanFwhm = np.nanmean(fwhmValuesList)
+    medianFwhm = np.nanmedian(fwhmValuesList)
+    stdFwhm = np.nanstd(fwhmValuesList)
 
     statsText = f"Mean: {meanFwhm:.2f}''\nMedian: {medianFwhm:.2f}''\nStd: {stdFwhm:.2f}''"
     ax.text(
@@ -164,6 +166,8 @@ def makeFocalPlaneFWHMPlot(
     plt.ylabel("Field Angle X [deg]")
     plt.axis("equal")
     plt.grid(True, alpha=0.3)
+    if title:
+        fig.suptitle(title, fontsize=18)
 
     fig.tight_layout()
     if saveAs:
