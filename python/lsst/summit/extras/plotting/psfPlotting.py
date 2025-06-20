@@ -276,17 +276,15 @@ def makeTableFromSourceCatalogs(icSrcs: dict[int, SourceCatalog], visitInfo: Vis
     # For az/el and equitorial, represent the field in degrees instead of mm.
     rtp = table.meta["rotTelPos"]
     srtp, crtp = np.sin(rtp), np.cos(rtp)
-    aa_rot = (
-        np.array([[crtp, srtp], [-srtp, crtp]]) @ np.array([[0, 1], [1, 0]]) @ np.array([[-1, 0], [0, 1]])
-    )
-    table = extendTable(table, aa_rot, "aa", MM_TO_DEG)
-    table.meta["aa_rot"] = aa_rot
+    aaRot = np.array([[crtp, srtp], [-srtp, crtp]]) @ np.array([[0, 1], [1, 0]]) @ np.array([[-1, 0], [0, 1]])
+    table = extendTable(table, aaRot, "aa", MM_TO_DEG)
+    table.meta["aaRot"] = aaRot
 
     rsp = table.meta["rotSkyPos"]
     srsp, crsp = np.sin(rsp), np.cos(rsp)
-    nw_rot = np.array([[crsp, -srsp], [srsp, crsp]])
-    table = extendTable(table, nw_rot, "nw", MM_TO_DEG)
-    table.meta["nw_rot"] = nw_rot
+    nwRot = np.array([[crsp, -srsp], [srsp, crsp]])
+    table = extendTable(table, nwRot, "nw", MM_TO_DEG)
+    table.meta["nwRot"] = nwRot
 
     return table
 
@@ -735,7 +733,7 @@ def makeEquatorialPlot(
         y=0.95,
     )
 
-    rot = table.meta["nw_rot"]
+    rot = table.meta["nwRot"]
     if oneRaftOnly:
         rotAngle = -table.meta["rotSkyPos"] - np.pi / 2
         outlineDetectors(
@@ -828,7 +826,7 @@ def makeAzElPlot(
         y=0.95,
     )
 
-    rot = table.meta["aa_rot"]
+    rot = table.meta["aaRot"]
     if oneRaftOnly:
         rotAngle = table.meta["rotTelPos"]
         outlineDetectors(
