@@ -32,7 +32,6 @@ __all__ = [
 ]
 
 
-import sys
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -182,49 +181,6 @@ def add_rose_petal(
     dp = 1.2 * length * vec[0], 1.2 * length * ratio * vec[1]
     p1 = p0[0] + dp[0], p0[1] + dp[1]
     fig.text(p1[0], p1[1], key, color=color, ha="center", va="center", fontsize=10, zorder=20)
-
-
-class CapturePrintToAxis:
-    """Capture print statements and write them to a matplotlib axis.
-
-    Parameters
-    ----------
-    ax : `matplotlib.axes.Axes`
-        The axes to which the printed text will be added.
-    x : `float`, optional
-        The x-coordinate in axes coordinates where the text will be placed.
-    y : `float`, optional
-        The y-coordinate in axes coordinates where the text will be placed.
-    **kwargs : `dict`, optional
-        Additional keyword arguments to be passed to the `ax.text` method,
-        such as `fontsize`, `ha`, `va`, etc.
-    """
-
-    def __init__(self, ax: Axes, x: float = 0.0, y: float = 1.0, **kwargs) -> None:
-        self.ax = ax
-        self.x = x
-        self.y = y
-        kwargs.setdefault("font", "monospace")
-        self.kwargs = kwargs
-        self.buf: list[str] = []
-
-    def write(self, text: str) -> None:
-        self.buf.append(text)
-
-    def flush(self) -> None:
-        pass
-
-    def __enter__(self) -> CapturePrintToAxis:
-        self.old_stdout = sys.stdout
-        sys.stdout = self
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
-        sys.stdout = self.old_stdout
-
-        text_str = "".join(self.buf)
-
-        self.ax.text(self.x, self.y, text_str, transform=self.ax.transAxes, **self.kwargs)
 
 
 def randomRows(table: Table, maxRows: int) -> Table:
@@ -510,26 +466,42 @@ def plotData(
 
     # FWHM hist
     axs[0, 2].hist(fwhm, bins=int(np.sqrt(len(table))), color="C0")
-    fwhm_percentile = np.nanpercentile(fwhm, [25, 50, 75])
-    with CapturePrintToAxis(axs[0, 2], x=0.95, y=0.95, ha="right", va="top", fontsize=9, font="monospace"):
-        print("FWHM [arcsec]")
-        print(f"25%: {fwhm_percentile[0]:.3f}")
-        print(f"50%: {fwhm_percentile[1]:.3f}")
-        print(f"75%: {fwhm_percentile[2]:.3f}")
-    axs[0, 2].axvline(fwhm_percentile[0], color="grey", lw=1)
-    axs[0, 2].axvline(fwhm_percentile[1], color="k", lw=2)
-    axs[0, 2].axvline(fwhm_percentile[2], color="grey", lw=1)
+    fwhm_quartiles = np.nanpercentile(fwhm, [25, 50, 75])
+    text_kwargs = {
+        "x": 0.95,
+        "y": 0.95,
+        "ha": "right",
+        "va": "top",
+        "fontsize": 9,
+        "font": "monospace",
+    }
+    s = "FWHM [arcsec]\n"
+    s += f"25%: {fwhm_quartiles[0]:.3f}\n"
+    s += f"50%: {fwhm_quartiles[1]:.3f}\n"
+    s += f"75%: {fwhm_quartiles[2]:.3f}\n"
+    axs[0, 2].text(
+        s=s,
+        transform=axs[0, 2].transAxes,
+        **text_kwargs,
+    )
+    axs[0, 2].axvline(fwhm_quartiles[0], color="grey", lw=1)
+    axs[0, 2].axvline(fwhm_quartiles[1], color="k", lw=2)
+    axs[0, 2].axvline(fwhm_quartiles[2], color="grey", lw=1)
 
     axs[1, 2].hist(e, bins=int(np.sqrt(len(table))), color="C1")
-    e_percentile = np.nanpercentile(e, [25, 50, 75])
-    with CapturePrintToAxis(axs[1, 2], x=0.95, y=0.95, ha="right", va="top", fontsize=9, font="monospace"):
-        print("e  ")
-        print(f"25%: {e_percentile[0]:.3f}")
-        print(f"50%: {e_percentile[1]:.3f}")
-        print(f"75%: {e_percentile[2]:.3f}")
-    axs[1, 2].axvline(e_percentile[0], color="grey", lw=1)
-    axs[1, 2].axvline(e_percentile[1], color="k", lw=2)
-    axs[1, 2].axvline(e_percentile[2], color="grey", lw=1)
+    e_quartiles = np.nanpercentile(e, [25, 50, 75])
+    s = "e  \n"
+    s += f"25%: {e_quartiles[0]:.3f}\n"
+    s += f"50%: {e_quartiles[1]:.3f}\n"
+    s += f"75%: {e_quartiles[2]:.3f}\n"
+    axs[1, 2].text(
+        s=s,
+        transform=axs[1, 2].transAxes,
+        **text_kwargs,
+    )
+    axs[1, 2].axvline(e_quartiles[0], color="grey", lw=1)
+    axs[1, 2].axvline(e_quartiles[1], color="k", lw=2)
+    axs[1, 2].axvline(e_quartiles[2], color="grey", lw=1)
 
 
 def outlineDetectors(
