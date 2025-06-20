@@ -46,9 +46,10 @@ from lsst.geom import LinearTransform, radians
 from lsst.utils.plotting.figures import make_figure
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Optional
 
     import numpy.typing as npt
+    from matplotlib.cm import ScalarMappable
     from matplotlib.colorbar import Colorbar
     from matplotlib.pyplot import Axes, Figure
 
@@ -231,7 +232,7 @@ def randomRowsPerDetector(table: Table, maxRowsPerDetector: int) -> Table:
     return table[keep]
 
 
-def addColorbarToAxes(mappable: Axes) -> Colorbar:
+def addColorbarToAxes(mappable: ScalarMappable) -> Colorbar:
     """Add a colorbar to the given axes.
 
     Parameters
@@ -244,7 +245,9 @@ def addColorbarToAxes(mappable: Axes) -> Colorbar:
     cbar : `matplotlib.colorbar.Colorbar`
         The colorbar object that was added to the axes.
     """
-    ax = mappable.axes
+    ax: Optional[Axes] = getattr(mappable, "axes", None)
+    if ax is None:
+        raise ValueError("The ScalarMappable does not have an associated Axes.")
     fig = ax.figure
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
