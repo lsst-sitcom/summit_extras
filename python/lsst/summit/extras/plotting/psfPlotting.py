@@ -64,11 +64,11 @@ QUIVER_SCALE = 5.0
 MM_TO_DEG = 100 * 0.2 / 3600  # Close enough
 
 
-def add_roses(
+def addRoses(
     fig: Figure,
-    azel_th: float,
-    xy_th: float,
-    nw_th: float,
+    azelAngle: float,
+    xyAngle: float,
+    nwAngle: float,
 ) -> None:
     """Add compass roses to the figure.
 
@@ -76,50 +76,50 @@ def add_roses(
     ----------
     fig : `matplotlib.figure.Figure`
         The figure to which the compass roses will be added.
-    azel_th : `float`
+    azelAngle : `float`
         The angle in radians for the azimuth/elevation compass rose.
-    xy_th : `float`
+    xyAngle : `float`
         The angle in radians for the x/y compass rose.
-    nw_th : `float`
+    nwAngle : `float`
         The angle in radians for the north/west compass rose.
     """
     # Az/El
-    add_rose_petal(
+    addRosePetal(
         fig,
         "az",
-        np.r_[-np.sin(azel_th), np.cos(azel_th)],
+        np.r_[-np.sin(azelAngle), np.cos(azelAngle)],
         "g",
     )
-    add_rose_petal(
+    addRosePetal(
         fig,
         "el",
-        -np.r_[np.cos(azel_th), np.sin(azel_th)],
+        -np.r_[np.cos(azelAngle), np.sin(azelAngle)],
         "g",
     )
     # N/W
-    add_rose_petal(
+    addRosePetal(
         fig,
         "N",
-        np.r_[np.sin(nw_th), np.cos(nw_th)],
+        np.r_[np.sin(nwAngle), np.cos(nwAngle)],
         "r",
     )
-    add_rose_petal(
+    addRosePetal(
         fig,
         "W",
-        np.r_[np.cos(nw_th), -np.sin(nw_th)],
+        np.r_[np.cos(nwAngle), -np.sin(nwAngle)],
         "r",
     )
     # x/y
-    add_rose_petal(
+    addRosePetal(
         fig,
         "x",
-        np.r_[np.cos(xy_th), np.sin(xy_th)],
+        np.r_[np.cos(xyAngle), np.sin(xyAngle)],
         "k",
     )
-    add_rose_petal(
+    addRosePetal(
         fig,
         "y",
-        np.r_[-np.sin(xy_th), np.cos(xy_th)],
+        np.r_[-np.sin(xyAngle), np.cos(xyAngle)],
         "k",
     )
     size = fig.get_size_inches()
@@ -138,7 +138,7 @@ def add_roses(
     )
 
 
-def add_rose_petal(
+def addRosePetal(
     fig: Figure,
     key: str,
     vec: npt.NDArray[np.float64],
@@ -162,7 +162,6 @@ def add_rose_petal(
     length = 0.04
 
     dp = length * vec[0], length * ratio * vec[1]
-    # p0 = (0.085, 0.1)
     p0 = (0.297, 0.475)
     p1 = p0[0] + dp[0], p0[1] + dp[1]
 
@@ -325,7 +324,7 @@ def extendTable(
     table: Table,
     rot: npt.NDArray[np.float64],
     prefix: str,
-    xy_factor: float = 1.0,
+    xyFactor: float = 1.0,
 ) -> Table:
     """Extend the given table with additional columns for the rotated shapes.
 
@@ -337,7 +336,7 @@ def extendTable(
         The rotation matrix used to rotate the shapes.
     prefix : `str`
         The prefix to be added to the column names of the rotated shapes.
-    xy_factor: float, optional
+    xyFactor: float, optional
         A factor to scale the x and y coordinates. Default is 1.0, which means
         no scaling.
 
@@ -348,18 +347,18 @@ def extendTable(
         shapes.
     """
     transform = LinearTransform(rot)
-    rot_shapes = []
+    rotShapes = []
     for row in table:
         shape = Quadrupole(row["Ixx"], row["Iyy"], row["Ixy"])
-        rot_shape = shape.transform(transform)
-        rot_shapes.append(rot_shape)
-    table[prefix + "_Ixx"] = [sh.getIxx() for sh in rot_shapes]
-    table[prefix + "_Iyy"] = [sh.getIyy() for sh in rot_shapes]
-    table[prefix + "_Ixy"] = [sh.getIxy() for sh in rot_shapes]
+        rotShape = shape.transform(transform)
+        rotShapes.append(rotShape)
+    table[prefix + "_Ixx"] = [sh.getIxx() for sh in rotShapes]
+    table[prefix + "_Iyy"] = [sh.getIyy() for sh in rotShapes]
+    table[prefix + "_Ixy"] = [sh.getIxy() for sh in rotShapes]
     table[prefix + "_e1"] = (table[prefix + "_Ixx"] - table[prefix + "_Iyy"]) / table["T"]
     table[prefix + "_e2"] = 2 * table[prefix + "_Ixy"] / table["T"]
-    table[prefix + "_x"] = xy_factor * (rot[0, 0] * table["x"] + rot[0, 1] * table["y"])
-    table[prefix + "_y"] = xy_factor * (rot[1, 0] * table["x"] + rot[1, 1] * table["y"])
+    table[prefix + "_x"] = xyFactor * (rot[0, 0] * table["x"] + rot[0, 1] * table["y"])
+    table[prefix + "_y"] = xyFactor * (rot[1, 0] * table["x"] + rot[1, 1] * table["y"])
     return table
 
 
@@ -376,7 +375,7 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
     # Note, tuning params here manually.  Be careful if adjusting.
     fig = make_figure(figsize=(10, 6))
 
-    scatter_spec = GridSpec(
+    scatterSpec = GridSpec(
         nrows=2,
         ncols=2,
         figure=fig,
@@ -388,7 +387,7 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
         hspace=0,
         width_ratios=[1, 1.07],  # Room for colorbar on right side
     )
-    hist_spec = GridSpec(
+    histSpec = GridSpec(
         nrows=2,
         ncols=1,
         figure=fig,
@@ -401,12 +400,12 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
     )
 
     axs = np.empty((2, 3), dtype=object)
-    axs[0, 0] = fig.add_subplot(scatter_spec[0, 0])
-    axs[0, 1] = fig.add_subplot(scatter_spec[0, 1])
-    axs[1, 0] = fig.add_subplot(scatter_spec[1, 0])
-    axs[1, 1] = fig.add_subplot(scatter_spec[1, 1])
-    axs[0, 2] = fig.add_subplot(hist_spec[0, 0])
-    axs[1, 2] = fig.add_subplot(hist_spec[1, 0])
+    axs[0, 0] = fig.add_subplot(scatterSpec[0, 0])
+    axs[0, 1] = fig.add_subplot(scatterSpec[0, 1])
+    axs[1, 0] = fig.add_subplot(scatterSpec[1, 0])
+    axs[1, 1] = fig.add_subplot(scatterSpec[1, 1])
+    axs[0, 2] = fig.add_subplot(histSpec[0, 0])
+    axs[1, 2] = fig.add_subplot(histSpec[1, 0])
 
     for ax in axs[0, :2].ravel():
         ax.set_xticks([])
@@ -469,8 +468,8 @@ def plotData(
 
     # FWHM hist
     axs[0, 2].hist(fwhm, bins=int(np.sqrt(len(table))), color="C0")
-    fwhm_quartiles = np.nanpercentile(fwhm, [25, 50, 75])
-    text_kwargs = {
+    fwhmQuartiles = np.nanpercentile(fwhm, [25, 50, 75])
+    textKwargs = {
         "x": 0.95,
         "y": 0.95,
         "ha": "right",
@@ -479,32 +478,32 @@ def plotData(
         "font": "monospace",
     }
     s = "FWHM [arcsec]\n"
-    s += f"25%: {fwhm_quartiles[0]:.3f}\n"
-    s += f"50%: {fwhm_quartiles[1]:.3f}\n"
-    s += f"75%: {fwhm_quartiles[2]:.3f}\n"
+    s += f"25%: {fwhmQuartiles[0]:.3f}\n"
+    s += f"50%: {fwhmQuartiles[1]:.3f}\n"
+    s += f"75%: {fwhmQuartiles[2]:.3f}\n"
     axs[0, 2].text(
         s=s,
         transform=axs[0, 2].transAxes,
-        **text_kwargs,
+        **textKwargs,
     )
-    axs[0, 2].axvline(fwhm_quartiles[0], color="grey", lw=1)
-    axs[0, 2].axvline(fwhm_quartiles[1], color="k", lw=2)
-    axs[0, 2].axvline(fwhm_quartiles[2], color="grey", lw=1)
+    axs[0, 2].axvline(fwhmQuartiles[0], color="grey", lw=1)
+    axs[0, 2].axvline(fwhmQuartiles[1], color="k", lw=2)
+    axs[0, 2].axvline(fwhmQuartiles[2], color="grey", lw=1)
 
     axs[1, 2].hist(e, bins=int(np.sqrt(len(table))), color="C1")
-    e_quartiles = np.nanpercentile(e, [25, 50, 75])
+    eQuartiles = np.nanpercentile(e, [25, 50, 75])
     s = "e  \n"
-    s += f"25%: {e_quartiles[0]:.3f}\n"
-    s += f"50%: {e_quartiles[1]:.3f}\n"
-    s += f"75%: {e_quartiles[2]:.3f}\n"
+    s += f"25%: {eQuartiles[0]:.3f}\n"
+    s += f"50%: {eQuartiles[1]:.3f}\n"
+    s += f"75%: {eQuartiles[2]:.3f}\n"
     axs[1, 2].text(
         s=s,
         transform=axs[1, 2].transAxes,
-        **text_kwargs,
+        **textKwargs,
     )
-    axs[1, 2].axvline(e_quartiles[0], color="grey", lw=1)
-    axs[1, 2].axvline(e_quartiles[1], color="k", lw=2)
-    axs[1, 2].axvline(e_quartiles[2], color="grey", lw=1)
+    axs[1, 2].axvline(eQuartiles[0], color="grey", lw=1)
+    axs[1, 2].axvline(eQuartiles[1], color="k", lw=2)
+    axs[1, 2].axvline(eQuartiles[2], color="grey", lw=1)
 
 
 def outlineDetectors(
@@ -512,7 +511,7 @@ def outlineDetectors(
     camera: Camera,
     rot: npt.NDArray[np.float64],
     rotAngle: float,
-    xy_factor: float = 1.0,
+    xyFactor: float = 1.0,
 ):
     """Plot the outlines of the detectors.
 
@@ -526,7 +525,7 @@ def outlineDetectors(
         The rotation matrix used to rotate the detector outlines.
     rotAngle : `float`, optional
         The rotation angle in radians to apply to the detector labels.
-    xy_factor : `float`, optional
+    xyFactor : `float`, optional
         A factor to scale the x and y coordinates. Default is 1.0, which means
         no scaling.
     """
@@ -542,13 +541,13 @@ def outlineDetectors(
         ys.append(ys[0])
         x1s = np.array(xs)
         y1s = np.array(ys)
-        rxs = xy_factor * (rot[0, 0] * x1s + rot[0, 1] * y1s)
-        rys = xy_factor * (rot[1, 0] * x1s + rot[1, 1] * y1s)
+        rxs = xyFactor * (rot[0, 0] * x1s + rot[0, 1] * y1s)
+        rys = xyFactor * (rot[1, 0] * x1s + rot[1, 1] * y1s)
         # Place detector label
         x = min([c.x for c in det.getCorners(FOCAL_PLANE)])
         y = max([c.y for c in det.getCorners(FOCAL_PLANE)])
-        rx = xy_factor * (rot[0, 0] * x + rot[0, 1] * y)
-        ry = xy_factor * (rot[1, 0] * x + rot[1, 1] * y)
+        rx = xyFactor * (rot[0, 0] * x + rot[0, 1] * y)
+        ry = xyFactor * (rot[1, 0] * x + rot[1, 1] * y)
         for ax in axs.ravel():
             ax.plot(rxs, rys, c="k", lw=1, alpha=0.3)
             ax.text(
@@ -569,7 +568,7 @@ def shadeRafts(
     axs: npt.NDArray[np.object_],
     camera: Camera,
     rot: npt.NDArray[np.float64],
-    xy_factor: float = 1.0,
+    xyFactor: float = 1.0,
 ):
     """Shade the rafts in the focal plane plot.
 
@@ -581,7 +580,7 @@ def shadeRafts(
         The camera object containing the detector information.
     rot : `numpy.ndarray`
         The rotation matrix used to rotate the raft outlines.
-    xy_factor : `float`, optional
+    xyFactor : `float`, optional
         A factor to scale the x and y coordinates. Default is 1.0, which means
         no scaling.
     """
@@ -597,8 +596,8 @@ def shadeRafts(
             c3 = camera[raft + "_S20"].getCorners(FOCAL_PLANE)[3]
             xs = np.array([c0.x, c1.x, c2.x, c3.x, c0.x])
             ys = np.array([c0.y, c1.y, c2.y, c3.y, c0.y])
-            rxs = xy_factor * (rot[0, 0] * xs + rot[0, 1] * ys)
-            rys = xy_factor * (rot[1, 0] * xs + rot[1, 1] * ys)
+            rxs = xyFactor * (rot[0, 0] * xs + rot[0, 1] * ys)
+            rys = xyFactor * (rot[1, 0] * xs + rot[1, 1] * ys)
             for ax in axs.ravel():
                 c = "#999999" if detector_type == "E2V" else "#DDDDDD"
                 polygon = Polygon(
@@ -692,7 +691,7 @@ def makeFocalPlanePlot(
             rot,
         )
 
-    add_roses(fig, table.meta["rotTelPos"], 0.0, table.meta["rotSkyPos"])
+    addRoses(fig, table.meta["rotTelPos"], 0.0, table.meta["rotSkyPos"])
 
     if saveAs:
         fig.savefig(saveAs)
@@ -775,17 +774,17 @@ def makeEquatorialPlot(
             camera,
             rot,
             rotAngle,
-            xy_factor=MM_TO_DEG,
+            xyFactor=MM_TO_DEG,
         )
     else:
         shadeRafts(
             axs[:2, :2].ravel(),
             camera,
             rot,
-            xy_factor=MM_TO_DEG,
+            xyFactor=MM_TO_DEG,
         )
 
-    add_roses(fig, table.meta["rotTelPos"] + table.meta["rotSkyPos"], table.meta["rotSkyPos"], 0.0)
+    addRoses(fig, table.meta["rotTelPos"] + table.meta["rotSkyPos"], table.meta["rotSkyPos"], 0.0)
 
     if saveAs:
         fig.savefig(saveAs)
@@ -868,17 +867,17 @@ def makeAzElPlot(
             camera,
             rot,
             rotAngle,
-            xy_factor=MM_TO_DEG,
+            xyFactor=MM_TO_DEG,
         )
     else:
         shadeRafts(
             axs[:2, :2].ravel(),
             camera,
             rot,
-            xy_factor=MM_TO_DEG,
+            xyFactor=MM_TO_DEG,
         )
 
-    add_roses(fig, -np.pi / 2, -np.pi / 2 - table.meta["rotTelPos"], -table.meta["rotSkyPos"])
+    addRoses(fig, -np.pi / 2, -np.pi / 2 - table.meta["rotTelPos"], -table.meta["rotSkyPos"])
 
     if saveAs:
         fig.savefig(saveAs)
