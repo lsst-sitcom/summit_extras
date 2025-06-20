@@ -380,9 +380,7 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
 
     for ax in axs[0, :2].ravel():
         ax.set_xticks([])
-    for ax in axs[:, 1].ravel():
-        ax.set_yticks([])
-    for ax in axs[:, 2].ravel():
+    for ax in axs[:, 1:].ravel():
         ax.set_yticks([])
 
     return fig, axs
