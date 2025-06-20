@@ -460,24 +460,18 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
 
 
 def plotData(
-    fig: Figure,
     axs: npt.NDArray[np.object_],
     table: Table,
-    camera: Camera,
     prefix: str = "",
 ) -> None:
     """Plot the data from the table on the provided figure and axes.
 
     Parameters
     ----------
-    fig : `matplotlib.figure.Figure`
-        The figure object to plot on.
     axs : `numpy.ndarray`
         The array of axes objects to plot on.
     table : `astropy.table.Table`
         The table containing the data to be plotted.
-    camera : `lsst.afw.cameraGeom.Camera`
-        The camera object containing the detector information.
     prefix : `str`, optional
         The prefix to be added to the column names of the rotated shapes.
     """
@@ -539,7 +533,6 @@ def plotData(
 
 
 def outlineDetectors(
-    fig: Figure,
     axs: npt.NDArray[np.object_],
     camera: Camera,
     rot: npt.NDArray[np.float64],
@@ -550,8 +543,6 @@ def outlineDetectors(
 
     Parameters
     ----------
-    fig : `matplotlib.figure.Figure`
-        The figure object to plot on.
     axs : `numpy.ndarray`
         The array of axes objects to plot on.
     camera : `lsst.afw.cameraGeom.Camera`
@@ -600,7 +591,6 @@ def outlineDetectors(
 
 
 def shadeRafts(
-    fig: Figure,
     axs: npt.NDArray[np.object_],
     camera: Camera,
     rot: npt.NDArray[np.float64],
@@ -610,8 +600,6 @@ def shadeRafts(
 
     Parameters
     ----------
-    fig : `matplotlib.figure.Figure`
-        The figure object to plot on.
     axs : `numpy.ndarray`
         The array of axes objects to plot on.
     camera : `lsst.afw.cameraGeom.Camera`
@@ -694,7 +682,7 @@ def makeFocalPlanePlot(
     oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
     plotLimit = 90 if oneRaftOnly else 90 * FULL_CAMERA_FACTOR
 
-    plotData(fig, axs, table, camera)
+    plotData(axs, table)
 
     for ax in axs[:2, :2].ravel():
         ax.set_xlim(-plotLimit, plotLimit)
@@ -717,7 +705,6 @@ def makeFocalPlanePlot(
     if oneRaftOnly:
         rotAngle = -np.pi / 2
         outlineDetectors(
-            fig,
             axs[:2, :2].ravel(),
             camera,
             rot,
@@ -725,7 +712,6 @@ def makeFocalPlanePlot(
         )
     else:
         shadeRafts(
-            fig,
             axs[:2, :2].ravel(),
             camera,
             rot,
@@ -787,7 +773,7 @@ def makeEquatorialPlot(
     oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
     plotLimit = 90 * MM_TO_DEG if oneRaftOnly else 90 * MM_TO_DEG * FULL_CAMERA_FACTOR
 
-    plotData(fig, axs, table, camera, prefix="nw_")
+    plotData(axs, table, prefix="nw_")
 
     for ax in axs[:2, :2].ravel():
         ax.set_xlim(-plotLimit, plotLimit)
@@ -810,7 +796,6 @@ def makeEquatorialPlot(
     if oneRaftOnly:
         rotAngle = -table.meta["rotSkyPos"] - np.pi / 2
         outlineDetectors(
-            fig,
             axs[:2, :2].ravel(),
             camera,
             rot,
@@ -819,7 +804,6 @@ def makeEquatorialPlot(
         )
     else:
         shadeRafts(
-            fig,
             axs[:2, :2].ravel(),
             camera,
             rot,
@@ -882,7 +866,7 @@ def makeAzElPlot(
     oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
     plotLimit = 90 * MM_TO_DEG if oneRaftOnly else 90 * MM_TO_DEG * FULL_CAMERA_FACTOR
 
-    plotData(fig, axs, table, camera, prefix="aa_")
+    plotData(axs, table, prefix="aa_")
 
     for ax in axs[:2, :2].ravel():
         ax.set_xlim(-plotLimit, plotLimit)
@@ -905,7 +889,6 @@ def makeAzElPlot(
     if oneRaftOnly:
         rotAngle = table.meta["rotTelPos"]
         outlineDetectors(
-            fig,
             axs[:2, :2].ravel(),
             camera,
             rot,
@@ -914,7 +897,6 @@ def makeAzElPlot(
         )
     else:
         shadeRafts(
-            fig,
             axs[:2, :2].ravel(),
             camera,
             rot,
