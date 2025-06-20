@@ -83,45 +83,15 @@ def addRoses(
     nwAngle : `float`
         The angle in radians for the north/west compass rose.
     """
-    # Az/El
-    addRosePetal(
-        fig,
-        "az",
-        np.r_[-np.sin(azelAngle), np.cos(azelAngle)],
-        "g",
-    )
-    addRosePetal(
-        fig,
-        "el",
-        -np.r_[np.cos(azelAngle), np.sin(azelAngle)],
-        "g",
-    )
-    # N/W
-    addRosePetal(
-        fig,
-        "N",
-        np.r_[np.sin(nwAngle), np.cos(nwAngle)],
-        "r",
-    )
-    addRosePetal(
-        fig,
-        "W",
-        np.r_[np.cos(nwAngle), -np.sin(nwAngle)],
-        "r",
-    )
-    # x/y
-    addRosePetal(
-        fig,
-        "x",
-        np.r_[np.cos(xyAngle), np.sin(xyAngle)],
-        "k",
-    )
-    addRosePetal(
-        fig,
-        "y",
-        np.r_[-np.sin(xyAngle), np.cos(xyAngle)],
-        "k",
-    )
+    for angle, label, color in [
+        (azelAngle, "Az", "g"),
+        (azelAngle + np.pi / 2, "El", "g"),
+        (nwAngle + np.pi / 2, "N", "r"),
+        (nwAngle, "W", "r"),
+        (xyAngle, "x", "k"),
+        (xyAngle + np.pi / 2, "y", "k"),
+    ]:
+        addRosePetal(fig, label, angle, color)
     size = fig.get_size_inches()
     ratio = size[0] / size[1]
     fig.patches.append(
@@ -141,7 +111,7 @@ def addRoses(
 def addRosePetal(
     fig: Figure,
     key: str,
-    vec: npt.NDArray[np.float64],
+    angle: float,
     color: str,
 ) -> None:
     """Add a rose petal to the figure.
@@ -152,14 +122,15 @@ def addRosePetal(
         The figure to which the rose petal will be added.
     key : `str`
         The key for the rose petal, used for labeling.
-    vec : `numpy.ndarray`
-        The vector representing the direction of the rose petal.
+    angle : `float`
+        The angle of the rose petal in radians.
     color : `str`
         The color of the rose petal.
     """
     size = fig.get_size_inches()
     ratio = size[0] / size[1]
     length = 0.04
+    vec = np.array([np.cos(angle), np.sin(angle)])
 
     dp = length * vec[0], length * ratio * vec[1]
     p0 = (0.297, 0.475)
@@ -691,7 +662,7 @@ def makeFocalPlanePlot(
             rot,
         )
 
-    addRoses(fig, table.meta["rotTelPos"], 0.0, table.meta["rotSkyPos"])
+    addRoses(fig, table.meta["rotTelPos"] + np.pi / 2, 0.0, -table.meta["rotSkyPos"])
 
     if saveAs:
         fig.savefig(saveAs)
@@ -784,7 +755,7 @@ def makeEquatorialPlot(
             xyFactor=MM_TO_DEG,
         )
 
-    addRoses(fig, table.meta["rotTelPos"] + table.meta["rotSkyPos"], table.meta["rotSkyPos"], 0.0)
+    addRoses(fig, table.meta["rotTelPos"] + table.meta["rotSkyPos"] + np.pi / 2, table.meta["rotSkyPos"], 0.0)
 
     if saveAs:
         fig.savefig(saveAs)
@@ -877,7 +848,7 @@ def makeAzElPlot(
             xyFactor=MM_TO_DEG,
         )
 
-    addRoses(fig, -np.pi / 2, -np.pi / 2 - table.meta["rotTelPos"], -table.meta["rotSkyPos"])
+    addRoses(fig, 0.0, -np.pi / 2 - table.meta["rotTelPos"], table.meta["rotSkyPos"])
 
     if saveAs:
         fig.savefig(saveAs)
