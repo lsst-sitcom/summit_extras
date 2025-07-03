@@ -33,7 +33,7 @@ from matplotlib.patches import Patch
 import lsst.daf.butler as dafButler
 import lsst.summit.utils.butlerUtils as butlerUtils
 from lsst.summit.utils.efdUtils import getCommands, getEfdData
-from lsst.summit.utils.simonyi.mountData import getAzElRotDataForPeriod
+from lsst.summit.utils.simonyi.mountData import getAzElRotHexDataForPeriod
 from lsst.summit.utils.utils import dayObsIntToString
 from lsst.utils.plotting.figures import make_figure
 
@@ -244,7 +244,7 @@ def plotExposureTiming(
     begin = expRecords[0].timespan.begin
     end = expRecords[-1].timespan.end
 
-    mountData = getAzElRotDataForPeriod(client, begin, end, prePadding, postPadding)
+    mountData = getAzElRotHexDataForPeriod(client, begin, end, prePadding, postPadding)
     if mountData.empty:
         log.warning(f"No mount data found for dayObs {dayObs} seqNums {startSeqNum}-{endSeqNum}")
         return
