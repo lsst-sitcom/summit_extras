@@ -143,7 +143,7 @@ class SeeingConditions:
         return f"HD{self.starName}"
 
     @property
-    def seeing(self) -> str:
+    def seeing(self) -> float:
         """Alias for fwhmScintillation - the seeing in arcsec."""
         return self.fwhmScintillation
 
@@ -462,7 +462,6 @@ class RingssSeeingMonitor:
             fig = make_figure(figsize=(18, 10))
             ax1 = fig.add_subplot(111)
         else:
-            fig = self.fig
             fig.clear()
             ax1 = fig.add_subplot(111)
 
