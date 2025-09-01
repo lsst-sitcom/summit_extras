@@ -933,7 +933,11 @@ def makeAzElPlot(
     """
     if len(table) == 0:
         return
+
+    if "kurtosis" in table.columns and axs.shape[0] > 2:
+        plotHigherOrderMomentsData(axs[2, :], table, prefix="aa_")
     table = randomRowsPerDetector(table, maxPointsPerDetector)
+    plotData(axs[:2, :], table, prefix="aa_")
 
     oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
     plotLimit = 90 * MM_TO_DEG if oneRaftOnly else 90 * MM_TO_DEG * FULL_CAMERA_FACTOR
