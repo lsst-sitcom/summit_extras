@@ -408,17 +408,16 @@ def plotData(
     fwhm = table["FWHM"]
 
     # Quiver plot
-    Q = axs[0, 0].quiver(
-        x,
-        y,
-        e * np.cos(0.5 * np.arctan2(e2, e1)),
-        e * np.sin(0.5 * np.arctan2(e2, e1)),
-        headlength=0,
-        headaxislength=0,
-        scale=QUIVER_SCALE,
-        pivot="middle",
-    )
-    axs[0, 1].quiverkey(Q, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
+    quiver_kwargs = {
+        "headlength": 0,
+        "headaxislength": 0,
+        "scale": QUIVER_SCALE,
+        "pivot": "middle",
+    }
+
+    shape_angle = 0.5 * np.arctan2(e2, e1)  # spin-2
+    Q_shape = axs[0, 0].quiver(x, y, e * np.cos(shape_angle), e * np.sin(shape_angle), **quiver_kwargs)
+    axs[0, 1].quiverkey(Q_shape, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
 
     # FWHM plot
     cbar = addColorbarToAxes(axs[0, 1].scatter(x, y, c=fwhm, s=5))
