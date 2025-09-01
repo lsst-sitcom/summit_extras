@@ -358,8 +358,13 @@ def extendTable(
     return table
 
 
-def makeFigureAndAxes() -> tuple[Figure, Any]:
+def makeFigureAndAxes(nrows=2) -> tuple[Figure, Any]:
     """Create a figure and axes for plotting.
+
+    Parameters
+    ----------
+    nrows : `int`, optional.
+        The number of rows for the figure.
 
     Returns
     -------
@@ -369,10 +374,10 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
         The created axes.
     """
     # Note, tuning params here manually.  Be careful if adjusting.
-    fig = make_figure(figsize=(10, 6))
+    fig = make_figure(figsize=(10, 3 * nrows))
 
     scatterSpec = GridSpec(
-        nrows=2,
+        nrows=nrows,
         ncols=2,
         figure=fig,
         left=0.05,
@@ -384,7 +389,7 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
         width_ratios=[1, 1.07],  # Room for colorbar on right side
     )
     histSpec = GridSpec(
-        nrows=2,
+        nrows=nrows,
         ncols=1,
         figure=fig,
         left=0.65,
@@ -395,13 +400,11 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
         hspace=0.15,
     )
 
-    axs = np.empty((2, 3), dtype=object)
-    axs[0, 0] = fig.add_subplot(scatterSpec[0, 0])
-    axs[0, 1] = fig.add_subplot(scatterSpec[0, 1])
-    axs[1, 0] = fig.add_subplot(scatterSpec[1, 0])
-    axs[1, 1] = fig.add_subplot(scatterSpec[1, 1])
-    axs[0, 2] = fig.add_subplot(histSpec[0, 0])
-    axs[1, 2] = fig.add_subplot(histSpec[1, 0])
+    axs = np.empty((nrows, 3), dtype=object)
+    for row in range(nrows):
+        for col in range(2):
+            axs[row, col] = fig.add_subplot(scatterSpec[row, col])
+        axs[row, 2] = fig.add_subplot(histSpec[row, 0])
 
     for ax in axs[0, :2].ravel():
         ax.set_xticks([])
