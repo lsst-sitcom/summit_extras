@@ -39,6 +39,7 @@ from astropy.table import Table, vstack
 from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Ellipse, FancyArrowPatch, Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from treegp import meanify
 
 from lsst.afw.cameraGeom import FOCAL_PLANE, DetectorType
 from lsst.afw.geom.ellipses import Quadrupole
@@ -500,6 +501,107 @@ def plotData(
     axs[1, 2].axvline(eQuartiles[0], color="grey", lw=1)
     axs[1, 2].axvline(eQuartiles[1], color="k", lw=2)
     axs[1, 2].axvline(eQuartiles[2], color="grey", lw=1)
+
+
+def plotHigherOrderMomentsData(
+    axs: npt.NDArray[np.object_],
+    table: Table,
+    prefix: str = "",
+    bin_spacing: float = 0.1,
+):
+    """Plot coma, trefoil and kurtosis from the table on the provided axes.
+
+    Parameters
+    ----------
+    axs : `numpy.ndarray`
+        The array of axes objects to plot on.
+    table : `Table`
+        The table containing the data to plot.
+    prefix : `str`, optional
+        The prefix to use for the column names in the table.
+    bin_spacing : `float`, optional
+        The spacing between arrows and triangles in the plot.
+    """
+    x = table[prefix + "x"]
+    y = table[prefix + "y"]
+    kurtosis = table["kurtosis"]
+
+    quiver_kwargs = {
+        "headlength": 5,
+        "headaxislength": 5,
+        "scale": 1,
+        "pivot": "middle",
+        "width": 0.002,
+    }
+
+    coords = np.vstack([x, y]).T
+    mean_coma = {}
+    for i in (1, 2):
+        binning = meanify(bin_spacing)
+        binning.add_field(coords, table[f"coma{i}"])
+        binning.meanify()
+        mean_coma[i] = binning.params0
+
+    mean_coma_angle = np.arctan2(mean_coma[2], mean_coma[1])
+    mean_coma_amplitude = np.hypot(mean_coma[2], mean_coma[2])
+    Q_coma = axs[0].quiver(
+        binning.coords0[:, 0],
+        binning.coords0[:, 1],
+        mean_coma_amplitude * np.cos(mean_coma_angle),
+        mean_coma_amplitude * np.sin(mean_coma_angle),
+        **quiver_kwargs,
+    )
+    axs[0].quiverkey(Q_coma, X=0.1, Y=0.88, U=0.05, label="0.05", labelpos="S")
+
+    mean_trefoil = {}
+    for i in (1, 2):
+        binning = meanify(bin_spacing)
+        binning.add_field(coords, table[f"trefoil{i}"])
+        binning.meanify()
+        mean_trefoil[i] = binning.params0
+
+    mean_trefoil_angle = np.arctan2(mean_trefoil[2], mean_trefoil[1]) / 3  # spin-3
+    mean_trefoil_amplitude = np.hypot(mean_trefoil[2], mean_trefoil[1])
+    SCALE_TRIANGLE = 500
+    axs[1].scatter(1.8, 1.7, s=0.1 * SCALE_TRIANGLE, marker=(3, 0, 30), lw=0.1, color="black")
+    axs[1].text(1.6, 1.35, "0.1")
+    for idx in range(len(mean_trefoil_amplitude)):
+        _t = mean_trefoil_amplitude[idx]
+        _ta = mean_trefoil_angle[idx] * 180 / np.pi
+        _xcen = binning.coords0[idx, 0]
+        _ycen = binning.coords0[idx, 1]
+        axs[1].scatter(_xcen, _ycen, marker=(3, 0, 30 + _ta), s=_t * SCALE_TRIANGLE, lw=0.1, color="black")
+
+    pos = axs[1].get_position()  # get current position [left, bottom, width, height]
+    axs[1].set_position([pos.x0, pos.y0, pos.width * 0.931, pos.height])
+
+    textKwargs = {
+        "x": 0.95,
+        "y": 0.95,
+        "ha": "right",
+        "va": "top",
+        "fontsize": 9,
+        "font": "monospace",
+    }
+
+    # Kurtosis hist
+    axs[2].hist(kurtosis, bins=int(np.sqrt(len(table))), color="C3")
+    kurtosisQuartiles = np.nanpercentile(kurtosis, [25, 50, 75])
+    s = "Kurtosis\n"
+    s += f"25%: {kurtosisQuartiles[0]:.3f}\n"
+    s += f"50%: {kurtosisQuartiles[1]:.3f}\n"
+    s += f"75%: {kurtosisQuartiles[2]:.3f}\n"
+    axs[2].text(
+        s=s,
+        transform=axs[2].transAxes,
+        **textKwargs,
+    )
+    axs[2].axvline(kurtosisQuartiles[0], color="grey", lw=1)
+    axs[2].axvline(kurtosisQuartiles[1], color="k", lw=2)
+    axs[2].axvline(kurtosisQuartiles[2], color="grey", lw=1)
+
+    axs[0].text(0.05, 0.92, "coma", transform=axs[0].transAxes, fontsize=10)
+    axs[1].text(0.82, 0.92, "trefoil", transform=axs[1].transAxes, fontsize=10)
 
 
 def outlineDetectors(
