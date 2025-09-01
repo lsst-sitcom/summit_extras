@@ -624,12 +624,12 @@ def makeFocalPlanePlot(
 
     plotData(axs, table)
 
-    for ax in axs[:2, :2].ravel():
+    for ax in axs[:, :2].ravel():
         ax.set_xlim(-plotLimit, plotLimit)
         ax.set_ylim(-plotLimit, plotLimit)
-    for ax in axs[1, :2]:
+    for ax in axs[-1, :2]:
         ax.set_xlabel("Focal Plane x [mm]")
-    for ax in axs[:2, 0]:
+    for ax in axs[:, 0]:
         ax.set_ylabel("Focal Plane y [mm]")
 
     visitId = table.meta["LSST BUTLER DATAID VISIT"]
@@ -645,14 +645,14 @@ def makeFocalPlanePlot(
     if oneRaftOnly:
         rotAngle = -np.pi / 2
         outlineDetectors(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             rotAngle,
         )
     else:
         shadeRafts(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
         )
@@ -715,12 +715,12 @@ def makeEquatorialPlot(
 
     plotData(axs, table, prefix="nw_")
 
-    for ax in axs[:2, :2].ravel():
+    for ax in axs[:, :2].ravel():
         ax.set_xlim(-plotLimit, plotLimit)
         ax.set_ylim(-plotLimit, plotLimit)
-    for ax in axs[1, :2]:
+    for ax in axs[-1, :2]:
         ax.set_xlabel(r"$\Delta$ West [deg]")
-    for ax in axs[:2, 0]:
+    for ax in axs[:, 0]:
         ax.set_ylabel(r"$\Delta$ North [deg]")
 
     visitId = table.meta["LSST BUTLER DATAID VISIT"]
@@ -736,7 +736,7 @@ def makeEquatorialPlot(
     if oneRaftOnly:
         rotAngle = -table.meta["rotSkyPos"] - np.pi / 2
         outlineDetectors(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             rotAngle,
@@ -744,7 +744,7 @@ def makeEquatorialPlot(
         )
     else:
         shadeRafts(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             xyFactor=MM_TO_DEG,
@@ -806,14 +806,12 @@ def makeAzElPlot(
     oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
     plotLimit = 90 * MM_TO_DEG if oneRaftOnly else 90 * MM_TO_DEG * FULL_CAMERA_FACTOR
 
-    plotData(axs, table, prefix="aa_")
-
-    for ax in axs[:2, :2].ravel():
+    for ax in axs[:, :2].ravel():
         ax.set_xlim(-plotLimit, plotLimit)
         ax.set_ylim(-plotLimit, plotLimit)
-    for ax in axs[1, :2]:
+    for ax in axs[-1, :2]:
         ax.set_xlabel("$\\Delta$ Azimuth [deg]")
-    for ax in axs[:2, 0]:
+    for ax in axs[:, 0]:
         ax.set_ylabel("$\\Delta$ Elevation [deg]")
 
     visitId = table.meta["LSST BUTLER DATAID VISIT"]
@@ -829,7 +827,7 @@ def makeAzElPlot(
     if oneRaftOnly:
         rotAngle = table.meta["rotTelPos"]
         outlineDetectors(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             rotAngle,
@@ -837,7 +835,7 @@ def makeAzElPlot(
         )
     else:
         shadeRafts(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             xyFactor=MM_TO_DEG,
