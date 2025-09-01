@@ -265,6 +265,33 @@ def makeTableFromSourceCatalogs(icSrcs: dict[int, SourceCatalog], visitInfo: Vis
     table["e1"] = (table["Ixx"] - table["Iyy"]) / table["T"]
     table["e2"] = 2 * table["Ixy"] / table["T"]
     table["e"] = np.hypot(table["e1"], table["e2"])
+    # Older source catalogs may not have some of these columns.
+    # Put it in a try-except block until we run this only on newer catalogs.
+    try:
+        table["coma1"] = (
+            table["ext_shapeHSM_HigherOrderMomentsSource_30"]
+            + table["ext_shapeHSM_HigherOrderMomentsSource_12"]
+        )
+        table["coma2"] = (
+            table["ext_shapeHSM_HigherOrderMomentsSource_21"]
+            + table["ext_shapeHSM_HigherOrderMomentsSource_03"]
+        )
+        table["trefoil1"] = (
+            table["ext_shapeHSM_HigherOrderMomentsSource_30"]
+            - 3 * table["ext_shapeHSM_HigherOrderMomentsSource_12"]
+        )
+        table["trefoil2"] = (
+            3 * table["ext_shapeHSM_HigherOrderMomentsSource_21"]
+            - table["ext_shapeHSM_HigherOrderMomentsSource_03"]
+        )
+        table["kurtosis"] = (
+            table["ext_shapeHSM_HigherOrderMomentsSource_40"]
+            + table["ext_shapeHSM_HigherOrderMomentsSource_04"]
+            + 2 * table["ext_shapeHSM_HigherOrderMomentsSource_22"]
+        )
+    except KeyError:
+        pass
+
     table["x"] = table["base_FPPosition_x"]
     table["y"] = table["base_FPPosition_y"]
 
