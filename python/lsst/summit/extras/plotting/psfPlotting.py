@@ -95,9 +95,11 @@ def addRoses(
         addRosePetal(fig, label, angle, color)
     size = fig.get_size_inches()
     ratio = size[0] / size[1]
+    nrows = len(fig.axes) // 3  # assuming 3 columns
+    p0 = (0.297, 0.475) if nrows == 2 else (0.297, 0.615)
     fig.patches.append(
         Ellipse(
-            (0.297, 0.475),
+            p0,
             width=0.12,
             height=0.12 * ratio,
             transform=fig.transFigure,
@@ -133,8 +135,9 @@ def addRosePetal(
     length = 0.04
     vec = np.array([np.cos(angle), np.sin(angle)])
 
+    nrows = len(fig.axes) // 3  # assuming 3 columns
     dp = length * vec[0], length * ratio * vec[1]
-    p0 = (0.297, 0.475)
+    p0 = (0.297, 0.475) if nrows == 2 else (0.297, 0.615)
     p1 = p0[0] + dp[0], p0[1] + dp[1]
 
     fig.patches.append(
