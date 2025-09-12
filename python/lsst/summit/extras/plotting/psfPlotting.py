@@ -510,7 +510,7 @@ def plotHigherOrderMomentsData(
     axs: npt.NDArray[np.object_],
     table: Table,
     prefix: str = "",
-    bin_spacing: float = 0.1,
+    binSpacing: float = 0.1,
 ):
     """Plot coma, trefoil and kurtosis from the table on the provided axes.
 
@@ -522,7 +522,7 @@ def plotHigherOrderMomentsData(
         The table containing the data to plot.
     prefix : `str`, optional
         The prefix to use for the column names in the table.
-    bin_spacing : `float`, optional
+    binSpacing : `float`, optional
         The spacing between arrows and triangles in the plot.
     """
     x = table[prefix + "x"]
@@ -540,7 +540,7 @@ def plotHigherOrderMomentsData(
     coords = np.vstack([x, y]).T
     mean_coma = {}
     for i in (1, 2):
-        binning = meanify(bin_spacing)
+        binning = meanify(binSpacing)
         binning.add_field(coords, table[f"coma{i}"])
         binning.meanify()
         mean_coma[i] = binning.params0
@@ -558,7 +558,7 @@ def plotHigherOrderMomentsData(
 
     mean_trefoil = {}
     for i in (1, 2):
-        binning = meanify(bin_spacing)
+        binning = meanify(binSpacing)
         binning.add_field(coords, table[f"trefoil{i}"])
         binning.meanify()
         mean_trefoil[i] = binning.params0
