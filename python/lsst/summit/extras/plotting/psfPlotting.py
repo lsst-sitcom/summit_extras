@@ -39,6 +39,7 @@ from astropy.table import Table, vstack
 from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Ellipse, FancyArrowPatch, Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from treegp import meanify
 
 from lsst.afw.cameraGeom import FOCAL_PLANE, DetectorType
 from lsst.afw.geom.ellipses import Quadrupole
@@ -94,9 +95,11 @@ def addRoses(
         addRosePetal(fig, label, angle, color)
     size = fig.get_size_inches()
     ratio = size[0] / size[1]
+    nrows = len(fig.axes) // 3  # assuming 3 columns
+    p0 = (0.297, 0.475) if nrows == 2 else (0.297, 0.615)
     fig.patches.append(
         Ellipse(
-            (0.297, 0.475),
+            p0,
             width=0.12,
             height=0.12 * ratio,
             transform=fig.transFigure,
@@ -132,8 +135,9 @@ def addRosePetal(
     length = 0.04
     vec = np.array([np.cos(angle), np.sin(angle)])
 
+    nrows = len(fig.axes) // 3  # assuming 3 columns
     dp = length * vec[0], length * ratio * vec[1]
-    p0 = (0.297, 0.475)
+    p0 = (0.297, 0.475) if nrows == 2 else (0.297, 0.615)
     p1 = p0[0] + dp[0], p0[1] + dp[1]
 
     fig.patches.append(
@@ -265,6 +269,33 @@ def makeTableFromSourceCatalogs(icSrcs: dict[int, SourceCatalog], visitInfo: Vis
     table["e1"] = (table["Ixx"] - table["Iyy"]) / table["T"]
     table["e2"] = 2 * table["Ixy"] / table["T"]
     table["e"] = np.hypot(table["e1"], table["e2"])
+    # Older source catalogs may not have some of these columns.
+    # Put it in a try-except block until we run this only on newer catalogs.
+    try:
+        table["coma1"] = (
+            table["ext_shapeHSM_HigherOrderMomentsSource_30"]
+            + table["ext_shapeHSM_HigherOrderMomentsSource_12"]
+        )
+        table["coma2"] = (
+            table["ext_shapeHSM_HigherOrderMomentsSource_21"]
+            + table["ext_shapeHSM_HigherOrderMomentsSource_03"]
+        )
+        table["trefoil1"] = (
+            table["ext_shapeHSM_HigherOrderMomentsSource_30"]
+            - 3 * table["ext_shapeHSM_HigherOrderMomentsSource_12"]
+        )
+        table["trefoil2"] = (
+            3 * table["ext_shapeHSM_HigherOrderMomentsSource_21"]
+            - table["ext_shapeHSM_HigherOrderMomentsSource_03"]
+        )
+        table["kurtosis"] = (
+            table["ext_shapeHSM_HigherOrderMomentsSource_40"]
+            + table["ext_shapeHSM_HigherOrderMomentsSource_04"]
+            + 2 * table["ext_shapeHSM_HigherOrderMomentsSource_22"]
+        )
+    except KeyError:
+        pass
+
     table["x"] = table["base_FPPosition_x"]
     table["y"] = table["base_FPPosition_y"]
 
@@ -331,8 +362,13 @@ def extendTable(
     return table
 
 
-def makeFigureAndAxes() -> tuple[Figure, Any]:
+def makeFigureAndAxes(nrows=2) -> tuple[Figure, Any]:
     """Create a figure and axes for plotting.
+
+    Parameters
+    ----------
+    nrows : `int`, optional.
+        The number of rows for the figure.
 
     Returns
     -------
@@ -342,10 +378,10 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
         The created axes.
     """
     # Note, tuning params here manually.  Be careful if adjusting.
-    fig = make_figure(figsize=(10, 6))
+    fig = make_figure(figsize=(10, 3 * nrows))
 
     scatterSpec = GridSpec(
-        nrows=2,
+        nrows=nrows,
         ncols=2,
         figure=fig,
         left=0.05,
@@ -357,7 +393,7 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
         width_ratios=[1, 1.07],  # Room for colorbar on right side
     )
     histSpec = GridSpec(
-        nrows=2,
+        nrows=nrows,
         ncols=1,
         figure=fig,
         left=0.65,
@@ -368,13 +404,11 @@ def makeFigureAndAxes() -> tuple[Figure, Any]:
         hspace=0.15,
     )
 
-    axs = np.empty((2, 3), dtype=object)
-    axs[0, 0] = fig.add_subplot(scatterSpec[0, 0])
-    axs[0, 1] = fig.add_subplot(scatterSpec[0, 1])
-    axs[1, 0] = fig.add_subplot(scatterSpec[1, 0])
-    axs[1, 1] = fig.add_subplot(scatterSpec[1, 1])
-    axs[0, 2] = fig.add_subplot(histSpec[0, 0])
-    axs[1, 2] = fig.add_subplot(histSpec[1, 0])
+    axs = np.empty((nrows, 3), dtype=object)
+    for row in range(nrows):
+        for col in range(2):
+            axs[row, col] = fig.add_subplot(scatterSpec[row, col])
+        axs[row, 2] = fig.add_subplot(histSpec[row, 0])
 
     for ax in axs[0, :2].ravel():
         ax.set_xticks([])
@@ -408,17 +442,16 @@ def plotData(
     fwhm = table["FWHM"]
 
     # Quiver plot
-    Q = axs[0, 0].quiver(
-        x,
-        y,
-        e * np.cos(0.5 * np.arctan2(e2, e1)),
-        e * np.sin(0.5 * np.arctan2(e2, e1)),
-        headlength=0,
-        headaxislength=0,
-        scale=QUIVER_SCALE,
-        pivot="middle",
-    )
-    axs[0, 1].quiverkey(Q, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
+    quiver_kwargs = {
+        "headlength": 0,
+        "headaxislength": 0,
+        "scale": QUIVER_SCALE,
+        "pivot": "middle",
+    }
+
+    shape_angle = 0.5 * np.arctan2(e2, e1)  # spin-2
+    Q_shape = axs[0, 0].quiver(x, y, e * np.cos(shape_angle), e * np.sin(shape_angle), **quiver_kwargs)
+    axs[0, 1].quiverkey(Q_shape, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
 
     # FWHM plot
     cbar = addColorbarToAxes(axs[0, 1].scatter(x, y, c=fwhm, s=5))
@@ -471,6 +504,107 @@ def plotData(
     axs[1, 2].axvline(eQuartiles[0], color="grey", lw=1)
     axs[1, 2].axvline(eQuartiles[1], color="k", lw=2)
     axs[1, 2].axvline(eQuartiles[2], color="grey", lw=1)
+
+
+def plotHigherOrderMomentsData(
+    axs: npt.NDArray[np.object_],
+    table: Table,
+    prefix: str = "",
+    binSpacing: float = 0.1,
+):
+    """Plot coma, trefoil and kurtosis from the table on the provided axes.
+
+    Parameters
+    ----------
+    axs : `numpy.ndarray`
+        The array of axes objects to plot on.
+    table : `Table`
+        The table containing the data to plot.
+    prefix : `str`, optional
+        The prefix to use for the column names in the table.
+    binSpacing : `float`, optional
+        The spacing between arrows and triangles in the plot.
+    """
+    x = table[prefix + "x"]
+    y = table[prefix + "y"]
+    kurtosis = table["kurtosis"]
+
+    quiver_kwargs = {
+        "headlength": 5,
+        "headaxislength": 5,
+        "scale": 1,
+        "pivot": "middle",
+        "width": 0.002,
+    }
+
+    coords = np.vstack([x, y]).T
+    mean_coma = {}
+    for i in (1, 2):
+        binning = meanify(binSpacing)
+        binning.add_field(coords, table[f"coma{i}"])
+        binning.meanify()
+        mean_coma[i] = binning.params0
+
+    mean_coma_angle = np.arctan2(mean_coma[2], mean_coma[1])
+    mean_coma_amplitude = np.hypot(mean_coma[2], mean_coma[2])
+    Q_coma = axs[0].quiver(
+        binning.coords0[:, 0],
+        binning.coords0[:, 1],
+        mean_coma_amplitude * np.cos(mean_coma_angle),
+        mean_coma_amplitude * np.sin(mean_coma_angle),
+        **quiver_kwargs,
+    )
+    axs[0].quiverkey(Q_coma, X=0.1, Y=0.88, U=0.05, label="0.05", labelpos="S")
+
+    mean_trefoil = {}
+    for i in (1, 2):
+        binning = meanify(binSpacing)
+        binning.add_field(coords, table[f"trefoil{i}"])
+        binning.meanify()
+        mean_trefoil[i] = binning.params0
+
+    mean_trefoil_angle = np.arctan2(mean_trefoil[2], mean_trefoil[1]) / 3  # spin-3
+    mean_trefoil_amplitude = np.hypot(mean_trefoil[2], mean_trefoil[1])
+    SCALE_TRIANGLE = 500
+    axs[1].scatter(1.8, 1.7, s=0.1 * SCALE_TRIANGLE, marker=(3, 0, 30), lw=0.1, color="black")
+    axs[1].text(1.6, 1.35, "0.1")
+    for idx in range(len(mean_trefoil_amplitude)):
+        _t = mean_trefoil_amplitude[idx]
+        _ta = mean_trefoil_angle[idx] * 180 / np.pi
+        _xcen = binning.coords0[idx, 0]
+        _ycen = binning.coords0[idx, 1]
+        axs[1].scatter(_xcen, _ycen, marker=(3, 0, 30 + _ta), s=_t * SCALE_TRIANGLE, lw=0.1, color="black")
+
+    pos = axs[1].get_position()  # get current position [left, bottom, width, height]
+    axs[1].set_position([pos.x0, pos.y0, pos.width * 0.931, pos.height])
+
+    textKwargs = {
+        "x": 0.95,
+        "y": 0.95,
+        "ha": "right",
+        "va": "top",
+        "fontsize": 9,
+        "font": "monospace",
+    }
+
+    # Kurtosis hist
+    axs[2].hist(kurtosis, bins=int(np.sqrt(len(table))), color="C3")
+    kurtosisQuartiles = np.nanpercentile(kurtosis, [25, 50, 75])
+    s = "Kurtosis\n"
+    s += f"25%: {kurtosisQuartiles[0]:.3f}\n"
+    s += f"50%: {kurtosisQuartiles[1]:.3f}\n"
+    s += f"75%: {kurtosisQuartiles[2]:.3f}\n"
+    axs[2].text(
+        s=s,
+        transform=axs[2].transAxes,
+        **textKwargs,
+    )
+    axs[2].axvline(kurtosisQuartiles[0], color="grey", lw=1)
+    axs[2].axvline(kurtosisQuartiles[1], color="k", lw=2)
+    axs[2].axvline(kurtosisQuartiles[2], color="grey", lw=1)
+
+    axs[0].text(0.05, 0.92, "coma", transform=axs[0].transAxes, fontsize=10)
+    axs[1].text(0.82, 0.92, "trefoil", transform=axs[1].transAxes, fontsize=10)
 
 
 def outlineDetectors(
@@ -625,12 +759,12 @@ def makeFocalPlanePlot(
 
     plotData(axs, table)
 
-    for ax in axs[:2, :2].ravel():
+    for ax in axs[:, :2].ravel():
         ax.set_xlim(-plotLimit, plotLimit)
         ax.set_ylim(-plotLimit, plotLimit)
-    for ax in axs[1, :2]:
+    for ax in axs[-1, :2]:
         ax.set_xlabel("Focal Plane x [mm]")
-    for ax in axs[:2, 0]:
+    for ax in axs[:, 0]:
         ax.set_ylabel("Focal Plane y [mm]")
 
     visitId = table.meta["LSST BUTLER DATAID VISIT"]
@@ -646,14 +780,14 @@ def makeFocalPlanePlot(
     if oneRaftOnly:
         rotAngle = -np.pi / 2
         outlineDetectors(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             rotAngle,
         )
     else:
         shadeRafts(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
         )
@@ -716,12 +850,12 @@ def makeEquatorialPlot(
 
     plotData(axs, table, prefix="nw_")
 
-    for ax in axs[:2, :2].ravel():
+    for ax in axs[:, :2].ravel():
         ax.set_xlim(-plotLimit, plotLimit)
         ax.set_ylim(-plotLimit, plotLimit)
-    for ax in axs[1, :2]:
+    for ax in axs[-1, :2]:
         ax.set_xlabel(r"$\Delta$ West [deg]")
-    for ax in axs[:2, 0]:
+    for ax in axs[:, 0]:
         ax.set_ylabel(r"$\Delta$ North [deg]")
 
     visitId = table.meta["LSST BUTLER DATAID VISIT"]
@@ -737,7 +871,7 @@ def makeEquatorialPlot(
     if oneRaftOnly:
         rotAngle = -table.meta["rotSkyPos"] - np.pi / 2
         outlineDetectors(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             rotAngle,
@@ -745,7 +879,7 @@ def makeEquatorialPlot(
         )
     else:
         shadeRafts(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             xyFactor=MM_TO_DEG,
@@ -802,19 +936,21 @@ def makeAzElPlot(
     """
     if len(table) == 0:
         return
+
+    if "kurtosis" in table.columns and axs.shape[0] > 2:
+        plotHigherOrderMomentsData(axs[2, :], table, prefix="aa_")
     table = randomRowsPerDetector(table, maxPointsPerDetector)
+    plotData(axs[:2, :], table, prefix="aa_")
 
     oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
     plotLimit = 90 * MM_TO_DEG if oneRaftOnly else 90 * MM_TO_DEG * FULL_CAMERA_FACTOR
 
-    plotData(axs, table, prefix="aa_")
-
-    for ax in axs[:2, :2].ravel():
+    for ax in axs[:, :2].ravel():
         ax.set_xlim(-plotLimit, plotLimit)
         ax.set_ylim(-plotLimit, plotLimit)
-    for ax in axs[1, :2]:
+    for ax in axs[-1, :2]:
         ax.set_xlabel("$\\Delta$ Azimuth [deg]")
-    for ax in axs[:2, 0]:
+    for ax in axs[:, 0]:
         ax.set_ylabel("$\\Delta$ Elevation [deg]")
 
     visitId = table.meta["LSST BUTLER DATAID VISIT"]
@@ -830,7 +966,7 @@ def makeAzElPlot(
     if oneRaftOnly:
         rotAngle = table.meta["rotTelPos"]
         outlineDetectors(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             rotAngle,
@@ -838,7 +974,7 @@ def makeAzElPlot(
         )
     else:
         shadeRafts(
-            axs[:2, :2].ravel(),
+            axs[:, :2].ravel(),
             camera,
             rot,
             xyFactor=MM_TO_DEG,
