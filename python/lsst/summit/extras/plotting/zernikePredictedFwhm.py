@@ -136,7 +136,7 @@ def makeZernikePredictedFWHMPlot(
     fig.suptitle(
         f"dayObs={dayObs} seqNum={seqNum}",
         fontsize=12,
-        y=1.1,
+        y=1.01,
     )
 
     fig.tight_layout()
