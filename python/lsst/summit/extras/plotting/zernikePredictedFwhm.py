@@ -26,23 +26,13 @@ __all__ = [
 ]
 
 
-from typing import TYPE_CHECKING
-
+import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
-
-from lsst.afw.cameraGeom import FIELD_ANGLE, Camera
-from lsst.obs.lsst import LsstCam
-
-if TYPE_CHECKING:
-    from lsst.afw.table import ExposureCatalog
-
+from astropy.table import Table
 
 
 def makeZernikePredictedFWHMPlot(
-    fig: plt.Figure,
     table: Table,
     wavefrontData: dict,
     saveAs: str = "",
@@ -60,8 +50,6 @@ def makeZernikePredictedFWHMPlot(
 
     Parameters
     ----------
-    fig : `matplotlib.pyplot.Figure`
-        Figure to plot on.
     table : `astropy.table.Table`
         The table containing the measured FWHM data to be plotted.
     wavefrontData : `dict`
@@ -69,68 +57,78 @@ def makeZernikePredictedFWHMPlot(
     saveAs : `str`, optional
         If provided, the plot will be saved to this file.
     """
-    
+    fig = plt.figure(figsize=(20, 12))
     gs = gridspec.GridSpec(1, 2, width_ratios=[3, 1.75], figure=fig)
 
     # --- Left: Zernikes grid ---
     gs_left = gridspec.GridSpecFromSubplotSpec(5, 5, subplot_spec=gs[0])
 
-    zernikesMeasured = wavefront_data['zksMeasured']
+    zernikesMeasured = wavefrontData["zksMeasured"]
     for i, zk_id in enumerate(np.arange(4, zernikesMeasured.shape[1])):
         ax = fig.add_subplot(gs_left[i])
         valsMeasured = zernikesMeasured[:, zk_id]
-        valsInterp   = wavefront_data['zksInterpolated'][:, zk_id]
+        valsInterp = wavefrontData["zksInterpolated"][:, zk_id]
 
         vmax = np.max(np.abs(np.concatenate([valsMeasured, valsInterp])))
         vmin = -vmax
         sc = ax.scatter(
-            wavefront_data['rotatedPositions'][:, 0],
-            -wavefront_data['rotatedPositions'][:, 1],
+            wavefrontData["rotatedPositions"][:, 0],
+            -wavefrontData["rotatedPositions"][:, 1],
             c=valsInterp,
             s=25,
-            cmap='seismic',
+            cmap="seismic",
             vmin=vmin,
-            vmax=vmax
+            vmax=vmax,
         )
-        ax.scatter(thx, -thy, c=valsMeasured,
-                    s=85, cmap='seismic', vmin=vmin, vmax=vmax)
+        ax.scatter(
+            wavefrontData["fieldAngles"][:, 0],
+            -wavefrontData["fieldAngles"][:, 1],
+            c=valsMeasured,
+            s=85,
+            cmap="seismic",
+            vmin=vmin,
+            vmax=vmax,
+        )
 
-        circle = plt.Circle((0, 0), 1.75, color='red', fill=False, linestyle='--')
+        circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
         ax.add_patch(circle)
-    
+
         cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
         cbar.ax.tick_params(labelsize=12)
 
-        ax.set_aspect('equal', 'box')
-        ax.axis('off')
-        ax.set_title(f'$Z_{{{zk_id}}}$', fontsize=15)
+        ax.set_aspect("equal", "box")
+        ax.axis("off")
+        ax.set_title(f"$Z_{{{zk_id}}}$", fontsize=15)
 
     # --- Right: stacked FWHM ---
     gs_right = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[1])
     ax = fig.add_subplot(gs_right[0])
-    circle = plt.Circle((0, 0), 1.75, color='gray', fill=False, linestyle='--')
+    circle = plt.Circle((0, 0), 1.75, color="gray", fill=False, linestyle="--")
     ax.add_patch(circle)
-    sc = ax.scatter(table_filtered['aa_x'], table_filtered['aa_y'],
-                c=table_filtered['FWHM'], s=9)
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
-    ax.set_aspect('equal', 'box')
-    ax.axis('off')
-    ax.set_title('Measured FWHM 500nm', fontsize = 15)
+    ax.set_aspect("equal", "box")
+    ax.axis("off")
+    ax.set_title("Measured FWHM 500nm", fontsize=15)
 
     # AOS FWHM
     ax = fig.add_subplot(gs_right[1])
-    circle = plt.Circle((0, 0), 1.75, color='red', fill=False, linestyle='--')
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
 
-    ax.scatter(thx, -thy, c=wavefront_data['fwhmMeasured'], s=50)
-    sc = ax.scatter(table_filtered['aa_x'], table_filtered['aa_y'],
-                c=wavefront_data['fwhmInterpolated'], s=8)
+    ax.scatter(
+        wavefrontData["fieldAngles"][:, 0],
+        -wavefrontData["fieldAngles"][:, 1],
+        c=wavefrontData["fwhmMeasured"],
+        s=50,
+    )
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=wavefrontData["fwhmInterpolated"], s=8)
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
-    ax.set_aspect('equal', 'box')
-    ax.axis('off')
-    ax.set_title('Zernike-predicted AOS FWHM', fontsize = 15)
+    ax.set_aspect("equal", "box")
+    ax.axis("off")
+    ax.set_title("Zernike-predicted AOS FWHM", fontsize=15)
 
     visitId = table.meta["LSST BUTLER DATAID VISIT"]
     dayObs = visitId // 100000
