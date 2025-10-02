@@ -309,7 +309,7 @@ def plotExposureTiming(
     mountData = getAzElRotHexDataForPeriod(client, begin, end, prePadding, postPadding)
     if mountData.empty:
         log.warning(f"No mount data found for dayObs {dayObs} seqNums {startSeqNum}-{endSeqNum}")
-        return
+        return None
 
     az = mountData.azimuthData
     el = mountData.elevationData
@@ -424,7 +424,8 @@ def plotExposureTiming(
         )
 
     # Create separate legend entries for each axis type
-    legendEntries = {ax_name: [] for ax_name in axes.keys()}
+    legendEntries: dict[str, list] = {ax_name: [] for ax_name in axes.keys()}
+
     # Handle in-position transitions
     for label, topic in inPositionTopics.items():
         axisName = getAxisName(topic)
@@ -507,7 +508,7 @@ def plotExposureTiming(
             log.warning(f"Failed to get data for {topic}")
 
     # Create color maps for each axis
-    color_maps = {ax_name: {} for ax_name in axes.keys()}
+    color_maps: dict[str, dict[str, str]] = {ax_name: {} for ax_name in axes.keys()}
     colors = ["b", "g", "r", "c", "m", "y", "k"]
     color_iterators = {ax_name: itertools.cycle(colors) for ax_name in axes.keys()}
 
