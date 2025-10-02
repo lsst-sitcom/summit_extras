@@ -36,6 +36,7 @@ import lsst.afw.math as afwMath
 import lsst.geom as geom
 from lsst.summit.utils.starTracker import (
     dayObsSeqNumFrameNumFromFilename,
+    dayObsSeqNumFromFilename,
     fastCam,
     getRawDataDirForDayObs,
     isStreamingModeFile,
@@ -46,6 +47,7 @@ from lsst.utils.iteration import ensure_iterable
 
 __all__ = (
     "getStreamingSequences",
+    "getRegularSequences",
     "getFlux",
     "getBackgroundLevel",
     "countOverThresholdPixels",
@@ -175,6 +177,45 @@ def getStreamingSequences(dayObs: int) -> dict[int, list[str]]:
     return data
 
 
+def getRegularSequences(dayObs):
+    """Get the regular sequences for a dayObs.
+
+    Note that this will need rewriting very soon once the way the data is
+    organised on disk is changed.
+
+    Parameters
+    ----------
+    dayObs : `int`
+        The dayObs.
+
+    Returns
+    -------
+    sequences : `dict` [`int`, `list`]
+        The streaming sequences in a dict, keyed by sequence number, with each
+        value being a list of the files in that sequence.
+    """
+    site = getSite()
+    if site in ["rubin-devl", "staff-rsp"]:
+        rootDataPath = "/sdf/data/rubin/offline/s3-backup/lfa/"
+    elif site == "summit":
+        rootDataPath = "/project"
+    else:
+        raise ValueError(f"Finding StarTracker data isn't supported at {site}")
+
+    dataDir = getRawDataDirForDayObs(rootDataPath, fastCam, dayObs)
+    files = glob.glob(os.path.join(dataDir, "*.fits"))
+    regularFiles = [f for f in files if not isStreamingModeFile(f)]
+    print(f"Found {len(regularFiles)} regular files on dayObs {dayObs}")
+
+    data = {}
+    for file in regularFiles:
+        seqNum = int(file.split("/")[-1].split("_")[3].split(".")[0])
+        data[seqNum] = file
+    data = sorted(data.items())
+
+    return data
+
+
 def getFlux(cutout: np.ndarray[float], backgroundLevel: float = 0) -> float:
     """Get the flux inside a cutout, subtracting the image-background.
 
@@ -284,7 +325,10 @@ def sortSourcesByFlux(sources: list[Source], reverse: bool = False) -> list[Sour
 
 
 def findFastStarTrackerImageSources(
-    filename: str, boxSize: int, attachCutouts: bool = True
+    filename: str,
+    boxSize: int,
+    attachCutouts: bool = True,
+    streaming: bool = True,
 ) -> list[Source | NanSource]:
     """Analyze a single FastStarTracker image.
 
@@ -295,8 +339,11 @@ def findFastStarTrackerImageSources(
     boxSize : `int`
         The size of the box to put around each source for measurement.
     attachCutouts : `bool`, optional
-        Attach the cutouts to the ``Source`` objects? Useful for
-        debug/plotting but adds memory usage.
+        Attach the cutouts to the ``Source`` objects? Useful for debug/plotting
+        but adds memory usage.
+    streaming : `bool`, optional
+        ``True`` if these are streaming data, ``False`` if they are regular
+        data.
 
     Returns
     -------
@@ -311,9 +358,11 @@ def findFastStarTrackerImageSources(
     footprintSet = detectObjectsInExp(exp)
     footprints = footprintSet.getFootprints()
     bgMean, bgStd = getBackgroundLevel(exp)
-
-    dayObs, seqNum, frameNum = dayObsSeqNumFrameNumFromFilename(filename)
-
+    if streaming:
+        dayObs, seqNum, frameNum = dayObsSeqNumFrameNumFromFilename(filename)
+    else:
+        dayObs, seqNum = dayObsSeqNumFromFilename(filename)
+        frameNum = 0
     sources = []
     if len(footprints) == 0:
         sources = [NanSource()]
@@ -465,6 +514,7 @@ def plotSourceMovement(
     results: dict[int, list[Source]],
     sourceIndex: int = 0,
     allowInconsistent: bool = False,
+    isStreaming: bool = True,
 ) -> list[matplotlib.figure.Figure]:
     """Plot the centroid movements and fluxes etc for a set of results.
 
@@ -485,6 +535,9 @@ def plotSourceMovement(
         source by default.
     allowInconsistent : `bool`, optional
         Make the plots even if the input results appear to be inconsistent?
+    isStreaming : `bool`, optional
+        Is this streaming mode data? If not then multiple seqNums are expected
+        and allowed, otherwise that is an error.
 
     Returns
     -------
@@ -510,17 +563,25 @@ def plotSourceMovement(
 
     allDayObs = set(s.dayObs for s in sources)
     allSeqNums = set(s.seqNum for s in sources)
-    if len(allDayObs) > 1 or len(allSeqNums) > 1:
-        raise ValueError(
-            "The sources are from multiple days or sequences, found"
-            f" {allDayObs} dayObs and {allSeqNums} seqNum values."
-        )
-    dayObs = allDayObs.pop()
-    seqNum = allSeqNums.pop()
-    startFrame = min(frameNums)
-    endFrame = max(frameNums)
-
-    title = f"dayObs {dayObs}, seqNum {seqNum}, frames {startFrame}-{endFrame}"
+    title = ""
+    if isStreaming:
+        if len(allDayObs) > 1 or len(allSeqNums) > 1:
+            raise ValueError(
+                "The sources are from multiple days or sequences, found"
+                f" {allDayObs} dayObs and {allSeqNums} seqNum values."
+            )
+        dayObs = allDayObs.pop()
+        seqNum = allSeqNums.pop()
+        startFrame = min(frameNums)
+        endFrame = max(frameNums)
+        title = f"dayObs {dayObs}, seqNum {seqNum}, frames {startFrame}-{endFrame}"
+    else:
+        if len(allDayObs) > 1:
+            raise ValueError("The sources are from multiple days, found" f" {allDayObs} dayObs values.")
+        dayObs = allDayObs.pop()
+        seqNumMin = f"{min(allSeqNums)}"
+        seqNumMax = f"{max(allSeqNums)}"
+        title = f"dayObs {dayObs}, seqNums {seqNumMin}-{seqNumMax}"
 
     axisLabelSize = 18
 
