@@ -39,7 +39,9 @@ from lsst.summit.utils.utils import dayObsIntToString
 from lsst.utils.plotting.figures import make_figure
 
 if TYPE_CHECKING:
+    from astropy.time import Time
     from matplotlib.figure import Figure
+
 
 __all__ = ["plotExposureTiming"]
 
@@ -196,9 +198,35 @@ def getAxisName(topic):
         return "aos"
 
 
-def getDomeData(client, begin, end, prePadding, postPadding, threshold=2.7):
-    # First, get the dome data
-    dome = getEfdData(
+def getDomeData(
+    client: EfdClient, begin: Time, end: Time, prePadding: float, postPadding: float, threshold: float = 2.7
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Get dome data and when dome is within threshold of being in position.
+
+    Parameters
+    ----------
+    client : `EfdClient`
+        The client object used to retrieve EFD data.
+    begin : `astropy.time.Time`
+        The begin time for the data retrieval.
+    end : `astropy.time.Time`
+        The end time for the data retrieval.
+    prePadding : `float`
+        The amount of time in seconds to pad before the begin time.
+    postPadding : `float`
+        The amount of time in seconds to pad after the end time.
+    threshold : `float`, optional
+        The threshold in degrees for considering the dome to be in position.
+
+    Returns
+    -------
+    domeData : `pd.DataFrame`
+        The dome data with actual and commanded positions.
+    domeBelowThreshold : `pd.DataFrame`
+        A dataframe with a single entry indicating the time when the dome
+        position error drops below the threshold.
+    """
+    domeData = getEfdData(
         client,
         "lsst.sal.MTDome.azimuth",
         columns=["positionActual", "positionCommanded"],
@@ -207,10 +235,10 @@ def getDomeData(client, begin, end, prePadding, postPadding, threshold=2.7):
         prePadding=prePadding,
         postPadding=postPadding,
     )
-    # Now, find the time when the dome position error drops below threshold
-    dome["diff"] = (dome["positionActual"] - dome["positionCommanded"]).abs()
+    # find the time when the dome position error drops below threshold
+    domeData["diff"] = (domeData["positionActual"] - domeData["positionCommanded"]).abs()
     # Boolean mask where condition holds
-    mask = dome["diff"] < threshold
+    mask = domeData["diff"] < threshold
     # Rising edge: True when mask is True
     # but previous sample was False (or NaN at start)
     rising = mask & (~mask.shift(1, fill_value=False))
@@ -221,7 +249,7 @@ def getDomeData(client, begin, end, prePadding, postPadding, threshold=2.7):
 
     # Make a new dataframe with the domeBelowThreshold
     domeBelowThreshold = pd.DataFrame(data={"inPosition": [True]}, index=[event_time])
-    return dome, domeBelowThreshold
+    return domeData, domeBelowThreshold
 
 
 def plotExposureTiming(
@@ -287,7 +315,7 @@ def plotExposureTiming(
     el = mountData.elevationData
     rot = mountData.rotationData
 
-    dome, domeBelowThreshold = getDomeData(client, begin, end, prePadding, postPadding)
+    domeData, domeBelowThreshold = getDomeData(client, begin, end, prePadding, postPadding)
 
     # Calculate relative heights for the gridspec
     narrowHeight = narrowHeightRatio
@@ -357,8 +385,8 @@ def plotExposureTiming(
     axes["az"].plot(az["actualPosition"])
     axes["el"].plot(el["actualPosition"])
     axes["rot"].plot(rot["actualPosition"])
-    axes["dome"].plot(dome["positionActual"], label="Actual")
-    axes["dome"].plot(dome["positionCommanded"], label="Commanded")
+    axes["dome"].plot(domeData["positionActual"], label="Actual")
+    axes["dome"].plot(domeData["positionCommanded"], label="Commanded")
     axes["dome"].legend(loc="lower left", frameon=False)
     # Remove y-ticks for mount, aos, and camera axes
     for ax_name in ["mount", "aos", "camera"]:
