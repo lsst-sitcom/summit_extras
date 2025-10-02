@@ -25,6 +25,7 @@ import logging
 import warnings
 from typing import TYPE_CHECKING
 
+import pandas as pd
 from astropy.time import TimeDelta
 from lsst_efd_client import EfdClient
 from matplotlib.lines import Line2D
@@ -119,6 +120,8 @@ COMMANDS_TO_QUERY = [
     # 'lsst.sal.MTAOS.logevent_wavefrontError',
     # 'lsst.sal.MTAOS.logevent_wepDuration'
     # Brian says to find + add the settle event
+    # MTDome
+    # "lsst.sal.MTDome.azimuth"
 ]
 
 HEXAPOD_TOPICS = [
@@ -163,6 +166,7 @@ inPositionTopics = {
     "Camera cable wrap": "lsst.sal.MTMount.logevent_cameraCableWrapInPosition",
     "Elevation": "lsst.sal.MTMount.logevent_elevationInPosition",
     "Rotator": "lsst.sal.MTRotator.logevent_inPosition",
+    "Dome": "lsst.sal.MTDome.logevent_azMotion",
 }
 
 
@@ -170,6 +174,9 @@ def getAxisName(topic):
     # Note the order here matters, e.g. cameraCableWrap is a substring of
     # MTMount so it should be checked first, likewise axes are special cases
     # of the MTMount so should be checked first.
+    if "MTDome.logevent_azMotion" in topic:
+        return "dome"
+
     if "MTMount.logevent_elevationInPosition" in topic:
         return "el"
 
@@ -187,6 +194,34 @@ def getAxisName(topic):
 
     if any(x in topic for x in ["MTAOS", "MTHexapod", "MTM1M3", "MTM2"]):
         return "aos"
+
+
+def getDomeData(client, begin, end, prePadding, postPadding, threshold=2.7):
+    # First, get the dome data
+    dome = getEfdData(
+        client,
+        "lsst.sal.MTDome.azimuth",
+        columns=["positionActual", "positionCommanded"],
+        begin=begin,
+        end=end,
+        prePadding=prePadding,
+        postPadding=postPadding,
+    )
+    # Now, find the time when the dome position error drops below threshold
+    dome["diff"] = (dome["positionActual"] - dome["positionCommanded"]).abs()
+    # Boolean mask where condition holds
+    mask = dome["diff"] < threshold
+    # Rising edge: True when mask is True
+    # but previous sample was False (or NaN at start)
+    rising = mask & (~mask.shift(1, fill_value=False))
+    if rising.any():
+        # The last rising edge
+        # (latest time where we enter the < threshold region)
+        event_time = rising[rising].index.max()
+
+    # Make a new dataframe with the domeBelowThreshold
+    domeBelowThreshold = pd.DataFrame(data={"inPosition": [True]}, index=[event_time])
+    return dome, domeBelowThreshold
 
 
 def plotExposureTiming(
@@ -217,9 +252,8 @@ def plotExposureTiming(
     postPadding : `float`, optional
         The amount of time to pad after the end of the last exposure.
     narrowHeightRatio : `float`, optional
-        Height ratio for narrow panels (mount, camera, aos) relative to wide
-        ones.
-
+        Height ratio for narrow panels (mount, dome, camera, aos) relative
+        to wide ones.
     Returns
     -------
     fig : `matplotlib.figure.Figure` or `None`
@@ -253,12 +287,15 @@ def plotExposureTiming(
     el = mountData.elevationData
     rot = mountData.rotationData
 
+    dome, domeBelowThreshold = getDomeData(client, begin, end, prePadding, postPadding)
+
     # Calculate relative heights for the gridspec
     narrowHeight = narrowHeightRatio
     wideHeight = 1.0
-    totalHeight = 3 * narrowHeight + 3 * wideHeight
+    totalHeight = 3 * narrowHeight + 4 * wideHeight
     heights = [
         narrowHeight / totalHeight,  # mount
+        wideHeight / totalHeight,  # dome
         wideHeight / totalHeight,  # azimuth
         wideHeight / totalHeight,  # elevation
         wideHeight / totalHeight,  # rotation
@@ -268,26 +305,29 @@ def plotExposureTiming(
 
     # Create figure with adjusted gridspec
     fig = make_figure(figsize=(18, 8))
-    gs = fig.add_gridspec(7, 2, height_ratios=[*heights, 0.15], width_ratios=[0.8, 0.2], hspace=0)
+    gs = fig.add_gridspec(8, 2, height_ratios=[*heights, 0.15], width_ratios=[0.8, 0.2], hspace=0)
 
     # Create axes with shared x-axis
     mountAx = fig.add_subplot(gs[0, 0])
-    azimuthAx = fig.add_subplot(gs[1, 0], sharex=mountAx)
-    elevationAx = fig.add_subplot(gs[2, 0], sharex=mountAx)
-    rotationAx = fig.add_subplot(gs[3, 0], sharex=mountAx)
-    aosAx = fig.add_subplot(gs[4, 0], sharex=mountAx)
-    cameraAx = fig.add_subplot(gs[5, 0], sharex=mountAx)
-    bottomLegendAx = fig.add_subplot(gs[6, :])
+    domeAx = fig.add_subplot(gs[1, 0])
+    azimuthAx = fig.add_subplot(gs[2, 0], sharex=mountAx)
+    elevationAx = fig.add_subplot(gs[3, 0], sharex=mountAx)
+    rotationAx = fig.add_subplot(gs[4, 0], sharex=mountAx)
+    aosAx = fig.add_subplot(gs[5, 0], sharex=mountAx)
+    cameraAx = fig.add_subplot(gs[6, 0], sharex=mountAx)
+    bottomLegendAx = fig.add_subplot(gs[7, :])
 
     # Create legend axes
     mountLegendAx = fig.add_subplot(gs[0, 1])
-    azLegendAx = fig.add_subplot(gs[1, 1])
-    elLegendAx = fig.add_subplot(gs[2, 1])
-    rotLegendAx = fig.add_subplot(gs[3, 1])
-    aosLegendAx = fig.add_subplot(gs[4, 1])
-    cameraLegandAx = fig.add_subplot(gs[5, 1])
+    domeLegendAx = fig.add_subplot(gs[1, 1])
+    azLegendAx = fig.add_subplot(gs[2, 1])
+    elLegendAx = fig.add_subplot(gs[3, 1])
+    rotLegendAx = fig.add_subplot(gs[4, 1])
+    aosLegendAx = fig.add_subplot(gs[5, 1])
+    cameraLegendAx = fig.add_subplot(gs[6, 1])
 
     axes = {
+        "dome": domeAx,
         "az": azimuthAx,
         "el": elevationAx,
         "rot": rotationAx,
@@ -297,11 +337,12 @@ def plotExposureTiming(
     }
 
     legendAxes = {
+        "dome": domeLegendAx,
         "az": azLegendAx,
         "el": elLegendAx,
         "rot": rotLegendAx,
         "mount": mountLegendAx,
-        "camera": cameraLegandAx,
+        "camera": cameraLegendAx,
         "aos": aosLegendAx,
         "bottom": bottomLegendAx,
     }
@@ -316,7 +357,9 @@ def plotExposureTiming(
     axes["az"].plot(az["actualPosition"])
     axes["el"].plot(el["actualPosition"])
     axes["rot"].plot(rot["actualPosition"])
-
+    axes["dome"].plot(dome["positionActual"], label="Actual")
+    axes["dome"].plot(dome["positionCommanded"], label="Commanded")
+    axes["dome"].legend(loc="lower left", frameon=False)
     # Remove y-ticks for mount, aos, and camera axes
     for ax_name in ["mount", "aos", "camera"]:
         axes[ax_name].set_yticks([])
@@ -354,7 +397,6 @@ def plotExposureTiming(
 
     # Create separate legend entries for each axis type
     legendEntries = {ax_name: [] for ax_name in axes.keys()}
-
     # Handle in-position transitions
     for label, topic in inPositionTopics.items():
         axisName = getAxisName(topic)
@@ -395,6 +437,26 @@ def plotExposureTiming(
                 ),
             ]
         )
+        # Add special domeBelowThreshold axvline
+        if label == "Dome":
+            inPositionTransitions = domeBelowThreshold
+            for time, data in inPositionTransitions.iterrows():
+                inPosition = data["inPosition"]
+                if inPosition:
+                    axes[axisName].axvline(time, color="magenta", linestyle="--", alpha=inPositionAlpha)
+
+            legendEntries[axisName].extend(
+                [
+                    Line2D(
+                        [0],
+                        [0],
+                        color="magenta",
+                        linestyle="-",
+                        label=f"{label} below threshold=True",
+                        alpha=inPositionAlpha,
+                    ),
+                ]
+            )
 
     # Handle commands
     commandTimes = getCommands(
@@ -424,7 +486,6 @@ def plotExposureTiming(
     # Group commands by axis and assign colors
     for time, command in commandTimes.items():
         axisName = getAxisName(command)
-
         if command not in color_maps[axisName]:
             color_maps[axisName][command] = next(color_iterators[axisName])
         color = color_maps[axisName][command]
