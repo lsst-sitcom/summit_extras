@@ -29,11 +29,16 @@ __all__ = [
 
 from itertools import zip_longest
 from textwrap import fill
+from typing import TYPE_CHECKING
 
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.table import Table
+from matplotlib import colormaps
+
+if TYPE_CHECKING:
+    from matplotlib.colors import Colormap
 
 
 def formatGroup(
@@ -213,16 +218,16 @@ def makeDofPredictedFWHMPlot(
     x = np.arange(len(zkIds))
     barWidth = 0.35
 
+    bwrMap: Colormap = colormaps["bwr"]
+
     for sensor, ax in enumerate(axes.flat):
-        ax.bar(
-            x - barWidth / 2, zernikesMeasured[sensor, 4:], barWidth, label="Measured", color=plt.cm.bwr(0.0)
-        )
+        ax.bar(x - barWidth / 2, zernikesMeasured[sensor, 4:], barWidth, label="Measured", color=bwrMap(0.0))
         ax.bar(
             x + barWidth / 2,
             zernikesEstimated[sensor, 4:],
             barWidth,
             label="Predicted",
-            color=plt.cm.bwr(1.0),
+            color=bwrMap(1.0),
         )
 
         ax.text(
@@ -423,7 +428,7 @@ def makeDofPredictedFWHMPlot(
     ax.axis("off")
     ax.set_title(
         r"$\sqrt{ \mathrm{FWHM}_{\mathrm{500nm}}^2 - \mathrm{FWHM}_{\mathrm{AOS}}^2 - \mathrm{donut\_blur}^2 }$",  # noqa: E501
-        fontsize=15
+        fontsize=15,
     )
 
     # AOS FWHM + Donut blur
