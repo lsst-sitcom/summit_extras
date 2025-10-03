@@ -362,8 +362,6 @@ def makeDofPredictedFWHMPlot(
     gsRightBottom = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gsRight[1], wspace=0.05, hspace=0.05)
     # AOS FWHM
     ax = fig.add_subplot(gsRightBottom[0])
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
-
     vals = np.abs(np.concatenate([wavefrontData["fwhmMeasured"], wavefrontData["fwhmInterpolated"]]))
     vmin, vmax = vals.min(), vals.max()
     ax.scatter(
@@ -377,6 +375,7 @@ def makeDofPredictedFWHMPlot(
     sc = ax.scatter(
         table["aa_x"], table["aa_y"], c=wavefrontData["fwhmInterpolated"], s=8, vmin=vmin, vmax=vmax
     )
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -402,6 +401,7 @@ def makeDofPredictedFWHMPlot(
         vmin=vmin,
         vmax=vmax,
     )
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -414,6 +414,7 @@ def makeDofPredictedFWHMPlot(
     ax = fig.add_subplot(gsRightBottom[2])
     fwhmWithAtm = np.sqrt(wavefrontData["fwhmInterpolated"] ** 2 + donutBlur**2)
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=np.sqrt(table["FWHM"] ** 2 - fwhmWithAtm**2), s=9)
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -429,6 +430,7 @@ def makeDofPredictedFWHMPlot(
     # AOS FWHM + Donut blur
     ax = fig.add_subplot(gsRightBottom[3])
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9)
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -530,6 +532,7 @@ def makeZernikePredictedFWHMPlot(
         s=50,
     )
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=wavefrontData["fwhmInterpolated"], s=8)
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
