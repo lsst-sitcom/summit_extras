@@ -513,9 +513,9 @@ def makeZernikePredictedFWHMPlot(
     # --- Right: stacked FWHM ---
     gsRight = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[1])
     ax = fig.add_subplot(gsRight[0])
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
     ax.set_aspect("equal", "box")
