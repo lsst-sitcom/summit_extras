@@ -318,11 +318,11 @@ def makeDofPredictedFWHMPlot(
     axText = fig.add_subplot(gsRight[0])
     axText.axis("off")
 
-    groups = {
+    groups: dict[str, list[int]] = {
         "Decenterings (M2 + Cam)": [0, 1, 2, 5, 6, 7],  # 0–9
         "Tilts (M2 + Cam)": [3, 4, 8, 9],  # 10–16
-        "M1M3 bending modes": np.arange(10, 30),  # 17–29 (13 modes)
-        "M2 bending modes": np.arange(30, 50),  # 30–49 (20 modes)
+        "M1M3 bending modes": list(np.arange(10, 30)),  # 17–29 (13 modes)
+        "M2 bending modes": list(np.arange(30, 50)),  # 30–49 (20 modes)
     }
 
     # Build left/right columns
