@@ -154,7 +154,7 @@ def makeDofPredictedFWHMPlot(
 
     axText.text(
         0.43,
-        1.0,
+        1.05,
         r"$\bf{AOS\ Predicted\ FWHM}$",
         transform=axText.transAxes,
         fontsize=19,
