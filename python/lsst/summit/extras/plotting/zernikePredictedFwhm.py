@@ -422,8 +422,7 @@ def makeDofPredictedFWHMPlot(
     ax.set_aspect("equal", "box")
     ax.axis("off")
     ax.set_title(
-        r"$\sqrt{ \mathrm{FWHM}_{\mathrm{500nm}}^2$ - "
-        r"$\mathrm{FWHM}_{\mathrm{AOS}}^2 - \mathrm{donut\_blur}^2 }$",
+        r"$\sqrt{ \mathrm{FWHM}_{\mathrm{500nm}}^2$ - $\mathrm{FWHM}_{\mathrm{AOS}}^2 - \mathrm{donut\_blur}^2 }$",  # noqa: E501
         fontsize=15,
     )
 
