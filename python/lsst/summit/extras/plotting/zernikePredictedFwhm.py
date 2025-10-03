@@ -153,11 +153,11 @@ def makeDofPredictedFWHMPlot(
     seqNum = visitId % 100000
 
     axText.text(
-        0.46,
+        0.4,
         1.0,
         r"$\bf{AOS\ Predicted\ FWHM}$",
         transform=axText.transAxes,
-        fontsize=15,
+        fontsize=19,
         va="top",
         ha="center",
     )
