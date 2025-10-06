@@ -226,7 +226,7 @@ def makeDofPredictedFWHMPlot(
             x + barWidth / 2,
             zernikesEstimated[sensor, 4:],
             barWidth,
-            label="Predicted",
+            label="Constrained",
             color=bwrMap(1.0),
         )
 
@@ -343,7 +343,7 @@ def makeDofPredictedFWHMPlot(
     axText.text(
         0.12,
         1.07,
-        "Predicted DOFs",
+        "Inferred DOFs",
         transform=axText.transAxes,
         fontsize=15,
         va="top",
@@ -364,37 +364,13 @@ def makeDofPredictedFWHMPlot(
 
     # ----- Grid of predicted FWHMs -----
     # -----------------------------------
-    gsRightBottom = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gsRight[1], wspace=0.05, hspace=0.05)
-    # AOS FWHM
-    ax = fig.add_subplot(gsRightBottom[0])
-    vals = np.abs(np.concatenate([wavefrontData["fwhmMeasured"], wavefrontData["fwhmInterpolated"]]))
-    vmin, vmax = vals.min(), vals.max()
-    ax.scatter(
-        wavefrontData["fieldAngles"][:, 0],
-        -wavefrontData["fieldAngles"][:, 1],
-        c=wavefrontData["fwhmMeasured"],
-        s=50,
-        vmin=vmin,
-        vmax=vmax,
-    )
-    sc = ax.scatter(
-        table["aa_x"], table["aa_y"], c=wavefrontData["fwhmInterpolated"], s=8, vmin=vmin, vmax=vmax
-    )
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
-    ax.add_patch(circle)
-    cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
-    cbar.ax.tick_params(labelsize=14)
-    cbar.set_label("(arcsec)", fontsize=14)
-    ax.set_aspect("equal", "box")
-    ax.axis("off")
-    ax.set_title(r"Predicted $\mathrm{FWHM}_{\mathrm{AOS}}$", fontsize=15)
-
+    gsRightBottom = gridspec.GridSpecFromSubplotSpec(2, 3, subplot_spec=gsRight[1], wspace=0.05, hspace=0.05)
     # AOS FWHM + Donut blur
-    ax = fig.add_subplot(gsRightBottom[1])
+    ax = fig.add_subplot(gsRightBottom[0])
     fwhmWithAtm = np.sqrt(wavefrontData["fwhmInterpolated"] ** 2 + donutBlur**2)
     cornersFwhmWithAtm = np.sqrt(wavefrontData["fwhmMeasured"] ** 2 + donutBlur**2)
 
-    vals = np.abs(np.concatenate([fwhmWithAtm, cornersFwhmWithAtm]))
+    vals = np.abs(np.concatenate([fwhmWithAtm, cornersFwhmWithAtm, table["FWHM"]]))
     vmin, vmax = vals.min(), vals.max()
 
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=fwhmWithAtm, s=9)
@@ -414,6 +390,19 @@ def makeDofPredictedFWHMPlot(
     ax.set_aspect("equal", "box")
     ax.axis("off")
     ax.set_title(r"Predicted $\sqrt{ \mathrm{FWHM}_{\mathrm{AOS}}^2 + \mathrm{donut\_blur}^2 }$", fontsize=15)
+
+
+    # AOS FWHM + Donut blur
+    ax = fig.add_subplot(gsRightBottom[1])
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, vmin=vmin, vmax=vmax)
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    ax.add_patch(circle)
+    cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
+    cbar.ax.tick_params(labelsize=14)
+    cbar.set_label("(arcsec)", fontsize=14)
+    ax.set_aspect("equal", "box")
+    ax.axis("off")
+    ax.set_title(r"Measured $\mathrm{FWHM}$", fontsize=15)
 
     # Measured - AOS FWHM + Donut blur
     ax = fig.add_subplot(gsRightBottom[2])
@@ -441,18 +430,6 @@ def makeDofPredictedFWHMPlot(
         r"$\mathrm{FWHM}_{\mathrm{measured}}^2 - \mathrm{FWHM}_{\mathrm{AOS}}^2 - \mathrm{donut\_blur}^2$",  # noqa: E501
         fontsize=15,
     )
-
-    # AOS FWHM + Donut blur
-    ax = fig.add_subplot(gsRightBottom[3])
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9)
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
-    ax.add_patch(circle)
-    cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
-    cbar.ax.tick_params(labelsize=14)
-    cbar.set_label("(arcsec)", fontsize=14)
-    ax.set_aspect("equal", "box")
-    ax.axis("off")
-    ax.set_title(r"Measured $\mathrm{FWHM}$", fontsize=15)
 
     if saveAs:
         fig.savefig(saveAs)
