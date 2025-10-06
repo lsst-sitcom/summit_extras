@@ -373,7 +373,7 @@ def makeDofPredictedFWHMPlot(
     vals = np.abs(np.concatenate([fwhmWithAtm, cornersFwhmWithAtm, table["FWHM"]]))
     vmin, vmax = vals.min(), vals.max()
 
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=fwhmWithAtm, s=9)
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=fwhmWithAtm, s=9, vmin=vmin, vmax=vmax)
     ax.scatter(
         wavefrontData["fieldAngles"][:, 0],
         -wavefrontData["fieldAngles"][:, 1],
@@ -391,8 +391,7 @@ def makeDofPredictedFWHMPlot(
     ax.axis("off")
     ax.set_title(r"Predicted $\sqrt{ \mathrm{FWHM}_{\mathrm{AOS}}^2 + \mathrm{donut\_blur}^2 }$", fontsize=15)
 
-
-    # AOS FWHM + Donut blur
+    # Measured FWHM
     ax = fig.add_subplot(gsRightBottom[1])
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, vmin=vmin, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
@@ -406,14 +405,12 @@ def makeDofPredictedFWHMPlot(
 
     # Measured - AOS FWHM + Donut blur
     ax = fig.add_subplot(gsRightBottom[2])
-    fwhmWithAtm = np.sqrt(wavefrontData["fwhmInterpolated"] ** 2 + donutBlur**2)
-
     vals = table["FWHM"] ** 2 - fwhmWithAtm**2
     vmax = np.max(np.abs(vals))
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
-        c=table["FWHM"] ** 2 - fwhmWithAtm**2,
+        c=vals,
         s=9,
         cmap="seismic",
         vmin=-vmax,
