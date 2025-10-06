@@ -132,8 +132,8 @@ def makeDofPredictedFWHMPlot(
     -----
     Good luck editing this monstrosity.
     """
-    fig = plt.figure(figsize=(34, 20))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[5, 4.2], figure=fig, wspace=0.075)
+    fig = plt.figure(figsize=(37, 20))
+    gs = gridspec.GridSpec(1, 2, width_ratios=[5, 5], figure=fig, wspace=0.075)
 
     # --- Left: Zernikes grid ---
     gsLeft = gridspec.GridSpecFromSubplotSpec(
