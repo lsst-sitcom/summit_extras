@@ -268,7 +268,7 @@ def makeDofPredictedFWHMPlot(
         if sensor == 1:
             ax.legend(
                 loc="lower center",
-                bbox_to_anchor=(0.65, 1.03),  # centered above this axis
+                bbox_to_anchor=(0.64, 1.03),  # centered above this axis
                 borderaxespad=0,
                 fontsize=12,
                 frameon=False,
@@ -322,7 +322,7 @@ def makeDofPredictedFWHMPlot(
             ax.legend(
                 handles=handles,
                 loc="upper center",
-                bbox_to_anchor=(0.65, 1.3),   # move above the subplot
+                bbox_to_anchor=(0.75, 1.35),   # move above the subplot
                 fontsize=12,
                 frameon=False,
                 ncol=2,                      # two columns = one row
