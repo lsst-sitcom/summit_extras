@@ -394,7 +394,7 @@ def makeDofPredictedFWHMPlot(
     )
     wrapped = "\n".join([fill(line, width=40) for line in bodyStr.split("\n")])
     axText.text(
-        0.73,
+        0.72,
         1.07,
         "Useful Metrics",
         transform=axText.transAxes,
@@ -404,7 +404,7 @@ def makeDofPredictedFWHMPlot(
     )
     axText.text(
         0.68,
-        0.9,
+        0.89,
         wrapped,
         transform=axText.transAxes,
         fontsize=15,
