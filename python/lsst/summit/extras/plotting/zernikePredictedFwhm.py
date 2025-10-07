@@ -322,7 +322,7 @@ def makeDofPredictedFWHMPlot(
             ax.legend(
                 handles=handles,
                 loc="upper center",
-                bbox_to_anchor=(0.75, 1.35),  # move above the subplot
+                bbox_to_anchor=(0.77, 1.36),  # move above the subplot
                 fontsize=15,
                 frameon=False,
                 ncol=2,  # two columns = one row
