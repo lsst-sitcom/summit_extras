@@ -132,7 +132,7 @@ def makeDofPredictedFWHMPlot(
     -----
     Good luck editing this monstrosity.
     """
-    fig = plt.figure(figsize=(40, 20))
+    fig = plt.figure(figsize=(40, 25))
     gs = gridspec.GridSpec(1, 2, width_ratios=[5, 5.5], figure=fig, wspace=0.075)
 
     # --- Left: Zernikes grid ---
@@ -311,7 +311,7 @@ def makeDofPredictedFWHMPlot(
         ax.set_title(f"$Z_{{{zkId}}}$", fontsize=15)
 
     # --- Right: stacked FWHM + DOF ---
-    gsRight = gridspec.GridSpecFromSubplotSpec(2, 1, height_ratios=[1, 4], subplot_spec=gs[1])
+    gsRight = gridspec.GridSpecFromSubplotSpec(2, 1, height_ratios=[1, 6], subplot_spec=gs[1])
 
     # ----- Predicted DOFs -----
     # --------------------------
@@ -364,7 +364,7 @@ def makeDofPredictedFWHMPlot(
 
     # ----- Grid of predicted FWHMs -----
     # -----------------------------------
-    gsRightBottom = gridspec.GridSpecFromSubplotSpec(2, 3, subplot_spec=gsRight[1], wspace=0.05, hspace=0.05)
+    gsRightBottom = gridspec.GridSpecFromSubplotSpec(3, 3, subplot_spec=gsRight[1], wspace=0.05, hspace=0.05)
     # AOS FWHM + Donut blur
     ax = fig.add_subplot(gsRightBottom[0])
     fwhmWithAtm = np.sqrt(wavefrontData["fwhmInterpolated"] ** 2 + donutBlur**2)
@@ -428,36 +428,32 @@ def makeDofPredictedFWHMPlot(
         fontsize=15,
     )
 
-
     # e1 ellipticities
+    # predicted e1
     ax = fig.add_subplot(gsRightBottom[3])
-
     vals = np.abs(wavefrontData["e1Interpolated"])
     vmax = vals.max()
-
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=wavefrontData["e1Interpolated"], cmap='seismic', s=9, vmin=-vmax, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
-    cbar.set_label("(arcsec)", fontsize=14)
     ax.set_aspect("equal", "box")
     ax.axis("off")
     ax.set_title(r"Predicted $e_1$", fontsize=15)
 
-    # Measured FWHM
+    # Measured e1
     ax = fig.add_subplot(gsRightBottom[4])
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e1"], cmap='seismic', s=9, vmin=vmin, vmax=vmax)
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e1"], cmap='seismic', s=9)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
-    cbar.set_label("(arcsec)", fontsize=14)
     ax.set_aspect("equal", "box")
     ax.axis("off")
     ax.set_title(r"Measured $e_1$", fontsize=15)
 
-    # Measured - AOS FWHM + Donut blur
+    # Measured e1 - predicted e1
     ax = fig.add_subplot(gsRightBottom[5])
     vals = table["e1"] - wavefrontData["e1Interpolated"]
     vmax = np.max(np.abs(vals))
@@ -474,11 +470,59 @@ def makeDofPredictedFWHMPlot(
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
-    cbar.set_label("(arcsec^2)", fontsize=14)
     ax.set_aspect("equal", "box")
     ax.axis("off")
     ax.set_title(
         r"$e_{1, measured} - e_{1, predicted}$",  # noqa: E501
+        fontsize=15,
+    )
+
+    # e2 ellipticities
+    # predicted e2
+    ax = fig.add_subplot(gsRightBottom[6])
+    vals = np.abs(wavefrontData["e2Interpolated"])
+    vmax = vals.max()
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=wavefrontData["e2Interpolated"], cmap='seismic', s=9, vmin=-vmax, vmax=vmax)
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    ax.add_patch(circle)
+    cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
+    cbar.ax.tick_params(labelsize=14)
+    ax.set_aspect("equal", "box")
+    ax.axis("off")
+    ax.set_title(r"Predicted $e_2$", fontsize=15)
+
+    # Measured e2
+    ax = fig.add_subplot(gsRightBottom[7])
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e2"], cmap='seismic', s=9)
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    ax.add_patch(circle)
+    cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
+    cbar.ax.tick_params(labelsize=14)
+    ax.set_aspect("equal", "box")
+    ax.axis("off")
+    ax.set_title(r"Measured $e_2$", fontsize=15)
+
+    # Measured e2 - predicted e2
+    ax = fig.add_subplot(gsRightBottom[8])
+    vals = table["e2"] - wavefrontData["e2Interpolated"]
+    vmax = np.max(np.abs(vals))
+    sc = ax.scatter(
+        table["aa_x"],
+        table["aa_y"],
+        c=vals,
+        s=9,
+        cmap="seismic",
+        vmin=-vmax,
+        vmax=vmax,
+    )
+    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    ax.add_patch(circle)
+    cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
+    cbar.ax.tick_params(labelsize=14)
+    ax.set_aspect("equal", "box")
+    ax.axis("off")
+    ax.set_title(
+        r"$e_{2, measured} - e_{2, predicted}$",  # noqa: E501
         fontsize=15,
     )
 
