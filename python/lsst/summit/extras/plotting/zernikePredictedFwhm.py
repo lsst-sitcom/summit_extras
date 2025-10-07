@@ -382,13 +382,24 @@ def makeDofPredictedFWHMPlot(
     )
 
     bodyStr = (
-        rf"donut_blur = {donutBlur:.2f} arcsec"
-        "\n"
-        rf"sqrt(fwhm_95 - fwhm_25) = {np.sqrt(np.percentile(table['FWHM'], 95)**2 - np.percentile(table['FWHM'], 25)**2):.2f} arcsec \n"  # noqa: E501
+        f"FWHM 25 percentile = {np.percentile(table['FWHM'], 25):.2f} arcsec\n"
+        f"FWHM 50 percentile = {np.percentile(table['FWHM'], 50):.2f} arcsec\n"
+        f"FWHM 75 percentile = {np.percentile(table['FWHM'], 75):.2f} arcsec\n"
+        f"Donut blur = {donutBlur:.2f} arcsec\n"
+        rf"sqrt(fwhm_95 - fwhm_25) = {np.sqrt(np.percentile(table['FWHM'], 95)**2 - np.percentile(table['FWHM'], 25)**2):.2f} arcsec"  # noqa: E501
     )
-    wrapped = "\n".join([fill(line, width=36) for line in bodyStr.split("\n")])
+    wrapped = "\n".join([fill(line, width=40) for line in bodyStr.split("\n")])
     axText.text(
-        0.75,
+        0.7,
+        1.07,
+        "Useful Metrics",
+        transform=axText.transAxes,
+        fontsize=15,
+        va="top",
+        ha="center",
+    )
+    axText.text(
+        0.7,
         0.9,
         wrapped,
         transform=axText.transAxes,
@@ -433,14 +444,13 @@ def makeDofPredictedFWHMPlot(
     ax = fig.add_subplot(gsRightBottom[1])
     ax.text(
         0.5,
-        1.2,
-        f"DayObs: {dayObs}   Seq: {seqNum}",
+        1.1,
+        f"day_obs = $\bf{{{dayObs}}},   seq_num = $\bf{{{seqNum}}}$",
         transform=ax.transAxes,
         fontsize=14,
-        fontweight="bold",
         ha="center",
         va="bottom",
-        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+        bbox=dict(boxstyle="round,pad=0.4", facecolor="white", alpha=0.8),
     )
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, vmin=vmin, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
