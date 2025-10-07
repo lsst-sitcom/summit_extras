@@ -385,6 +385,8 @@ def makeDofPredictedFWHMPlot(
         f"FWHM p25 = {np.percentile(table['FWHM'], 25):.2f} arcsec\n"
         f"FWHM p50 = {np.percentile(table['FWHM'], 50):.2f} arcsec\n"
         f"FWHM p75 = {np.percentile(table['FWHM'], 75):.2f} arcsec\n"
+        f"e1 p50 = {np.percentile(np.abs(table['e1']), 50):.3f}\n"
+        f"e2 p50 = {np.percentile(np.abs(table['e2']), 50):.3f}\n"
         f"Donut blur = {donutBlur:.2f} arcsec\n"
         rf"sqrt(fwhm_95 - fwhm_25) = {np.sqrt(np.percentile(table['FWHM'], 95)**2 - np.percentile(table['FWHM'], 25)**2):.2f} arcsec"  # noqa: E501
     )
