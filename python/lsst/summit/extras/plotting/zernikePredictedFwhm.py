@@ -369,7 +369,7 @@ def makeDofPredictedFWHMPlot(
         ha="center",
     )
     axText.text(
-        0.05,
+        0.03,
         0.9,
         textBlock,
         transform=axText.transAxes,
