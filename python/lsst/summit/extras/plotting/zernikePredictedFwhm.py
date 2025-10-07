@@ -369,7 +369,7 @@ def makeDofPredictedFWHMPlot(
         ha="center",
     )
     axText.text(
-        0.0,
+        0.1,
         0.9,
         textBlock,
         transform=axText.transAxes,
@@ -445,12 +445,12 @@ def makeDofPredictedFWHMPlot(
     ax.text(
         0.5,
         1.12,
-        rf"dayobs = $\bf{{{dayObs}}},   seq_num = $\bf{{{seqNum}}}$",
+        rf"dayobs = $\bf{{{dayObs}}}$,   seq_num = $\bf{{{seqNum}}}$",
         transform=ax.transAxes,
         fontsize=14,
         ha="center",
         va="bottom",
-        bbox=dict(boxstyle="round,pad=0.4", facecolor="white", alpha=0.8),
+        bbox=dict(boxstyle="round,pad=0.4", facecolor="white", alpha=0.4),
     )
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, vmin=vmin, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
