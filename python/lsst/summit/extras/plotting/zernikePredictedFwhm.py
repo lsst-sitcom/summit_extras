@@ -190,7 +190,7 @@ def makeDofPredictedFWHMPlot(
         0.87,
         wrapped,
         transform=axText.transAxes,
-        fontsize=14,
+        fontsize=15,
         family="monospace",
         va="top",
         ha="left",
@@ -268,9 +268,9 @@ def makeDofPredictedFWHMPlot(
         if sensor == 1:
             ax.legend(
                 loc="lower center",
-                bbox_to_anchor=(0.64, 1.03),  # centered above this axis
+                bbox_to_anchor=(0.62, 1.03),  # centered above this axis
                 borderaxespad=0,
-                fontsize=12,
+                fontsize=15,
                 frameon=False,
                 ncol=2,  # two columns (one row)
             )
@@ -323,7 +323,7 @@ def makeDofPredictedFWHMPlot(
                 handles=handles,
                 loc="upper center",
                 bbox_to_anchor=(0.75, 1.35),  # move above the subplot
-                fontsize=12,
+                fontsize=15,
                 frameon=False,
                 ncol=2,  # two columns = one row
                 handletextpad=1.5,
@@ -360,7 +360,7 @@ def makeDofPredictedFWHMPlot(
 
     # Draw textbox
     axText.text(
-        0.08,
+        0.04,
         1.07,
         "Inferred DOFs",
         transform=axText.transAxes,
@@ -378,7 +378,7 @@ def makeDofPredictedFWHMPlot(
         va="top",
         ha="left",
         multialignment="left",
-        bbox=dict(boxstyle="round,pad=0.9", facecolor="white", edgecolor="black", linewidth=0.8),
+        bbox=dict(boxstyle="round,pad=0.9", facecolor="white", edgecolor="black", linewidth=0.5),
     )
 
     bodyStr = (
@@ -389,6 +389,7 @@ def makeDofPredictedFWHMPlot(
         f"e2 p50 = {np.percentile(np.abs(table['e2']), 50):.3f}\n"
         f"Donut blur = {donutBlur:.2f} arcsec\n"
         rf"sqrt(fwhm_95 - fwhm_25) = {np.sqrt(np.percentile(table['FWHM'], 95)**2 - np.percentile(table['FWHM'], 25)**2):.2f} arcsec"  # noqa: E501
+        rf""
     )
     wrapped = "\n".join([fill(line, width=40) for line in bodyStr.split("\n")])
     axText.text(
@@ -405,12 +406,12 @@ def makeDofPredictedFWHMPlot(
         0.9,
         wrapped,
         transform=axText.transAxes,
-        fontsize=15,
+        fontsize=18,
         family="monospace",
         va="top",
         ha="left",
         multialignment="left",
-        bbox=dict(boxstyle="round,pad=0.5", facecolor="white", edgecolor="black", linewidth=0.7),  # outline
+        bbox=dict(boxstyle="round,pad=0.9", facecolor="white", edgecolor="black", linewidth=0.5),  # outline
     )
 
     # ----- Grid of predicted FWHMs -----
