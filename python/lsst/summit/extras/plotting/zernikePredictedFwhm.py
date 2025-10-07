@@ -317,7 +317,7 @@ def makeDofPredictedFWHMPlot(
         if i == 0:  # only add once at top-left panel
             handles = [
                 ax.scatter([], [], s=95, facecolors="none", edgecolors="black", label="Measured"),
-                ax.scatter([], [], s=25, facecolors="none", edgecolors="black", label="Constrained"),
+                ax.scatter([], [], s=25, facecolors="none", edgecolors="black", label="Predicted"),
             ]
             ax.legend(
                 handles=handles,
