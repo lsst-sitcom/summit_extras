@@ -450,8 +450,8 @@ def makeDofPredictedFWHMPlot(
     # e1 ellipticities
     # predicted e1
     ax = fig.add_subplot(gsRightBottom[3])
-    vals = np.abs(wavefrontData["e1Interpolated"])
-    vmax = vals.max()
+    vals = np.abs(np.concatenate([wavefrontData["e1Interpolated"], table["e1"]]))
+    vmax = np.percentile(vals, 97)
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
@@ -471,8 +471,6 @@ def makeDofPredictedFWHMPlot(
 
     # Measured e1
     ax = fig.add_subplot(gsRightBottom[4])
-    vals = np.abs(table["e1"])
-    vmax = vals.max()
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e1"], cmap="seismic", s=9, vmin=-vmax, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
@@ -509,8 +507,8 @@ def makeDofPredictedFWHMPlot(
     # e2 ellipticities
     # predicted e2
     ax = fig.add_subplot(gsRightBottom[6])
-    vals = np.abs(wavefrontData["e2Interpolated"])
-    vmax = vals.max()
+    vals = np.abs(np.concatenate([wavefrontData["e2Interpolated"], table["e2"]]))
+    vmax = np.percentile(vals, 97)
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
@@ -530,8 +528,6 @@ def makeDofPredictedFWHMPlot(
 
     # Measured e2
     ax = fig.add_subplot(gsRightBottom[7])
-    vals = np.abs(table["e2"])
-    vmax = vals.max()
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e2"], cmap="seismic", s=9, vmin=-vmax, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
