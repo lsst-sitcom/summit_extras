@@ -95,6 +95,7 @@ def makeDofPredictedFWHMPlot(
     wavefrontData: dict,
     donutBlur: float,
     dofState: np.ndarray,
+    nollIndices: list[int],
     saveAs: str = "",
 ):
     """Make a focal plane plot of predicted FWHM based on estimated DOFs.
@@ -125,6 +126,8 @@ def makeDofPredictedFWHMPlot(
         The donut blur value to be added in quadrature to the AOS FWHM.
     dofState : `np.ndarray`
         The state of the degrees of freedom predicted.
+    nollIndices : `list[int]`
+        List of Noll indices that were used in the wavefront sensing.
     saveAs : `str`, optional
         If provided, the plot will be saved to this file.
 
@@ -173,7 +176,8 @@ def makeDofPredictedFWHMPlot(
         rf"seq_num = $\bf{{{seqNum}}}$"
         "\n\n"
         "Degrees of freedom: 0–9, 10–16, 30–34\n"
-        "Number of v-modes: 12\n\n"
+        "Number of v-modes: 12\n"
+        f"Zernikes estimated at corners: {nollIndices}\n"
         "Plots:\n"
         "(i) Zernikes predicted at corners\n"
         "(ii) Zernikes predicted across FOV\n"
