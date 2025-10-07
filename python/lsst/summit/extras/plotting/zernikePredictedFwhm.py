@@ -177,7 +177,7 @@ def makeDofPredictedFWHMPlot(
         "\n\n"
         "Degrees of freedom: 0–9, 10–16, 30–34\n"
         "Number of v-modes: 12\n"
-        f"Zernikes estimated at corners: {nollIndices}\n"
+        f"Zernikes used: {nollIndices.tolist()}\n"
         "Plots:\n"
         "(i) Zernikes predicted at corners\n"
         "(ii) Zernikes predicted across FOV\n"
@@ -298,7 +298,7 @@ def makeDofPredictedFWHMPlot(
             wavefrontData["fieldAngles"][:, 0],
             -wavefrontData["fieldAngles"][:, 1],
             c=valsMeasured,
-            s=85,
+            s=95,
             cmap="seismic",
             vmin=vmin,
             vmax=vmax,
@@ -313,6 +313,19 @@ def makeDofPredictedFWHMPlot(
         ax.set_aspect("equal", "box")
         ax.axis("off")
         ax.set_title(f"$Z_{{{zkId}}}$", fontsize=15)
+
+        if i == 0:  # only add once at top-left panel
+            handles = [
+                ax.scatter([], [], s=95, color="gray", label="Measured"),
+                ax.scatter([], [], s=25, color="gray", label="Constrained"),
+            ]
+            ax.legend(
+                handles=handles,
+                loc="upper right",
+                fontsize=12,
+                frameon=True,
+                handletextpad=1.5,
+            )
 
     # --- Right: stacked FWHM + DOF ---
     gsRight = gridspec.GridSpecFromSubplotSpec(2, 1, height_ratios=[1, 6], subplot_spec=gs[1])
