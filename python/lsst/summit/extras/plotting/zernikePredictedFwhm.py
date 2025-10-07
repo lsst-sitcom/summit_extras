@@ -369,7 +369,7 @@ def makeDofPredictedFWHMPlot(
         ha="center",
     )
     axText.text(
-        0.03,
+        0.0,
         0.9,
         textBlock,
         transform=axText.transAxes,
@@ -382,15 +382,15 @@ def makeDofPredictedFWHMPlot(
     )
 
     bodyStr = (
-        f"FWHM 25 percentile = {np.percentile(table['FWHM'], 25):.2f} arcsec\n"
-        f"FWHM 50 percentile = {np.percentile(table['FWHM'], 50):.2f} arcsec\n"
-        f"FWHM 75 percentile = {np.percentile(table['FWHM'], 75):.2f} arcsec\n"
+        f"FWHM p25 = {np.percentile(table['FWHM'], 25):.2f} arcsec\n"
+        f"FWHM p50 = {np.percentile(table['FWHM'], 50):.2f} arcsec\n"
+        f"FWHM p75 = {np.percentile(table['FWHM'], 75):.2f} arcsec\n"
         f"Donut blur = {donutBlur:.2f} arcsec\n"
         rf"sqrt(fwhm_95 - fwhm_25) = {np.sqrt(np.percentile(table['FWHM'], 95)**2 - np.percentile(table['FWHM'], 25)**2):.2f} arcsec"  # noqa: E501
     )
     wrapped = "\n".join([fill(line, width=40) for line in bodyStr.split("\n")])
     axText.text(
-        0.7,
+        0.75,
         1.07,
         "Useful Metrics",
         transform=axText.transAxes,
@@ -403,7 +403,7 @@ def makeDofPredictedFWHMPlot(
         0.9,
         wrapped,
         transform=axText.transAxes,
-        fontsize=14,
+        fontsize=15,
         family="monospace",
         va="top",
         ha="left",
@@ -444,8 +444,8 @@ def makeDofPredictedFWHMPlot(
     ax = fig.add_subplot(gsRightBottom[1])
     ax.text(
         0.5,
-        1.1,
-        f"day_obs = $\bf{{{dayObs}}},   seq_num = $\bf{{{seqNum}}}$",
+        1.12,
+        rf"dayobs = $\bf{{{dayObs}}},   seq_num = $\bf{{{seqNum}}}$",
         transform=ax.transAxes,
         fontsize=14,
         ha="center",
