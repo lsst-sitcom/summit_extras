@@ -322,10 +322,10 @@ def makeDofPredictedFWHMPlot(
             ax.legend(
                 handles=handles,
                 loc="upper center",
-                bbox_to_anchor=(0.75, 1.35),   # move above the subplot
+                bbox_to_anchor=(0.75, 1.35),  # move above the subplot
                 fontsize=12,
                 frameon=False,
-                ncol=2,                      # two columns = one row
+                ncol=2,  # two columns = one row
                 handletextpad=1.5,
             )
 
@@ -381,10 +381,10 @@ def makeDofPredictedFWHMPlot(
         bbox=dict(boxstyle="round,pad=0.9", facecolor="white", edgecolor="black", linewidth=0.8),
     )
 
-
     bodyStr = (
         rf"donut_blur = {donutBlur:.2f} arcsec"
         "\n"
+        rf"sqrt(fwhm_95 - fwhm_25) = {np.sqrt(np.percentile(table['FWHM'], 95)**2 - np.percentile(table['FWHM'], 25)**2):.2f} arcsec \n"  # noqa: E501
     )
     wrapped = "\n".join([fill(line, width=36) for line in bodyStr.split("\n")])
     axText.text(
@@ -399,7 +399,6 @@ def makeDofPredictedFWHMPlot(
         multialignment="left",
         bbox=dict(boxstyle="round,pad=0.5", facecolor="white", edgecolor="black", linewidth=0.7),  # outline
     )
-
 
     # ----- Grid of predicted FWHMs -----
     # -----------------------------------
@@ -433,11 +432,15 @@ def makeDofPredictedFWHMPlot(
     # Measured FWHM
     ax = fig.add_subplot(gsRightBottom[1])
     ax.text(
-        0.5, 1.2,
-        f"DayObs: {day_obs}   Seq: {seq}",
+        0.5,
+        1.2,
+        f"DayObs: {dayObs}   Seq: {seqNum}",
         transform=ax.transAxes,
-        fontsize=14, fontweight="bold", ha="center", va="bottom",
-        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8)
+        fontsize=14,
+        fontweight="bold",
+        ha="center",
+        va="bottom",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
     )
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, vmin=vmin, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
