@@ -389,7 +389,7 @@ def makeDofPredictedFWHMPlot(
         f"e2 p50 = {np.percentile(np.abs(table['e2']), 50):.3f}\n\n"
         f"Donut blur = {donutBlur:.2f} arcsec\n\n"
         rf"sqrt(fwhm_95 - fwhm_25) = {np.sqrt(np.percentile(table['FWHM'], 95)**2 - np.percentile(table['FWHM'], 25)**2):.2f} arcsec"  # noqa: E501
-        rf""
+        rf"⟨FWHM_meas – FWHM_AOS – blur⟩ = {np.mean(np.sqrt(np.abs(table['FWHM']**2 - wavefrontData['fwhmInterpolated']**2 - donutBlur**2)):.2f} arcsec"  # noqa: E501
     )
     wrapped = "\n".join([fill(line, width=40) for line in bodyStr.split("\n")])
     axText.text(
