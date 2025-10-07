@@ -195,7 +195,7 @@ def makeDofPredictedFWHMPlot(
         va="top",
         ha="left",
         multialignment="left",
-        bbox=dict(boxstyle="round,pad=0.5", facecolor="white", edgecolor="black", linewidth=0.7),  # outline
+        bbox=dict(boxstyle="round,pad=0.5", facecolor="white", edgecolor="black", linewidth=0.5),  # outline
     )
 
     # ----- Zernike comparison at corners -----
@@ -322,7 +322,7 @@ def makeDofPredictedFWHMPlot(
             ax.legend(
                 handles=handles,
                 loc="upper center",
-                bbox_to_anchor=(0.77, 1.36),  # move above the subplot
+                bbox_to_anchor=(0.8, 1.36),  # move above the subplot
                 fontsize=15,
                 frameon=False,
                 ncol=2,  # two columns = one row
@@ -360,7 +360,7 @@ def makeDofPredictedFWHMPlot(
 
     # Draw textbox
     axText.text(
-        0.05,
+        0.055,
         1.07,
         "Inferred DOFs",
         transform=axText.transAxes,
@@ -393,7 +393,7 @@ def makeDofPredictedFWHMPlot(
     )
     wrapped = "\n".join([fill(line, width=40) for line in bodyStr.split("\n")])
     axText.text(
-        0.75,
+        0.73,
         1.07,
         "Useful Metrics",
         transform=axText.transAxes,
@@ -402,7 +402,7 @@ def makeDofPredictedFWHMPlot(
         ha="center",
     )
     axText.text(
-        0.7,
+        0.88,
         0.9,
         wrapped,
         transform=axText.transAxes,
