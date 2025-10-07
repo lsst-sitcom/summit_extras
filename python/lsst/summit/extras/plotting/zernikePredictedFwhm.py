@@ -370,7 +370,7 @@ def makeDofPredictedFWHMPlot(
     fwhmWithAtm = np.sqrt(wavefrontData["fwhmInterpolated"] ** 2 + donutBlur**2)
     cornersFwhmWithAtm = np.sqrt(wavefrontData["fwhmMeasured"] ** 2 + donutBlur**2)
 
-    vals = np.abs(np.concatenate([fwhmWithAtm, cornersFwhmWithAtm, table["FWHM"]]))
+    vals = np.abs(np.concatenate([fwhmWithAtm, cornersFwhmWithAtm]))
     vmin, vmax = vals.min(), vals.max()
 
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=fwhmWithAtm, s=9, vmin=vmin, vmax=vmax)
@@ -483,7 +483,7 @@ def makeDofPredictedFWHMPlot(
     ax.set_aspect("equal", "box")
     ax.axis("off")
     ax.set_title(
-        r"$e_{1, measured} - e_{1, predicted}$",  # noqa: E501
+        r"Measured $e_1$ - Predicted $e_1$",
         fontsize=15,
     )
 
@@ -542,7 +542,7 @@ def makeDofPredictedFWHMPlot(
     ax.set_aspect("equal", "box")
     ax.axis("off")
     ax.set_title(
-        r"$e_{2, measured} - e_{2, predicted}$",  # noqa: E501
+        r"Measured $e_2$ - Predicted $e_2$",
         fontsize=15,
     )
 
