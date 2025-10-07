@@ -316,14 +316,16 @@ def makeDofPredictedFWHMPlot(
 
         if i == 0:  # only add once at top-left panel
             handles = [
-                ax.scatter([], [], s=95, color="gray", label="Measured"),
-                ax.scatter([], [], s=25, color="gray", label="Constrained"),
+                ax.scatter([], [], s=95, facecolors="none", edgecolors="black", label="Measured"),
+                ax.scatter([], [], s=25, facecolors="none", edgecolors="black", label="Constrained"),
             ]
             ax.legend(
                 handles=handles,
-                loc="upper right",
+                loc="upper center",
+                bbox_to_anchor=(0.5, 1.1),   # move above the subplot
                 fontsize=12,
-                frameon=True,
+                frameon=False,
+                ncol=2,                      # two columns = one row
                 handletextpad=1.5,
             )
 
