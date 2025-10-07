@@ -268,7 +268,7 @@ def makeDofPredictedFWHMPlot(
         if sensor == 1:
             ax.legend(
                 loc="lower center",
-                bbox_to_anchor=(0.66, 1.03),  # centered above this axis
+                bbox_to_anchor=(0.65, 1.03),  # centered above this axis
                 borderaxespad=0,
                 fontsize=12,
                 frameon=False,
@@ -316,13 +316,13 @@ def makeDofPredictedFWHMPlot(
 
         if i == 0:  # only add once at top-left panel
             handles = [
-                ax.scatter([], [], s=95, facecolors="none", edgecolors="black", label="Measured"),
-                ax.scatter([], [], s=25, facecolors="none", edgecolors="black", label="Predicted"),
+                ax.scatter([], [], s=95, facecolors="none", edgecolors="gray", label="Measured"),
+                ax.scatter([], [], s=25, facecolors="none", edgecolors="gray", label="Predicted"),
             ]
             ax.legend(
                 handles=handles,
                 loc="upper center",
-                bbox_to_anchor=(0.5, 1.1),   # move above the subplot
+                bbox_to_anchor=(0.65, 1.3),   # move above the subplot
                 fontsize=12,
                 frameon=False,
                 ncol=2,                      # two columns = one row
