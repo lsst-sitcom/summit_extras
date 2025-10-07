@@ -177,7 +177,7 @@ def makeDofPredictedFWHMPlot(
         "\n\n"
         "Degrees of freedom: 0–9, 10–16, 30–34\n"
         "Number of v-modes: 12\n"
-        f"Zernikes used: {nollIndices.tolist()}\n"
+        f"Zernikes: {nollIndices.tolist()}\n\n"
         "Plots:\n"
         "(i) Zernikes predicted at corners\n"
         "(ii) Zernikes predicted across FOV\n"
@@ -360,7 +360,7 @@ def makeDofPredictedFWHMPlot(
 
     # Draw textbox
     axText.text(
-        0.12,
+        0.08,
         1.07,
         "Inferred DOFs",
         transform=axText.transAxes,
