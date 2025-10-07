@@ -186,8 +186,8 @@ def makeDofPredictedFWHMPlot(
     )
     wrapped = "\n".join([fill(line, width=36) for line in bodyStr.split("\n")])
     axText.text(
-        0.05,
-        0.87,
+        0.02,
+        0.88,
         wrapped,
         transform=axText.transAxes,
         fontsize=15,
@@ -268,7 +268,7 @@ def makeDofPredictedFWHMPlot(
         if sensor == 1:
             ax.legend(
                 loc="lower center",
-                bbox_to_anchor=(0.62, 1.03),  # centered above this axis
+                bbox_to_anchor=(0.58, 1.03),  # centered above this axis
                 borderaxespad=0,
                 fontsize=15,
                 frameon=False,
@@ -360,7 +360,7 @@ def makeDofPredictedFWHMPlot(
 
     # Draw textbox
     axText.text(
-        0.04,
+        0.05,
         1.07,
         "Inferred DOFs",
         transform=axText.transAxes,
@@ -369,7 +369,7 @@ def makeDofPredictedFWHMPlot(
         ha="center",
     )
     axText.text(
-        0.02,
+        0.015,
         0.9,
         textBlock,
         transform=axText.transAxes,
@@ -406,7 +406,7 @@ def makeDofPredictedFWHMPlot(
         0.9,
         wrapped,
         transform=axText.transAxes,
-        fontsize=18,
+        fontsize=15,
         family="monospace",
         va="top",
         ha="left",
