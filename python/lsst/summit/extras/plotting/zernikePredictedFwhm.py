@@ -433,7 +433,15 @@ def makeDofPredictedFWHMPlot(
     ax = fig.add_subplot(gsRightBottom[3])
     vals = np.abs(wavefrontData["e1Interpolated"])
     vmax = vals.max()
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=wavefrontData["e1Interpolated"], cmap='seismic', s=9, vmin=-vmax, vmax=vmax)
+    sc = ax.scatter(
+        table["aa_x"],
+        table["aa_y"],
+        c=wavefrontData["e1Interpolated"],
+        cmap="seismic",
+        s=9,
+        vmin=-vmax,
+        vmax=vmax,
+    )
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
@@ -444,7 +452,9 @@ def makeDofPredictedFWHMPlot(
 
     # Measured e1
     ax = fig.add_subplot(gsRightBottom[4])
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e1"], cmap='seismic', s=9)
+    vals = np.abs(table["e1"])
+    vmax = vals.max()
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e1"], cmap="seismic", s=9, vmin=-vmax, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
@@ -482,7 +492,15 @@ def makeDofPredictedFWHMPlot(
     ax = fig.add_subplot(gsRightBottom[6])
     vals = np.abs(wavefrontData["e2Interpolated"])
     vmax = vals.max()
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=wavefrontData["e2Interpolated"], cmap='seismic', s=9, vmin=-vmax, vmax=vmax)
+    sc = ax.scatter(
+        table["aa_x"],
+        table["aa_y"],
+        c=wavefrontData["e2Interpolated"],
+        cmap="seismic",
+        s=9,
+        vmin=-vmax,
+        vmax=vmax,
+    )
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
@@ -493,7 +511,9 @@ def makeDofPredictedFWHMPlot(
 
     # Measured e2
     ax = fig.add_subplot(gsRightBottom[7])
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e2"], cmap='seismic', s=9)
+    vals = np.abs(table["e2"])
+    vmax = vals.max()
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e2"], cmap="seismic", s=9, vmin=-vmax, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
