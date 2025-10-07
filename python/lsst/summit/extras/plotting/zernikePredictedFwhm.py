@@ -381,6 +381,26 @@ def makeDofPredictedFWHMPlot(
         bbox=dict(boxstyle="round,pad=0.9", facecolor="white", edgecolor="black", linewidth=0.8),
     )
 
+
+    bodyStr = (
+        rf"donut_blur = {donutBlur:.2f} arcsec"
+        "\n"
+    )
+    wrapped = "\n".join([fill(line, width=36) for line in bodyStr.split("\n")])
+    axText.text(
+        0.75,
+        0.9,
+        wrapped,
+        transform=axText.transAxes,
+        fontsize=14,
+        family="monospace",
+        va="top",
+        ha="left",
+        multialignment="left",
+        bbox=dict(boxstyle="round,pad=0.5", facecolor="white", edgecolor="black", linewidth=0.7),  # outline
+    )
+
+
     # ----- Grid of predicted FWHMs -----
     # -----------------------------------
     gsRightBottom = gridspec.GridSpecFromSubplotSpec(3, 3, subplot_spec=gsRight[1], wspace=0.05, hspace=0.05)
@@ -412,6 +432,13 @@ def makeDofPredictedFWHMPlot(
 
     # Measured FWHM
     ax = fig.add_subplot(gsRightBottom[1])
+    ax.text(
+        0.5, 1.2,
+        f"DayObs: {day_obs}   Seq: {seq}",
+        transform=ax.transAxes,
+        fontsize=14, fontweight="bold", ha="center", va="bottom",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8)
+    )
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, vmin=vmin, vmax=vmax)
     circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
