@@ -688,7 +688,7 @@ def makeZernikePredictedFWHMPlot(
     cbar.ax.tick_params(labelsize=14)
     ax.set_aspect("equal", "box")
     ax.axis("off")
-    ax.set_title("Measured FWHM 500nm", fontsize=15)
+    ax.set_title("Measured FWHM", fontsize=15)
 
     # AOS FWHM
     ax = fig.add_subplot(gsRight[1])
