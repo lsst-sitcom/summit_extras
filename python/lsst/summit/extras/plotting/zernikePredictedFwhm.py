@@ -29,7 +29,7 @@ __all__ = [
 
 from itertools import zip_longest
 from textwrap import fill
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
@@ -92,7 +92,7 @@ def formatGroup(
 
 def makeDofPredictedFWHMPlot(
     table: Table,
-    wavefrontData: dict,
+    wavefrontData: dict[str, Any],
     donutBlur: float,
     dofState: np.ndarray,
     nollIndices: list[int],
@@ -606,7 +606,7 @@ def makeDofPredictedFWHMPlot(
     )
 
     if saveAs:
-        fig.savefig(saveAs, bbox_inches='tight', pad_inches=0)
+        fig.savefig(saveAs, bbox_inches="tight", pad_inches=0)
 
 
 def makeZernikePredictedFWHMPlot(
