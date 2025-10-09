@@ -98,6 +98,8 @@ def makeDofPredictedFWHMPlot(
     nollIndices: np.ndarray,
     saveAs: str = "",
     zMin: int = 4,
+    maxPercentile: float = 97.0,
+    minPercentile: float = 3.0,
 ):
     """Make a focal plane plot of predicted FWHM based on estimated DOFs.
 
@@ -131,6 +133,10 @@ def makeDofPredictedFWHMPlot(
         If provided, the plot will be saved to this file.
     zMin : `int`, optional
         The minimum Noll index used in the wavefront sensing (default is 4).
+    maxPercentile : `float`, optional
+        The maximum percentile for color scaling (default is 97.0).
+    minPercentile : `float`, optional
+        The minimum percentile for color scaling (default is 3.0).
     """
     fig = plt.figure(figsize=(40, 25))
     gs = gridspec.GridSpec(1, 2, width_ratios=[5, 5.5], figure=fig, wspace=0.075)
@@ -283,7 +289,7 @@ def makeDofPredictedFWHMPlot(
         valsMeasured = zernikesMeasured[:, zkId]
         valsInterp = wavefrontData["zksInterpolated"][:, zkId]
 
-        vmax = np.max(np.abs(np.concatenate([valsMeasured, valsInterp])))
+        vmax = np.nanmax(np.abs(np.concatenate([valsMeasured, valsInterp])))
         vmin = -vmax
         sc = ax.scatter(
             wavefrontData["rotatedPositions"][:, 0],
@@ -425,7 +431,7 @@ def makeDofPredictedFWHMPlot(
     cornersFwhmWithAtm = np.sqrt(wavefrontData["fwhmMeasured"] ** 2 + donutBlur**2)
 
     vals = np.concatenate([fwhmWithAtm, cornersFwhmWithAtm, table["FWHM"]])
-    vmin, vmax = np.percentile(vals, [3, 97])
+    vmin, vmax = np.percentile(vals, [minPercentile, maxPercentile])
 
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=fwhmWithAtm, s=9, vmin=vmin, vmax=vmax)
     ax.scatter(
@@ -470,7 +476,7 @@ def makeDofPredictedFWHMPlot(
     # Measured - AOS FWHM + Donut blur
     ax = fig.add_subplot(gsRightBottom[2])
     vals = table["FWHM"] ** 2 - fwhmWithAtm**2
-    vmax = np.max(np.abs(vals))
+    vmax = np.nanmax(np.abs(vals))
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
@@ -496,7 +502,7 @@ def makeDofPredictedFWHMPlot(
     # predicted e1
     ax = fig.add_subplot(gsRightBottom[3])
     vals = np.abs(np.concatenate([wavefrontData["e1Interpolated"], table["e1"]]))
-    vmax = np.percentile(vals, 97)
+    vmax = np.percentile(vals, maxPercentile)
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
@@ -528,7 +534,7 @@ def makeDofPredictedFWHMPlot(
     # Measured e1 - predicted e1
     ax = fig.add_subplot(gsRightBottom[5])
     vals = table["e1"] - wavefrontData["e1Interpolated"]
-    vmax = np.max(np.abs(vals))
+    vmax = np.nanmax(np.abs(vals))
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
@@ -553,7 +559,7 @@ def makeDofPredictedFWHMPlot(
     # predicted e2
     ax = fig.add_subplot(gsRightBottom[6])
     vals = np.abs(np.concatenate([wavefrontData["e2Interpolated"], table["e2"]]))
-    vmax = np.percentile(vals, 97)
+    vmax = np.percentile(vals, maxPercentile)
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
@@ -585,7 +591,7 @@ def makeDofPredictedFWHMPlot(
     # Measured e2 - predicted e2
     ax = fig.add_subplot(gsRightBottom[8])
     vals = table["e2"] - wavefrontData["e2Interpolated"]
-    vmax = np.max(np.abs(vals))
+    vmax = np.nanmax(np.abs(vals))
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
@@ -646,7 +652,7 @@ def makeZernikePredictedFWHMPlot(
         valsMeasured = zernikesMeasured[:, zkId]
         valsInterp = wavefrontData["zksInterpolated"][:, zkId]
 
-        vmax = np.max(np.abs(np.concatenate([valsMeasured, valsInterp])))
+        vmax = np.nanmax(np.abs(np.concatenate([valsMeasured, valsInterp])))
         vmin = -vmax
         sc = ax.scatter(
             wavefrontData["rotatedPositions"][:, 0],
