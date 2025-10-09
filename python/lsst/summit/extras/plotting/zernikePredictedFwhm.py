@@ -229,7 +229,9 @@ def makeDofPredictedFWHMPlot(
 
     for sensor in range(zernikesMeasured.shape[0]):
         ax = axes.flat[sensor]
-        ax.bar(x - barWidth / 2, zernikesMeasured[sensor, zMin:], barWidth, label="Measured", color=bwrMap(0.0))
+        ax.bar(
+            x - barWidth / 2, zernikesMeasured[sensor, zMin:], barWidth, label="Measured", color=bwrMap(0.0)
+        )
         ax.bar(
             x + barWidth / 2,
             zernikesEstimated[sensor, zMin:],
