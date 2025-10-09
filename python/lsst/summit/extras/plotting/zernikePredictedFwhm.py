@@ -62,7 +62,7 @@ def formatGroup(
 
     Returns
     -------
-    `list[str]`
+    formatted : `list[str]`
         A list of formatted strings representing the DOFs in the group.
     """
     labels = ["M2 dz", "M2 dx", "M2 dy", "M2 rx", "M2 ry", "Cam dz", "Cam dx", "Cam dy", "Cam rx", "Cam ry"]
@@ -101,20 +101,18 @@ def makeDofPredictedFWHMPlot(
 ):
     """Make a focal plane plot of predicted FWHM based on estimated DOFs.
 
-    Top center: Shows the measured zernikes and predicted
-    zernikes from degrees of freedom at the four corners.
+    Top center: Shows the measured zernikes and predicted zernikes from degrees
+    of freedom at the four corners.
 
-    Top right: panel with all the predicted degreed of freedom
-    across the focal plane.
+    Top right: panel with all the predicted degreed of freedom across the focal
+    plane.
 
-    Left bottom panel: shows interpolated zernike values based
-    on the predicted degree of freedom state. It also shows measured
-    values at the corners.
+    Left bottom panel: shows interpolated zernike values based on the predicted
+    degree of freedom state. It also shows measured values at the corners.
 
-    Right bottom panel: shows the predicted AOS FWHM values
-    across the focal plane based on the degrees of freedom, the
-    predicted AOS FWHM + donutBlur, the measured FWHM, and
-    the subtraction of measured - AOS FWHM - donut blur,
+    Right bottom panel: shows the predicted AOS FWHM values across the focal
+    plane based on the degrees of freedom, the predicted AOS FWHM + donutBlur,
+    the measured FWHM, and the subtraction of measured - AOS FWHM - donut blur,
     in quadrature, of course.
 
     Parameters
@@ -133,10 +131,6 @@ def makeDofPredictedFWHMPlot(
         If provided, the plot will be saved to this file.
     zMin : `int`, optional
         The minimum Noll index used in the wavefront sensing (default is 4).
-
-    Notes
-    -----
-    Good luck editing this monstrosity.
     """
     fig = plt.figure(figsize=(40, 25))
     gs = gridspec.GridSpec(1, 2, width_ratios=[5, 5.5], figure=fig, wspace=0.075)
@@ -623,14 +617,13 @@ def makeZernikePredictedFWHMPlot(
 ):
     """Make a focal plane plot of predicted FWHM based on Zernike coefficients.
 
-    Left panel: Shows the measured zernikes in the corner
-    and the interpolated values across the focal plane.
+    Left panel: Shows the measured zernikes in the corner and the interpolated
+    values across the focal plane.
 
-    Right top panel: shows the measured FWHM values
-    across the focal plane.
+    Right top panel: shows the measured FWHM values across the focal plane.
 
-    Right bottom panel: shows interpolated FWHM values based
-    on the interpolated zernikes across the focal plane.
+    Right bottom panel: shows interpolated FWHM values based on the
+    interpolated zernikes across the focal plane.
 
     Parameters
     ----------
