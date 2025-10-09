@@ -132,11 +132,11 @@ def makeDofPredictedFWHMPlot(
     saveAs : `str`, optional
         If provided, the plot will be saved to this file.
     zMin : `int`, optional
-        The minimum Noll index used in the wavefront sensing (default is 4).
+        The minimum Noll index used in the wavefront sensing.
     maxPercentile : `float`, optional
-        The maximum percentile for color scaling (default is 97.0).
+        The maximum percentile for color scaling.
     minPercentile : `float`, optional
-        The minimum percentile for color scaling (default is 3.0).
+        The minimum percentile for color scaling.
     """
     fig = plt.figure(figsize=(40, 25))
     gs = gridspec.GridSpec(1, 2, width_ratios=[5, 5.5], figure=fig, wspace=0.075)
@@ -178,7 +178,7 @@ def makeDofPredictedFWHMPlot(
         "\n"
         rf"seq_num = $\bf{{{seqNum}}}$"
         "\n\n"
-        "Degrees of freedom: 0–9, 10–16, 30–34\n"
+        "Degrees of freedom: 0-9, 10-16, 30-34\n"
         "Number of v-modes: 12\n"
         f"Zernikes: {nollIndices.tolist()}\n\n"
         "Plots:\n"
@@ -344,10 +344,10 @@ def makeDofPredictedFWHMPlot(
     axText.axis("off")
 
     groups: dict[str, list[int]] = {
-        "Decenterings (M2 + Cam)": [0, 1, 2, 5, 6, 7],  # 0–9
-        "Tilts (M2 + Cam)": [3, 4, 8, 9],  # 10–16
-        "M1M3 bending modes": list(np.arange(10, 30)),  # 17–29 (13 modes)
-        "M2 bending modes": list(np.arange(30, 50)),  # 30–49 (20 modes)
+        "Decenterings (M2 + Cam)": [0, 1, 2, 5, 6, 7],  # 0-9
+        "Tilts (M2 + Cam)": [3, 4, 8, 9],  # 10-16
+        "M1M3 bending modes": list(np.arange(10, 30)),  # 17-29 (13 modes)
+        "M2 bending modes": list(np.arange(30, 50)),  # 30-49 (20 modes)
     }
 
     # Build left/right columns
@@ -618,7 +618,7 @@ def makeDofPredictedFWHMPlot(
 
 def makeZernikePredictedFWHMPlot(
     table: Table,
-    wavefrontData: dict,
+    wavefrontData: dict[str, Any],
     saveAs: str = "",
 ):
     """Make a focal plane plot of predicted FWHM based on Zernike coefficients.
