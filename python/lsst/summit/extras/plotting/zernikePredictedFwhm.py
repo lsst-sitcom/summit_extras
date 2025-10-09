@@ -97,6 +97,7 @@ def makeDofPredictedFWHMPlot(
     dofState: np.ndarray,
     nollIndices: list[int],
     saveAs: str = "",
+    zMin: int = 4,
 ):
     """Make a focal plane plot of predicted FWHM based on estimated DOFs.
 
@@ -130,6 +131,8 @@ def makeDofPredictedFWHMPlot(
         List of Noll indices that were used in the wavefront sensing.
     saveAs : `str`, optional
         If provided, the plot will be saved to this file.
+    zMin : `int`, optional
+        The minimum Noll index used in the wavefront sensing (default is 4).
 
     Notes
     -----
@@ -218,17 +221,18 @@ def makeDofPredictedFWHMPlot(
 
     zernikesMeasured = wavefrontData["zksMeasured"]
     zernikesEstimated = wavefrontData["zksEstimated"][:, : zernikesMeasured.shape[1]]
-    zkIds = np.arange(4, zernikesMeasured.shape[1])
+    zkIds = np.arange(zMin, zernikesMeasured.shape[1])
     x = np.arange(len(zkIds))
     barWidth = 0.35
 
     bwrMap: Colormap = colormaps["bwr"]
 
-    for sensor, ax in enumerate(axes.flat):
-        ax.bar(x - barWidth / 2, zernikesMeasured[sensor, 4:], barWidth, label="Measured", color=bwrMap(0.0))
+    for sensor in range(zernikesMeasured.shape[0]):
+        ax = axes.flat[sensor]
+        ax.bar(x - barWidth / 2, zernikesMeasured[sensor, zMin:], barWidth, label="Measured", color=bwrMap(0.0))
         ax.bar(
             x + barWidth / 2,
-            zernikesEstimated[sensor, 4:],
+            zernikesEstimated[sensor, zMin:],
             barWidth,
             label="Constrained",
             color=bwrMap(1.0),
@@ -247,7 +251,7 @@ def makeDofPredictedFWHMPlot(
 
         # xticks only at Z5, Z10, Z15, Z20, Z25
         tickIds = [5, 10, 15, 20, 25]
-        tickPos = [i - 4 for i in tickIds if i in zkIds]
+        tickPos = [i - zMin for i in tickIds if i in zkIds]
         ax.set_xticks(tickPos)
         if sensor >= 2:
             ax.set_xlabel("Noll index", fontsize=11)
@@ -262,8 +266,8 @@ def makeDofPredictedFWHMPlot(
 
         ax.grid(axis="x", linestyle="--", linewidth=0.5, alpha=0.7)
 
-        for z in np.arange(4, zernikesMeasured.shape[1]):
-            ax.axvline(z - 4, color="gray", linestyle="--", linewidth=0.5, alpha=0.4)
+        for z in np.arange(zMin, zernikesMeasured.shape[1]):
+            ax.axvline(z - zMin, color="gray", linestyle="--", linewidth=0.5, alpha=0.4)
 
         if sensor == 1:
             ax.legend(
@@ -278,7 +282,7 @@ def makeDofPredictedFWHMPlot(
     # ----- Zernike grid across FOV -----
     # -----------------------------------
     gsBottom = gridspec.GridSpecFromSubplotSpec(5, 5, subplot_spec=gsLeft[1], hspace=0.15, wspace=0.05)
-    for i, zkId in enumerate(np.arange(4, zernikesMeasured.shape[1])):
+    for i, zkId in enumerate(np.arange(zMin, zernikesMeasured.shape[1])):
         ax = fig.add_subplot(gsBottom[i])
         valsMeasured = zernikesMeasured[:, zkId]
         valsInterp = wavefrontData["zksInterpolated"][:, zkId]
