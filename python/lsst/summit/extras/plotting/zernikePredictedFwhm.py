@@ -32,10 +32,12 @@ from textwrap import fill
 from typing import TYPE_CHECKING, Any
 
 import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
 import numpy as np
 from astropy.table import Table
 from matplotlib import colormaps
+from matplotlib.patches import Circle
+
+from lsst.utils.plotting.figures import make_figure
 
 if TYPE_CHECKING:
     from matplotlib.colors import Colormap
@@ -138,7 +140,8 @@ def makeDofPredictedFWHMPlot(
     minPercentile : `float`, optional
         The minimum percentile for color scaling.
     """
-    fig = plt.figure(figsize=(40, 25))
+    fig = make_figure(figsize=(40, 25))
+
     gs = gridspec.GridSpec(1, 2, width_ratios=[5, 5.5], figure=fig, wspace=0.075)
 
     # --- Left: Zernikes grid ---
@@ -310,7 +313,7 @@ def makeDofPredictedFWHMPlot(
             vmax=vmax,
         )
 
-        circle = plt.Circle((0, 0), 1.75, color="gray", fill=False, linestyle="--")
+        circle = Circle((0, 0), 1.75, color="gray", fill=False, linestyle="--")
         ax.add_patch(circle)
 
         cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
@@ -442,7 +445,7 @@ def makeDofPredictedFWHMPlot(
         vmin=vmin,
         vmax=vmax,
     )
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -464,7 +467,7 @@ def makeDofPredictedFWHMPlot(
         bbox=dict(boxstyle="round,pad=0.4", facecolor="white", alpha=0.4),
     )
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, vmin=vmin, vmax=vmax)
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -486,7 +489,7 @@ def makeDofPredictedFWHMPlot(
         vmin=-vmax,
         vmax=vmax,
     )
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -512,7 +515,7 @@ def makeDofPredictedFWHMPlot(
         vmin=-vmax,
         vmax=vmax,
     )
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -523,7 +526,7 @@ def makeDofPredictedFWHMPlot(
     # Measured e1
     ax = fig.add_subplot(gsRightBottom[4])
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e1"], cmap="seismic", s=9, vmin=-vmax, vmax=vmax)
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -544,7 +547,7 @@ def makeDofPredictedFWHMPlot(
         vmin=-vmax,
         vmax=vmax,
     )
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -569,7 +572,7 @@ def makeDofPredictedFWHMPlot(
         vmin=-vmax,
         vmax=vmax,
     )
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -580,7 +583,7 @@ def makeDofPredictedFWHMPlot(
     # Measured e2
     ax = fig.add_subplot(gsRightBottom[7])
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e2"], cmap="seismic", s=9, vmin=-vmax, vmax=vmax)
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -601,7 +604,7 @@ def makeDofPredictedFWHMPlot(
         vmin=-vmax,
         vmax=vmax,
     )
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -640,7 +643,8 @@ def makeZernikePredictedFWHMPlot(
     saveAs : `str`, optional
         If provided, the plot will be saved to this file.
     """
-    fig = plt.figure(figsize=(20, 12))
+    fig = make_figure(figsize=(20, 12))
+
     gs = gridspec.GridSpec(1, 2, width_ratios=[3, 1.75], figure=fig)
 
     # --- Left: Zernikes grid ---
@@ -673,7 +677,7 @@ def makeZernikePredictedFWHMPlot(
             vmax=vmax,
         )
 
-        circle = plt.Circle((0, 0), 1.75, color="gray", fill=False, linestyle="--")
+        circle = Circle((0, 0), 1.75, color="gray", fill=False, linestyle="--")
         ax.add_patch(circle)
 
         cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
@@ -687,7 +691,7 @@ def makeZernikePredictedFWHMPlot(
     gsRight = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[1])
     ax = fig.add_subplot(gsRight[0])
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9)
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
@@ -704,7 +708,7 @@ def makeZernikePredictedFWHMPlot(
         s=50,
     )
     sc = ax.scatter(table["aa_x"], table["aa_y"], c=wavefrontData["fwhmInterpolated"], s=8)
-    circle = plt.Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
     cbar.ax.tick_params(labelsize=14)
