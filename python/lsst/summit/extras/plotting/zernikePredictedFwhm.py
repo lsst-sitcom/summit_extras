@@ -58,7 +58,7 @@ def formatGroup(
     dofs : `np.ndarray`
         The array of DOF values.
     ncols : `int`, optional
-        The number of columns to arrange the output in (default is 1).
+        The number of columns to arrange the output in.
 
     Returns
     -------
@@ -85,7 +85,7 @@ def formatGroup(
         for i in idx:
             lines.append(f"   {labels[i]:<8}: {dofs[i]:7.3f}")
     # No final spacing for the two bottom groups
-    if "M1M3" in name or "Decenterings" in name:
+    if "M1M3" in name.upper() or "decenterings" in name.lower():
         lines.append(" ")
     return lines
 
