@@ -95,7 +95,7 @@ def makeDofPredictedFWHMPlot(
     wavefrontData: dict[str, Any],
     donutBlur: float,
     dofState: np.ndarray,
-    nollIndices: list[int],
+    nollIndices: np.ndarray,
     saveAs: str = "",
     zMin: int = 4,
 ):
