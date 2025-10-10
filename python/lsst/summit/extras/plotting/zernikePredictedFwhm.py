@@ -727,4 +727,4 @@ def makeZernikePredictedFWHMPlot(
 
     fig.tight_layout()
     if saveAs:
-        fig.savefig(saveAs)
+        fig.savefig(saveAs, bbox_inches="tight", pad_inches=0)
