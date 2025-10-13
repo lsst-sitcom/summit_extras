@@ -257,10 +257,11 @@ def makeDofPredictedFWHMPlot(
         # xticks only at Z5, Z10, Z15, Z20, Z25
         tickIds = [5, 10, 15, 20, 25]
         tickPos = [i - zMin for i in tickIds if i in zkIds]
+        tickIdsPresent = [i for i in tickIds if i in zkIds]
         ax.set_xticks(tickPos)
         if sensor >= 2:
             ax.set_xlabel("Noll index", fontsize=11)
-            ax.set_xticklabels(tickIds)
+            ax.set_xticklabels(tickIdsPresent)
         else:
             ax.tick_params(axis="x", labelbottom=False)
 
