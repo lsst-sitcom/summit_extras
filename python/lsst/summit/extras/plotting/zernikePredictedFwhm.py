@@ -391,7 +391,7 @@ def makeDofPredictedFWHMPlot(
         bbox=dict(boxstyle="round,pad=0.9", facecolor="white", edgecolor="black", linewidth=0.5),
     )
 
-    sqrtFwhm9525 = np.sqrt(np.percentile(table["FWHM"], 95) ** 2 - np.percentile(table["FWHM"], 25) ** 2)
+    sqrtFwhm9505 = np.sqrt(np.percentile(table["FWHM"], 95) ** 2 - np.percentile(table["FWHM"], 5) ** 2)
     fwhmMetric = np.nanmedian((table["FWHM"] ** 2 - wavefrontData["fwhmInterpolated"] ** 2 - donutBlur**2))
     bodyStr = (
         f"FWHM p25 = {np.percentile(table['FWHM'], 25):.2f} arcsec\n"
@@ -400,7 +400,7 @@ def makeDofPredictedFWHMPlot(
         f"e1 p50 = {np.percentile(np.abs(table['e1']), 50):.3f}\n"
         f"e2 p50 = {np.percentile(np.abs(table['e2']), 50):.3f}\n\n"
         f"Donut blur = {donutBlur:.2f} arcsec\n\n"
-        f"sqrt(fwhm_95 - fwhm_25) = {sqrtFwhm9525:.2f} arcsec\n\n"
+        f"sqrt(fwhm_95 - fwhm_05) = {sqrtFwhm9505:.2f} arcsec\n\n"
         f"⟨FWHM^2_meas - FWHM^2_AOS - blur^2⟩ = {fwhmMetric:.2f} arcsec^2"
     )
     wrapped = "\n".join([fill(line, width=40) for line in bodyStr.split("\n")])
