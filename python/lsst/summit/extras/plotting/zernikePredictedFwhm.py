@@ -35,6 +35,7 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 from astropy.table import Table
 from matplotlib import colormaps
+from matplotlib.colors import TwoSlopeNorm
 from matplotlib.patches import Circle
 
 from lsst.utils.plotting.figures import make_figure
@@ -100,8 +101,8 @@ def makeDofPredictedFWHMPlot(
     nollIndices: np.ndarray,
     saveAs: str = "",
     zMin: int = 4,
-    maxPercentile: float = 97.0,
-    minPercentile: float = 3.0,
+    vmaxEllipticities: float = 0.2,
+    fwhmRange: float = 0.2,
 ):
     """Make a focal plane plot of predicted FWHM based on estimated DOFs.
 
@@ -135,10 +136,10 @@ def makeDofPredictedFWHMPlot(
         If provided, the plot will be saved to this file.
     zMin : `int`, optional
         The minimum Noll index used in the wavefront sensing.
-    maxPercentile : `float`, optional
-        The maximum percentile for color scaling.
-    minPercentile : `float`, optional
-        The minimum percentile for color scaling.
+    vmaxEllipticities : `float`, optional
+        The maximum value for ellipticity color scaling.
+    fwhmRange : `float`, optional
+        The range of FWHM values for color scaling.
     """
     fig = make_figure(figsize=(40, 25))
 
@@ -434,17 +435,16 @@ def makeDofPredictedFWHMPlot(
     fwhmWithAtm = np.sqrt(wavefrontData["fwhmInterpolated"] ** 2 + donutBlur**2)
     cornersFwhmWithAtm = np.sqrt(wavefrontData["fwhmMeasured"] ** 2 + donutBlur**2)
 
-    vals = np.concatenate([fwhmWithAtm, cornersFwhmWithAtm, table["FWHM"]])
-    vmin, vmax = np.percentile(vals, [minPercentile, maxPercentile])
+    vcenter = np.median(fwhmWithAtm)
+    norm = TwoSlopeNorm(vmin=vcenter - fwhmRange, vcenter=vcenter, vmax=vcenter + fwhmRange)
 
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=fwhmWithAtm, s=9, vmin=vmin, vmax=vmax)
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=fwhmWithAtm, s=9, norm=norm)
     ax.scatter(
         wavefrontData["fieldAngles"][:, 0],
         -wavefrontData["fieldAngles"][:, 1],
         c=cornersFwhmWithAtm,
         s=50,
-        vmin=vmin,
-        vmax=vmax,
+        norm=norm,
     )
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
@@ -467,7 +467,9 @@ def makeDofPredictedFWHMPlot(
         va="bottom",
         bbox=dict(boxstyle="round,pad=0.4", facecolor="white", alpha=0.4),
     )
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, vmin=vmin, vmax=vmax)
+    vcenter = np.median(table["FWHM"])
+    norm = TwoSlopeNorm(vmin=vcenter - fwhmRange, vcenter=vcenter, vmax=vcenter + fwhmRange)
+    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, norm=norm)
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
@@ -505,16 +507,14 @@ def makeDofPredictedFWHMPlot(
     # e1 ellipticities
     # predicted e1
     ax = fig.add_subplot(gsRightBottom[3])
-    vals = np.abs(np.concatenate([wavefrontData["e1Interpolated"], table["e1"]]))
-    vmax = np.percentile(vals, maxPercentile)
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
         c=wavefrontData["e1Interpolated"],
         cmap="seismic",
         s=9,
-        vmin=-vmax,
-        vmax=vmax,
+        vmin=-vmaxEllipticities,
+        vmax=vmaxEllipticities,
     )
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
@@ -526,7 +526,15 @@ def makeDofPredictedFWHMPlot(
 
     # Measured e1
     ax = fig.add_subplot(gsRightBottom[4])
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e1"], cmap="seismic", s=9, vmin=-vmax, vmax=vmax)
+    sc = ax.scatter(
+        table["aa_x"],
+        table["aa_y"],
+        c=table["e1"],
+        cmap="seismic",
+        s=9,
+        vmin=-vmaxEllipticities,
+        vmax=vmaxEllipticities,
+    )
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
@@ -562,16 +570,14 @@ def makeDofPredictedFWHMPlot(
     # e2 ellipticities
     # predicted e2
     ax = fig.add_subplot(gsRightBottom[6])
-    vals = np.abs(np.concatenate([wavefrontData["e2Interpolated"], table["e2"]]))
-    vmax = np.percentile(vals, maxPercentile)
     sc = ax.scatter(
         table["aa_x"],
         table["aa_y"],
         c=wavefrontData["e2Interpolated"],
         cmap="seismic",
         s=9,
-        vmin=-vmax,
-        vmax=vmax,
+        vmin=-vmaxEllipticities,
+        vmax=vmaxEllipticities,
     )
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
@@ -583,7 +589,15 @@ def makeDofPredictedFWHMPlot(
 
     # Measured e2
     ax = fig.add_subplot(gsRightBottom[7])
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["e2"], cmap="seismic", s=9, vmin=-vmax, vmax=vmax)
+    sc = ax.scatter(
+        table["aa_x"],
+        table["aa_y"],
+        c=table["e2"],
+        cmap="seismic",
+        s=9,
+        vmin=-vmaxEllipticities,
+        vmax=vmaxEllipticities,
+    )
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
