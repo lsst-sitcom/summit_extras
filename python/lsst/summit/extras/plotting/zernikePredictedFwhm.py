@@ -400,7 +400,8 @@ def makeDofPredictedFWHMPlot(
         f"FWHM p75 = {np.percentile(table['FWHM'], 75):.2f} arcsec\n\n"
         f"e1 p50 = {np.percentile(np.abs(table['e1']), 50):.3f}\n"
         f"e2 p50 = {np.percentile(np.abs(table['e2']), 50):.3f}\n\n"
-        f"Donut blur = {donutBlur:.2f} arcsec\n\n"
+        f"Donut blur = {donutBlur:.2f} arcsec\n"
+        f"Median AOS FWHM = {np.median(wavefrontData['fwhmMeasured']):.2f} arcsec\n\n"
         f"sqrt(fwhm_95 - fwhm_05) = {sqrtFwhm9505:.2f} arcsec\n\n"
         f"⟨FWHM^2_meas - FWHM^2_AOS - blur^2⟩ = {fwhmMetric:.2f} arcsec^2"
     )
