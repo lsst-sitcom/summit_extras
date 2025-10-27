@@ -35,7 +35,6 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 from astropy.table import Table
 from matplotlib import colormaps
-from matplotlib.colors import TwoSlopeNorm
 from matplotlib.patches import Circle
 
 from lsst.utils.plotting.figures import make_figure
@@ -182,7 +181,7 @@ def makeDofPredictedFWHMPlot(
         "\n"
         rf"seq_num = $\bf{{{seqNum}}}$"
         "\n\n"
-        "Degrees of freedom: 5-9,10-16,30-34\n"
+        "Degrees of freedom: 0-9,10-16,30-34\n"
         "Number of v-modes: 12\n"
         f"Zernikes: {nollIndices.tolist()}\n\n"
         "Plots:\n"
@@ -400,7 +399,8 @@ def makeDofPredictedFWHMPlot(
         f"FWHM p75 = {np.percentile(table['FWHM'], 75):.2f} arcsec\n\n"
         f"e1 p50 = {np.percentile(np.abs(table['e1']), 50):.3f}\n"
         f"e2 p50 = {np.percentile(np.abs(table['e2']), 50):.3f}\n\n"
-        f"Donut blur = {donutBlur:.2f} arcsec\n\n"
+        f"Donut blur = {donutBlur:.2f} arcsec\n"
+        f"Median AOS FWHM = {np.median(wavefrontData['fwhmMeasured']):.2f} arcsec\n\n"
         f"sqrt(fwhm_95 - fwhm_05) = {sqrtFwhm9505:.2f} arcsec\n\n"
         f"⟨FWHM^2_meas - FWHM^2_AOS - blur^2⟩ = {fwhmMetric:.2f} arcsec^2"
     )
@@ -435,24 +435,30 @@ def makeDofPredictedFWHMPlot(
     fwhmWithAtm = np.sqrt(wavefrontData["fwhmInterpolated"] ** 2 + donutBlur**2)
     cornersFwhmWithAtm = np.sqrt(wavefrontData["fwhmMeasured"] ** 2 + donutBlur**2)
 
-    vals = np.concatenate([
-        fwhmWithAtm - np.median(fwhmWithAtm),
-        cornersFwhmWithAtm - np.median(cornersFwhmWithAtm),
-        table["FWHM"] - np.median(table["FWHM"])
-    ])
+    vals = np.concatenate(
+        [
+            fwhmWithAtm - np.median(fwhmWithAtm),
+            cornersFwhmWithAtm - np.median(cornersFwhmWithAtm),
+            table["FWHM"] - np.median(table["FWHM"]),
+        ]
+    )
     vmin, vmax = np.percentile(vals, [5, 95])
 
-    sc = ax.scatter(table["aa_x"], table["aa_y"],
-                    c=fwhmWithAtm, s=9,
-                    vmin=vmin + np.median(fwhmWithAtm),
-                    vmax=vmax + np.median(fwhmWithAtm))
+    sc = ax.scatter(
+        table["aa_x"],
+        table["aa_y"],
+        c=fwhmWithAtm,
+        s=9,
+        vmin=vmin + np.median(fwhmWithAtm),
+        vmax=vmax + np.median(fwhmWithAtm),
+    )
     ax.scatter(
         wavefrontData["fieldAngles"][:, 0],
         -wavefrontData["fieldAngles"][:, 1],
         c=cornersFwhmWithAtm,
         s=50,
         vmin=vmin + np.median(cornersFwhmWithAtm),
-        vmax=vmax + np.median(cornersFwhmWithAtm)
+        vmax=vmax + np.median(cornersFwhmWithAtm),
     )
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
@@ -476,10 +482,14 @@ def makeDofPredictedFWHMPlot(
         bbox=dict(boxstyle="round,pad=0.4", facecolor="white", alpha=0.4),
     )
 
-    sc = ax.scatter(table["aa_x"], table["aa_y"],
-                    c=table["FWHM"], s=9,
-                    vmin=vmin + np.median(table["FWHM"]),
-                    vmax=vmax + np.median(table["FWHM"]))
+    sc = ax.scatter(
+        table["aa_x"],
+        table["aa_y"],
+        c=table["FWHM"],
+        s=9,
+        vmin=vmin + np.median(table["FWHM"]),
+        vmax=vmax + np.median(table["FWHM"]),
+    )
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
