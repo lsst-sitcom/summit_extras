@@ -35,7 +35,6 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 from astropy.table import Table
 from matplotlib import colormaps
-from matplotlib.colors import TwoSlopeNorm
 from matplotlib.patches import Circle
 
 from lsst.utils.plotting.figures import make_figure
@@ -182,7 +181,7 @@ def makeDofPredictedFWHMPlot(
         "\n"
         rf"seq_num = $\bf{{{seqNum}}}$"
         "\n\n"
-        "Degrees of freedom: 0-9, 10-16, 30-34\n"
+        "Degrees of freedom: 0-9,10-16,30-34\n"
         "Number of v-modes: 12\n"
         f"Zernikes: {nollIndices.tolist()}\n\n"
         "Plots:\n"
@@ -436,16 +435,30 @@ def makeDofPredictedFWHMPlot(
     fwhmWithAtm = np.sqrt(wavefrontData["fwhmInterpolated"] ** 2 + donutBlur**2)
     cornersFwhmWithAtm = np.sqrt(wavefrontData["fwhmMeasured"] ** 2 + donutBlur**2)
 
-    vcenter = np.median(fwhmWithAtm)
-    norm = TwoSlopeNorm(vmin=vcenter - fwhmRange, vcenter=vcenter, vmax=vcenter + fwhmRange)
+    vals = np.concatenate(
+        [
+            fwhmWithAtm - np.median(fwhmWithAtm),
+            cornersFwhmWithAtm - np.median(cornersFwhmWithAtm),
+            table["FWHM"] - np.median(table["FWHM"]),
+        ]
+    )
+    vmin, vmax = np.percentile(vals, [5, 95])
 
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=fwhmWithAtm, s=9, norm=norm)
+    sc = ax.scatter(
+        table["aa_x"],
+        table["aa_y"],
+        c=fwhmWithAtm,
+        s=9,
+        vmin=vmin + np.median(fwhmWithAtm),
+        vmax=vmax + np.median(fwhmWithAtm),
+    )
     ax.scatter(
         wavefrontData["fieldAngles"][:, 0],
         -wavefrontData["fieldAngles"][:, 1],
         c=cornersFwhmWithAtm,
         s=50,
-        norm=norm,
+        vmin=vmin + np.median(cornersFwhmWithAtm),
+        vmax=vmax + np.median(cornersFwhmWithAtm),
     )
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
@@ -468,9 +481,15 @@ def makeDofPredictedFWHMPlot(
         va="bottom",
         bbox=dict(boxstyle="round,pad=0.4", facecolor="white", alpha=0.4),
     )
-    vcenter = np.median(table["FWHM"])
-    norm = TwoSlopeNorm(vmin=vcenter - fwhmRange, vcenter=vcenter, vmax=vcenter + fwhmRange)
-    sc = ax.scatter(table["aa_x"], table["aa_y"], c=table["FWHM"], s=9, norm=norm)
+
+    sc = ax.scatter(
+        table["aa_x"],
+        table["aa_y"],
+        c=table["FWHM"],
+        s=9,
+        vmin=vmin + np.median(table["FWHM"]),
+        vmax=vmax + np.median(table["FWHM"]),
+    )
     circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
     ax.add_patch(circle)
     cbar = fig.colorbar(sc, ax=ax, shrink=0.7, pad=0.01)
