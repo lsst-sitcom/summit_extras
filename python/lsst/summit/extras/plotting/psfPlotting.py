@@ -421,6 +421,8 @@ def makeFigureAndAxes(nrows=2) -> tuple[Figure, Any]:
 def plotData(
     axs: npt.NDArray[np.object_],
     table: Table,
+    maxPointsPerDetector: int = 60,
+    minPointsPerDetector: int = 5,
     prefix: str = "",
 ) -> None:
     """Plot the data from the table on the provided figure and axes.
@@ -431,15 +433,30 @@ def plotData(
         The array of axes objects to plot on.
     table : `astropy.table.Table`
         The table containing the data to be plotted.
+    maxPointsPerDetector : `int`, optional
+        The maximum number of points per detector to plot. If the number of
+        points in the table is greater than this value, a random subset of
+        points will be plotted.
+    minPointsPerDetector : `int`, optional
+        The minimum number of points per detector to plot. If the number of
+        points in the table is less than this value,
+        all points will be plotted.
     prefix : `str`, optional
         The prefix to be added to the column names of the rotated shapes.
     """
+    table_downsampled = randomRowsPerDetector(table, minPointsPerDetector)
+    table = randomRowsPerDetector(table, maxPointsPerDetector)
+
     x = table[prefix + "x"]
     y = table[prefix + "y"]
     e1 = table[prefix + "e1"]
     e2 = table[prefix + "e2"]
     e = table["e"]
     fwhm = table["FWHM"]
+
+    e1_downsampled = table_downsampled[prefix + "e1"]
+    e2_downsampled = table_downsampled[prefix + "e2"]
+    e_downsampled = table_downsampled["e"]
 
     # Quiver plot
     quiver_kwargs = {
@@ -449,20 +466,22 @@ def plotData(
         "pivot": "middle",
     }
 
-    shape_angle = 0.5 * np.arctan2(e2, e1)  # spin-2
-    Q_shape = axs[0, 0].quiver(x, y, e * np.cos(shape_angle), e * np.sin(shape_angle), **quiver_kwargs)
+    shape_angle = 0.5 * np.arctan2(e2_downsampled, e1_downsampled)  # spin-2
+    Q_shape = axs[0, 0].quiver(
+        x, y, e_downsampled * np.cos(shape_angle), e_downsampled * np.sin(shape_angle), **quiver_kwargs
+    )
     axs[0, 1].quiverkey(Q_shape, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
 
     # FWHM plot
-    cbar = addColorbarToAxes(axs[0, 1].scatter(x, y, c=fwhm, s=5))
+    cbar = addColorbarToAxes(axs[0, 1].scatter(x, y, c=fwhm, s=1))
     cbar.set_label("FWHM [arcsec]")
 
     # Ellipticity plots
     emax = np.quantile(np.abs(np.concatenate([e1, e2])), 0.98)
-    axs[1, 0].scatter(x, y, c=e1, vmin=-emax, vmax=emax, cmap="bwr", s=5)
+    axs[1, 0].scatter(x, y, c=e1, vmin=-emax, vmax=emax, cmap="bwr", s=1)
     axs[1, 0].text(0.05, 0.92, "e1", transform=axs[1, 0].transAxes, fontsize=10)
 
-    cbar = addColorbarToAxes(axs[1, 1].scatter(x, y, c=e2, vmin=-emax, vmax=emax, cmap="bwr", s=5))
+    cbar = addColorbarToAxes(axs[1, 1].scatter(x, y, c=e2, vmin=-emax, vmax=emax, cmap="bwr", s=1))
     cbar.set_label("e")
     axs[1, 1].text(0.89, 0.92, "e2", transform=axs[1, 1].transAxes, fontsize=10)
 
@@ -896,7 +915,8 @@ def makeAzElPlot(
     axs: npt.NDArray[np.object_],
     table: Table,
     camera: Camera,
-    maxPointsPerDetector: int = 5,
+    maxPointsPerDetector: int = 60,
+    minPointsPerDetector: int = 5,
     saveAs: str = "",
 ) -> None:
     """Plot the PSFs on the focal plane, rotated to az/el coordinates.
@@ -931,6 +951,10 @@ def makeAzElPlot(
         The maximum number of points per detector to plot. If the number of
         points in the table is greater than this value, a random subset of
         points will be plotted.
+    minPointsPerDetector : `int`, optional
+        The minimum number of points per detector to plot. If the number of
+        points in the table is less than this value,
+        all points will be plotted.
     saveAs : `str`, optional
         The file path to save the figure.
     """
@@ -939,8 +963,8 @@ def makeAzElPlot(
 
     if "kurtosis" in table.columns and axs.shape[0] > 2:
         plotHigherOrderMomentsData(axs[2, :], table, prefix="aa_")
-    table = randomRowsPerDetector(table, maxPointsPerDetector)
-    plotData(axs[:2, :], table, prefix="aa_")
+
+    plotData(axs[:2, :], table, maxPointsPerDetector, minPointsPerDetector, prefix="aa_")
 
     oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
     plotLimit = 90 * MM_TO_DEG if oneRaftOnly else 90 * MM_TO_DEG * FULL_CAMERA_FACTOR
