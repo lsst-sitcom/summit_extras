@@ -454,6 +454,8 @@ def plotData(
     e = table["e"]
     fwhm = table["FWHM"]
 
+    x_downsampled = table_downsampled[prefix + "x"]
+    y_downsampled = table_downsampled[prefix + "y"]
     e1_downsampled = table_downsampled[prefix + "e1"]
     e2_downsampled = table_downsampled[prefix + "e2"]
     e_downsampled = table_downsampled["e"]
@@ -468,7 +470,11 @@ def plotData(
 
     shape_angle = 0.5 * np.arctan2(e2_downsampled, e1_downsampled)  # spin-2
     Q_shape = axs[0, 0].quiver(
-        x, y, e_downsampled * np.cos(shape_angle), e_downsampled * np.sin(shape_angle), **quiver_kwargs
+        x_downsampled,
+        y_downsampled,
+        e_downsampled * np.cos(shape_angle),
+        e_downsampled * np.sin(shape_angle),
+        **quiver_kwargs,
     )
     axs[0, 1].quiverkey(Q_shape, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
 
