@@ -536,6 +536,7 @@ def plotHigherOrderMomentsData(
     table: Table,
     prefix: str = "",
     binSpacing: float = 0.1,
+    maxPointsPerDetector: int = 5,
 ):
     """Plot coma, trefoil and kurtosis from the table on the provided axes.
 
@@ -549,7 +550,11 @@ def plotHigherOrderMomentsData(
         The prefix to use for the column names in the table.
     binSpacing : `float`, optional
         The spacing between arrows and triangles in the plot.
+    maxPointsPerDetector : `int`, optional
+        The maximum number of points per detector to plot. If the number of
+        points exceeds this value, a random subset will be selected.
     """
+    table = randomRowsPerDetector(table, maxPointsPerDetector)
     x = table[prefix + "x"]
     y = table[prefix + "y"]
     kurtosis = table["kurtosis"]
