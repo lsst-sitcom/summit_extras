@@ -421,6 +421,8 @@ def makeFigureAndAxes(nrows=2) -> tuple[Figure, Any]:
 def plotData(
     axs: npt.NDArray[np.object_],
     table: Table,
+    maxPointsPerDetector: int = 60,
+    minPointsPerDetector: int = 5,
     prefix: str = "",
 ) -> None:
     """Plot the data from the table on the provided figure and axes.
@@ -431,9 +433,20 @@ def plotData(
         The array of axes objects to plot on.
     table : `astropy.table.Table`
         The table containing the data to be plotted.
+    maxPointsPerDetector : `int`, optional
+        The maximum number of points per detector to plot. If the number of
+        points in the table is greater than this value, a random subset of
+        points will be plotted.
+    minPointsPerDetector : `int`, optional
+        The minimum number of points per detector to plot. If the number of
+        points in the table is less than this value,
+        all points will be plotted.
     prefix : `str`, optional
         The prefix to be added to the column names of the rotated shapes.
     """
+    tableDownsampled = randomRowsPerDetector(table, minPointsPerDetector)
+    table = randomRowsPerDetector(table, maxPointsPerDetector)
+
     x = table[prefix + "x"]
     y = table[prefix + "y"]
     e1 = table[prefix + "e1"]
@@ -441,28 +454,40 @@ def plotData(
     e = table["e"]
     fwhm = table["FWHM"]
 
+    xDownsampled = tableDownsampled[prefix + "x"]
+    yDownsampled = tableDownsampled[prefix + "y"]
+    e1Downsampled = tableDownsampled[prefix + "e1"]
+    e2Downsampled = tableDownsampled[prefix + "e2"]
+    eDownsampled = tableDownsampled["e"]
+
     # Quiver plot
-    quiver_kwargs = {
+    quiverKwargs = {
         "headlength": 0,
         "headaxislength": 0,
         "scale": QUIVER_SCALE,
         "pivot": "middle",
     }
 
-    shape_angle = 0.5 * np.arctan2(e2, e1)  # spin-2
-    Q_shape = axs[0, 0].quiver(x, y, e * np.cos(shape_angle), e * np.sin(shape_angle), **quiver_kwargs)
-    axs[0, 1].quiverkey(Q_shape, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
+    shapeAngle = 0.5 * np.arctan2(e2Downsampled, e1Downsampled)  # spin-2
+    qShape = axs[0, 0].quiver(
+        xDownsampled,
+        yDownsampled,
+        eDownsampled * np.cos(shapeAngle),
+        eDownsampled * np.sin(shapeAngle),
+        **quiverKwargs,
+    )
+    axs[0, 1].quiverkey(qShape, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
 
     # FWHM plot
-    cbar = addColorbarToAxes(axs[0, 1].scatter(x, y, c=fwhm, s=5))
+    cbar = addColorbarToAxes(axs[0, 1].scatter(x, y, c=fwhm, s=1))
     cbar.set_label("FWHM [arcsec]")
 
     # Ellipticity plots
     emax = np.quantile(np.abs(np.concatenate([e1, e2])), 0.98)
-    axs[1, 0].scatter(x, y, c=e1, vmin=-emax, vmax=emax, cmap="bwr", s=5)
+    axs[1, 0].scatter(x, y, c=e1, vmin=-emax, vmax=emax, cmap="bwr", s=1)
     axs[1, 0].text(0.05, 0.92, "e1", transform=axs[1, 0].transAxes, fontsize=10)
 
-    cbar = addColorbarToAxes(axs[1, 1].scatter(x, y, c=e2, vmin=-emax, vmax=emax, cmap="bwr", s=5))
+    cbar = addColorbarToAxes(axs[1, 1].scatter(x, y, c=e2, vmin=-emax, vmax=emax, cmap="bwr", s=1))
     cbar.set_label("e")
     axs[1, 1].text(0.89, 0.92, "e2", transform=axs[1, 1].transAxes, fontsize=10)
 
@@ -511,6 +536,7 @@ def plotHigherOrderMomentsData(
     table: Table,
     prefix: str = "",
     binSpacing: float = 0.1,
+    maxPointsPerDetector: int = 5,
 ):
     """Plot coma, trefoil and kurtosis from the table on the provided axes.
 
@@ -524,12 +550,16 @@ def plotHigherOrderMomentsData(
         The prefix to use for the column names in the table.
     binSpacing : `float`, optional
         The spacing between arrows and triangles in the plot.
+    maxPointsPerDetector : `int`, optional
+        The maximum number of points per detector to plot. If the number of
+        points exceeds this value, a random subset will be selected.
     """
+    table = randomRowsPerDetector(table, maxPointsPerDetector)
     x = table[prefix + "x"]
     y = table[prefix + "y"]
     kurtosis = table["kurtosis"]
 
-    quiver_kwargs = {
+    quiverKwargs = {
         "headlength": 5,
         "headaxislength": 5,
         "scale": 1,
@@ -538,42 +568,49 @@ def plotHigherOrderMomentsData(
     }
 
     coords = np.vstack([x, y]).T
-    mean_coma = {}
+    meanComa = {}
     for i in (1, 2):
         binning = meanify(binSpacing)
         binning.add_field(coords, table[f"coma{i}"])
         binning.meanify()
-        mean_coma[i] = binning.params0
+        meanComa[i] = binning.params0
 
-    mean_coma_angle = np.arctan2(mean_coma[2], mean_coma[1])
-    mean_coma_amplitude = np.hypot(mean_coma[2], mean_coma[2])
-    Q_coma = axs[0].quiver(
+    meanComaAngle = np.arctan2(meanComa[2], meanComa[1])
+    meanComaAmplitude = np.hypot(meanComa[2], meanComa[2])
+    qComa = axs[0].quiver(
         binning.coords0[:, 0],
         binning.coords0[:, 1],
-        mean_coma_amplitude * np.cos(mean_coma_angle),
-        mean_coma_amplitude * np.sin(mean_coma_angle),
-        **quiver_kwargs,
+        meanComaAmplitude * np.cos(meanComaAngle),
+        meanComaAmplitude * np.sin(meanComaAngle),
+        **quiverKwargs,
     )
-    axs[0].quiverkey(Q_coma, X=0.1, Y=0.88, U=0.05, label="0.05", labelpos="S")
+    axs[0].quiverkey(qComa, X=0.1, Y=0.88, U=0.05, label="0.05", labelpos="S")
 
-    mean_trefoil = {}
+    meanTrefoil = {}
     for i in (1, 2):
         binning = meanify(binSpacing)
         binning.add_field(coords, table[f"trefoil{i}"])
         binning.meanify()
-        mean_trefoil[i] = binning.params0
+        meanTrefoil[i] = binning.params0
 
-    mean_trefoil_angle = np.arctan2(mean_trefoil[2], mean_trefoil[1]) / 3  # spin-3
-    mean_trefoil_amplitude = np.hypot(mean_trefoil[2], mean_trefoil[1])
-    SCALE_TRIANGLE = 500
-    axs[1].scatter(1.8, 1.7, s=0.1 * SCALE_TRIANGLE, marker=(3, 0, 30), lw=0.1, color="black")
+    meanTrefoilAngle = np.arctan2(meanTrefoil[2], meanTrefoil[1]) / 3  # spin-3
+    meanTrefoilAmplitude = np.hypot(meanTrefoil[2], meanTrefoil[1])
+    scaleTriangle = 500
+    axs[1].scatter(1.8, 1.7, s=0.1 * scaleTriangle, marker=(3, 0, 30), lw=0.1, color="black")
     axs[1].text(1.6, 1.35, "0.1")
-    for idx in range(len(mean_trefoil_amplitude)):
-        _t = mean_trefoil_amplitude[idx]
-        _ta = mean_trefoil_angle[idx] * 180 / np.pi
-        _xcen = binning.coords0[idx, 0]
-        _ycen = binning.coords0[idx, 1]
-        axs[1].scatter(_xcen, _ycen, marker=(3, 0, 30 + _ta), s=_t * SCALE_TRIANGLE, lw=0.1, color="black")
+    for idx in range(len(meanTrefoilAmplitude)):
+        tVal = meanTrefoilAmplitude[idx]
+        trefoilAngleDeg = meanTrefoilAngle[idx] * 180 / np.pi
+        xCenter = binning.coords0[idx, 0]
+        yCenter = binning.coords0[idx, 1]
+        axs[1].scatter(
+            xCenter,
+            yCenter,
+            marker=(3, 0, 30 + trefoilAngleDeg),
+            s=tVal * scaleTriangle,
+            lw=0.1,
+            color="black",
+        )
 
     pos = axs[1].get_position()  # get current position [left, bottom, width, height]
     axs[1].set_position([pos.x0, pos.y0, pos.width * 0.931, pos.height])
@@ -896,7 +933,8 @@ def makeAzElPlot(
     axs: npt.NDArray[np.object_],
     table: Table,
     camera: Camera,
-    maxPointsPerDetector: int = 5,
+    maxPointsPerDetector: int = 60,
+    minPointsPerDetector: int = 5,
     saveAs: str = "",
 ) -> None:
     """Plot the PSFs on the focal plane, rotated to az/el coordinates.
@@ -931,6 +969,10 @@ def makeAzElPlot(
         The maximum number of points per detector to plot. If the number of
         points in the table is greater than this value, a random subset of
         points will be plotted.
+    minPointsPerDetector : `int`, optional
+        The minimum number of points per detector to plot. If the number of
+        points in the table is less than this value,
+        all points will be plotted.
     saveAs : `str`, optional
         The file path to save the figure.
     """
@@ -939,8 +981,8 @@ def makeAzElPlot(
 
     if "kurtosis" in table.columns and axs.shape[0] > 2:
         plotHigherOrderMomentsData(axs[2, :], table, prefix="aa_")
-    table = randomRowsPerDetector(table, maxPointsPerDetector)
-    plotData(axs[:2, :], table, prefix="aa_")
+
+    plotData(axs[:2, :], table, maxPointsPerDetector, minPointsPerDetector, prefix="aa_")
 
     oneRaftOnly = camera.getName() in ["LSSTComCam", "LSSTComCamSim", "TS8"]
     plotLimit = 90 * MM_TO_DEG if oneRaftOnly else 90 * MM_TO_DEG * FULL_CAMERA_FACTOR
