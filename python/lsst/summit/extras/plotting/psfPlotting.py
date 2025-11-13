@@ -479,11 +479,13 @@ def plotData(
     axs[0, 1].quiverkey(qShape, X=0.08, Y=0.95, U=0.2, label="0.2", labelpos="S")
 
     # FWHM plot
-    cbar = addColorbarToAxes(axs[0, 1].scatter(x, y, c=fwhm, s=1))
+    vmin, vmax = np.nanpercentile(fwhm, [5, 95])
+    sc = axs[0, 1].scatter(x, y, c=fwhm, s=1, vmin=vmin, vmax=vmax)
+    cbar = addColorbarToAxes(sc)
     cbar.set_label("FWHM [arcsec]")
 
     # Ellipticity plots
-    emax = np.quantile(np.abs(np.concatenate([e1, e2])), 0.98)
+    emax = np.quantile(np.abs(np.concatenate([e1, e2])), 0.97)
     axs[1, 0].scatter(x, y, c=e1, vmin=-emax, vmax=emax, cmap="bwr", s=1)
     axs[1, 0].text(0.05, 0.92, "e1", transform=axs[1, 0].transAxes, fontsize=10)
 
