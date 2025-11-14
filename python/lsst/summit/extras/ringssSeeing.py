@@ -30,12 +30,8 @@ import pandas as pd
 from astropy.time import Time, TimeDelta
 from matplotlib.dates import DateFormatter, num2date
 
-from lsst.summit.utils.efdUtils import (
-    getDayObsEndTime,
-    getDayObsStartTime,
-    getEfdData,
-    getMostRecentRowWithDataBefore,
-)
+from lsst.summit.utils.dateTime import getDayObsEndTime, getDayObsStartTime
+from lsst.summit.utils.efdUtils import getEfdData, getMostRecentRowWithDataBefore
 from lsst.utils.plotting.figures import make_figure
 
 HAS_EFD_CLIENT = True

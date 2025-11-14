@@ -29,7 +29,8 @@ __all__ = [
 import numpy as np
 from matplotlib.figure import Figure
 
-from lsst.summit.utils.efdUtils import efdTimestampToAstropy, getMostRecentRowWithDataBefore
+from lsst.summit.utils.dateTime import efdTimestampToAstropy
+from lsst.summit.utils.efdUtils import getMostRecentRowWithDataBefore
 
 PLATESCALE = 0.2  # arcsec / pixel
 
