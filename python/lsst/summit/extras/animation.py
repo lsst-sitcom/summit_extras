@@ -45,7 +45,8 @@ from lsst.summit.utils.butlerUtils import (
     makeDefaultLatissButler,
     updateDataIdOrDataCord,
 )
-from lsst.summit.utils.utils import dayObsIntToString, setupLogging
+from lsst.summit.utils.dateTime import dayObsIntToString
+from lsst.summit.utils.utils import setupLogging
 
 logger = logging.getLogger("lsst.summit.extras.animation")
 setupLogging()

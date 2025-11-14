@@ -33,9 +33,9 @@ from matplotlib.patches import Patch
 
 import lsst.daf.butler as dafButler
 import lsst.summit.utils.butlerUtils as butlerUtils
+from lsst.summit.utils.dateTime import dayObsIntToString
 from lsst.summit.utils.efdUtils import getCommands, getEfdData
 from lsst.summit.utils.simonyi.mountData import getAzElRotHexDataForPeriod
-from lsst.summit.utils.utils import dayObsIntToString
 from lsst.utils.plotting.figures import make_figure
 
 if TYPE_CHECKING:
