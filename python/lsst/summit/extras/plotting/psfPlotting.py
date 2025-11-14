@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from astropy.table import Table, vstack
 from matplotlib.gridspec import GridSpec
-from matplotlib.patches import Ellipse, FancyArrowPatch, Polygon
+from matplotlib.patches import Circle, Ellipse, FancyArrowPatch, Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from treegp import meanify
 
@@ -481,16 +481,22 @@ def plotData(
     # FWHM plot
     vmin, vmax = np.nanpercentile(fwhm, [5, 95])
     sc = axs[0, 1].scatter(x, y, c=fwhm, s=1, vmin=vmin, vmax=vmax)
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    axs[0, 1].add_patch(circle)
     cbar = addColorbarToAxes(sc)
     cbar.set_label("FWHM [arcsec]")
 
     # Ellipticity plots
     emax = np.quantile(np.abs(np.concatenate([e1, e2])), 0.97)
     axs[1, 0].scatter(x, y, c=e1, vmin=-emax, vmax=emax, cmap="bwr", s=1)
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    axs[1, 0].add_patch(circle)
     axs[1, 0].text(0.05, 0.92, "e1", transform=axs[1, 0].transAxes, fontsize=10)
 
     cbar = addColorbarToAxes(axs[1, 1].scatter(x, y, c=e2, vmin=-emax, vmax=emax, cmap="bwr", s=1))
     cbar.set_label("e")
+    circle = Circle((0, 0), 1.75, color="red", fill=False, linestyle="--")
+    axs[1, 1].add_patch(circle)
     axs[1, 1].text(0.89, 0.92, "e2", transform=axs[1, 1].transAxes, fontsize=10)
 
     # FWHM hist
