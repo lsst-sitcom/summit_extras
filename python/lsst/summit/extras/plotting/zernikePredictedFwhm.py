@@ -284,6 +284,16 @@ def makeDofPredictedFWHMPlot(
                 frameon=False,
                 ncol=2,  # two columns (one row)
             )
+        if sensor == 0:
+            ax.text(
+                0.4,
+                1.17,
+                "Zernike Deviation @ Corners",
+                transform=ax.transAxes,
+                fontsize=15,
+                va="top",
+                ha="center",
+            )
 
     # ----- Zernike grid across FOV -----
     # -----------------------------------
@@ -402,7 +412,7 @@ def makeDofPredictedFWHMPlot(
         f"Donut blur = {donutBlur:.2f} arcsec\n"
         f"Median AOS FWHM = {np.median(wavefrontData['fwhmMeasured']):.2f} arcsec\n\n"
         f"sqrt(fwhm_95 - fwhm_05) = {sqrtFwhm9505:.2f} arcsec\n\n"
-        f"⟨FWHM^2_meas - FWHM^2_AOS - blur^2⟩ = {fwhmMetric:.2f} arcsec^2"
+        f"⟨FWHM^2_meas - FWHM^2_AOS @ blur⟩ = {fwhmMetric:.2f} arcsec^2"
     )
     wrapped = "\n".join([fill(line, width=40) for line in bodyStr.split("\n")])
     axText.text(
@@ -467,7 +477,7 @@ def makeDofPredictedFWHMPlot(
     cbar.set_label("(arcsec)", fontsize=14)
     ax.set_aspect("equal", "box")
     ax.axis("off")
-    ax.set_title(r"Predicted $\sqrt{ \mathrm{FWHM}_{\mathrm{AOS}}^2 + \mathrm{donut\_blur}^2 }$", fontsize=15)
+    ax.set_title(r"Predicted $\mathrm{FWHM}_{\mathrm{AOS}} \otimes \mathrm{donut\_blur}$ seeing", fontsize=15)
 
     # Measured FWHM
     ax = fig.add_subplot(gsRightBottom[1])
@@ -520,7 +530,7 @@ def makeDofPredictedFWHMPlot(
     ax.set_aspect("equal", "box")
     ax.axis("off")
     ax.set_title(
-        r"$\mathrm{FWHM}_{\mathrm{measured}}^2 - \mathrm{FWHM}_{\mathrm{AOS}}^2 - \mathrm{donut\_blur}^2$",  # noqa: E501
+        r"$\mathrm{FWHM}_{\mathrm{measured}}^2$ - Predicted $\mathrm{FWHM}_{\mathrm{AOS}}^2$",  # noqa: E501
         fontsize=15,
     )
 
